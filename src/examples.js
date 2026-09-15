@@ -76,4 +76,1009 @@ export const examples = [
       ],
     },
   },
+  {
+    id: 'somma-sequenza',
+    title: 'Somma di una sequenza',
+    description: 'Legge N numeri, uno alla volta, e stampa la loro somma.',
+    workspaceState: {
+      "blocks": {
+        "languageVersion": 0,
+        "blocks": [
+          {
+            "type": "program",
+            "id": "p_program",
+            "x": 0,
+            "y": 0,
+            "inputs": {
+              "BODY": {
+                "block": {
+                  "type": "read",
+                  "id": "b_read_n",
+                  "fields": {
+                    "VAR": {
+                      "id": "var_n"
+                    }
+                  },
+                  "next": {
+                    "block": {
+                      "type": "assign",
+                      "id": "b_init_somma",
+                      "fields": {
+                        "VAR": {
+                          "id": "var_somma"
+                        }
+                      },
+                      "inputs": {
+                        "VALUE": {
+                          "block": {
+                            "type": "number_literal",
+                            "id": "b_zero",
+                            "fields": {
+                              "VALUE": 0
+                            }
+                          }
+                        }
+                      },
+                      "next": {
+                        "block": {
+                          "type": "controls_for_simple",
+                          "id": "b_for",
+                          "fields": {
+                            "VAR": {
+                              "id": "var_i"
+                            }
+                          },
+                          "inputs": {
+                            "FROM": {
+                              "block": {
+                                "type": "number_literal",
+                                "id": "b_from",
+                                "fields": {
+                                  "VALUE": 1
+                                }
+                              }
+                            },
+                            "TO": {
+                              "block": {
+                                "type": "variable_get",
+                                "id": "b_to",
+                                "fields": {
+                                  "VAR": {
+                                    "id": "var_n"
+                                  }
+                                }
+                              }
+                            },
+                            "BODY": {
+                              "block": {
+                                "type": "read",
+                                "id": "b_read_valore",
+                                "fields": {
+                                  "VAR": {
+                                    "id": "var_valore"
+                                  }
+                                },
+                                "next": {
+                                  "block": {
+                                    "type": "assign",
+                                    "id": "b_add_somma",
+                                    "fields": {
+                                      "VAR": {
+                                        "id": "var_somma"
+                                      }
+                                    },
+                                    "inputs": {
+                                      "VALUE": {
+                                        "block": {
+                                          "type": "arith_op",
+                                          "id": "b_add",
+                                          "fields": {
+                                            "OP": "ADD"
+                                          },
+                                          "inputs": {
+                                            "A": {
+                                              "block": {
+                                                "type": "variable_get",
+                                                "id": "b_somma_get",
+                                                "fields": {
+                                                  "VAR": {
+                                                    "id": "var_somma"
+                                                  }
+                                                }
+                                              }
+                                            },
+                                            "B": {
+                                              "block": {
+                                                "type": "variable_get",
+                                                "id": "b_valore_get",
+                                                "fields": {
+                                                  "VAR": {
+                                                    "id": "var_valore"
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "next": {
+                            "block": {
+                              "type": "write",
+                              "id": "b_write_somma",
+                              "inputs": {
+                                "VALUE": {
+                                  "block": {
+                                    "type": "variable_get",
+                                    "id": "b_somma_get2",
+                                    "fields": {
+                                      "VAR": {
+                                        "id": "var_somma"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "variables": [
+        {
+          "name": "n",
+          "id": "var_n"
+        },
+        {
+          "name": "somma",
+          "id": "var_somma"
+        },
+        {
+          "name": "i",
+          "id": "var_i"
+        },
+        {
+          "name": "valore",
+          "id": "var_valore"
+        }
+      ]
+    },
+  },
+  {
+    id: 'ricerca-lineare',
+    title: 'Ricerca lineare',
+    description: 'Cerca un valore tra N numeri letti in input, uno alla volta, e stampa la posizione in cui lo trova (0 se non lo trova).',
+    workspaceState: {
+      "blocks": {
+        "languageVersion": 0,
+        "blocks": [
+          {
+            "type": "program",
+            "id": "p_program",
+            "x": 0,
+            "y": 0,
+            "inputs": {
+              "BODY": {
+                "block": {
+                  "type": "read",
+                  "id": "b_read_n",
+                  "fields": {
+                    "VAR": {
+                      "id": "var_n"
+                    }
+                  },
+                  "next": {
+                    "block": {
+                      "type": "read",
+                      "id": "b_read_target",
+                      "fields": {
+                        "VAR": {
+                          "id": "var_target"
+                        }
+                      },
+                      "next": {
+                        "block": {
+                          "type": "assign",
+                          "id": "b_init_pos",
+                          "fields": {
+                            "VAR": {
+                              "id": "var_posizione"
+                            }
+                          },
+                          "inputs": {
+                            "VALUE": {
+                              "block": {
+                                "type": "number_literal",
+                                "id": "b_zero1",
+                                "fields": {
+                                  "VALUE": 0
+                                }
+                              }
+                            }
+                          },
+                          "next": {
+                            "block": {
+                              "type": "assign",
+                              "id": "b_init_i",
+                              "fields": {
+                                "VAR": {
+                                  "id": "var_i"
+                                }
+                              },
+                              "inputs": {
+                                "VALUE": {
+                                  "block": {
+                                    "type": "number_literal",
+                                    "id": "b_one1",
+                                    "fields": {
+                                      "VALUE": 1
+                                    }
+                                  }
+                                }
+                              },
+                              "next": {
+                                "block": {
+                                  "type": "controls_while",
+                                  "id": "b_while",
+                                  "inputs": {
+                                    "COND": {
+                                      "block": {
+                                        "type": "logic_op",
+                                        "id": "b_and",
+                                        "fields": {
+                                          "OP": "AND"
+                                        },
+                                        "inputs": {
+                                          "A": {
+                                            "block": {
+                                              "type": "compare_op",
+                                              "id": "b_lte",
+                                              "fields": {
+                                                "OP": "LTE"
+                                              },
+                                              "inputs": {
+                                                "A": {
+                                                  "block": {
+                                                    "type": "variable_get",
+                                                    "id": "b_i_get1",
+                                                    "fields": {
+                                                      "VAR": {
+                                                        "id": "var_i"
+                                                      }
+                                                    }
+                                                  }
+                                                },
+                                                "B": {
+                                                  "block": {
+                                                    "type": "variable_get",
+                                                    "id": "b_n_get1",
+                                                    "fields": {
+                                                      "VAR": {
+                                                        "id": "var_n"
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          },
+                                          "B": {
+                                            "block": {
+                                              "type": "compare_op",
+                                              "id": "b_eq_zero",
+                                              "fields": {
+                                                "OP": "EQ"
+                                              },
+                                              "inputs": {
+                                                "A": {
+                                                  "block": {
+                                                    "type": "variable_get",
+                                                    "id": "b_pos_get1",
+                                                    "fields": {
+                                                      "VAR": {
+                                                        "id": "var_posizione"
+                                                      }
+                                                    }
+                                                  }
+                                                },
+                                                "B": {
+                                                  "block": {
+                                                    "type": "number_literal",
+                                                    "id": "b_zero2",
+                                                    "fields": {
+                                                      "VALUE": 0
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    },
+                                    "BODY": {
+                                      "block": {
+                                        "type": "read",
+                                        "id": "b_read_valore",
+                                        "fields": {
+                                          "VAR": {
+                                            "id": "var_valore"
+                                          }
+                                        },
+                                        "next": {
+                                          "block": {
+                                            "type": "controls_if_simple",
+                                            "id": "b_if_eq",
+                                            "inputs": {
+                                              "COND": {
+                                                "block": {
+                                                  "type": "compare_op",
+                                                  "id": "b_eq_target",
+                                                  "fields": {
+                                                    "OP": "EQ"
+                                                  },
+                                                  "inputs": {
+                                                    "A": {
+                                                      "block": {
+                                                        "type": "variable_get",
+                                                        "id": "b_valore_get",
+                                                        "fields": {
+                                                          "VAR": {
+                                                            "id": "var_valore"
+                                                          }
+                                                        }
+                                                      }
+                                                    },
+                                                    "B": {
+                                                      "block": {
+                                                        "type": "variable_get",
+                                                        "id": "b_target_get",
+                                                        "fields": {
+                                                          "VAR": {
+                                                            "id": "var_target"
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              },
+                                              "THEN": {
+                                                "block": {
+                                                  "type": "assign",
+                                                  "id": "b_set_pos",
+                                                  "fields": {
+                                                    "VAR": {
+                                                      "id": "var_posizione"
+                                                    }
+                                                  },
+                                                  "inputs": {
+                                                    "VALUE": {
+                                                      "block": {
+                                                        "type": "variable_get",
+                                                        "id": "b_i_get2",
+                                                        "fields": {
+                                                          "VAR": {
+                                                            "id": "var_i"
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            },
+                                            "next": {
+                                              "block": {
+                                                "type": "assign",
+                                                "id": "b_inc_i",
+                                                "fields": {
+                                                  "VAR": {
+                                                    "id": "var_i"
+                                                  }
+                                                },
+                                                "inputs": {
+                                                  "VALUE": {
+                                                    "block": {
+                                                      "type": "arith_op",
+                                                      "id": "b_add_i",
+                                                      "fields": {
+                                                        "OP": "ADD"
+                                                      },
+                                                      "inputs": {
+                                                        "A": {
+                                                          "block": {
+                                                            "type": "variable_get",
+                                                            "id": "b_i_get3",
+                                                            "fields": {
+                                                              "VAR": {
+                                                                "id": "var_i"
+                                                              }
+                                                            }
+                                                          }
+                                                        },
+                                                        "B": {
+                                                          "block": {
+                                                            "type": "number_literal",
+                                                            "id": "b_one2",
+                                                            "fields": {
+                                                              "VALUE": 1
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "next": {
+                                    "block": {
+                                      "type": "write",
+                                      "id": "b_write_pos",
+                                      "inputs": {
+                                        "VALUE": {
+                                          "block": {
+                                            "type": "variable_get",
+                                            "id": "b_pos_get2",
+                                            "fields": {
+                                              "VAR": {
+                                                "id": "var_posizione"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "variables": [
+        {
+          "name": "n",
+          "id": "var_n"
+        },
+        {
+          "name": "target",
+          "id": "var_target"
+        },
+        {
+          "name": "i",
+          "id": "var_i"
+        },
+        {
+          "name": "posizione",
+          "id": "var_posizione"
+        },
+        {
+          "name": "valore",
+          "id": "var_valore"
+        }
+      ]
+    },
+  },
+  {
+    id: 'fattoriale',
+    title: 'Fattoriale',
+    description: 'Calcola il fattoriale di un numero letto in input.',
+    workspaceState: {
+      "blocks": {
+        "languageVersion": 0,
+        "blocks": [
+          {
+            "type": "program",
+            "id": "p_program",
+            "x": 0,
+            "y": 0,
+            "inputs": {
+              "BODY": {
+                "block": {
+                  "type": "read",
+                  "id": "b_read_n",
+                  "fields": {
+                    "VAR": {
+                      "id": "var_n"
+                    }
+                  },
+                  "next": {
+                    "block": {
+                      "type": "assign",
+                      "id": "b_init_fatt",
+                      "fields": {
+                        "VAR": {
+                          "id": "var_fattoriale"
+                        }
+                      },
+                      "inputs": {
+                        "VALUE": {
+                          "block": {
+                            "type": "number_literal",
+                            "id": "b_one",
+                            "fields": {
+                              "VALUE": 1
+                            }
+                          }
+                        }
+                      },
+                      "next": {
+                        "block": {
+                          "type": "controls_for_simple",
+                          "id": "b_for",
+                          "fields": {
+                            "VAR": {
+                              "id": "var_i"
+                            }
+                          },
+                          "inputs": {
+                            "FROM": {
+                              "block": {
+                                "type": "number_literal",
+                                "id": "b_from",
+                                "fields": {
+                                  "VALUE": 1
+                                }
+                              }
+                            },
+                            "TO": {
+                              "block": {
+                                "type": "variable_get",
+                                "id": "b_to",
+                                "fields": {
+                                  "VAR": {
+                                    "id": "var_n"
+                                  }
+                                }
+                              }
+                            },
+                            "BODY": {
+                              "block": {
+                                "type": "assign",
+                                "id": "b_mul_assign",
+                                "fields": {
+                                  "VAR": {
+                                    "id": "var_fattoriale"
+                                  }
+                                },
+                                "inputs": {
+                                  "VALUE": {
+                                    "block": {
+                                      "type": "arith_op",
+                                      "id": "b_mul",
+                                      "fields": {
+                                        "OP": "MUL"
+                                      },
+                                      "inputs": {
+                                        "A": {
+                                          "block": {
+                                            "type": "variable_get",
+                                            "id": "b_fatt_get",
+                                            "fields": {
+                                              "VAR": {
+                                                "id": "var_fattoriale"
+                                              }
+                                            }
+                                          }
+                                        },
+                                        "B": {
+                                          "block": {
+                                            "type": "variable_get",
+                                            "id": "b_i_get",
+                                            "fields": {
+                                              "VAR": {
+                                                "id": "var_i"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "next": {
+                            "block": {
+                              "type": "write",
+                              "id": "b_write_fatt",
+                              "inputs": {
+                                "VALUE": {
+                                  "block": {
+                                    "type": "variable_get",
+                                    "id": "b_fatt_get2",
+                                    "fields": {
+                                      "VAR": {
+                                        "id": "var_fattoriale"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "variables": [
+        {
+          "name": "n",
+          "id": "var_n"
+        },
+        {
+          "name": "fattoriale",
+          "id": "var_fattoriale"
+        },
+        {
+          "name": "i",
+          "id": "var_i"
+        }
+      ]
+    },
+  },
+  {
+    id: 'primalita',
+    title: 'Verifica di primalità elementare',
+    description: 'Controlla se un numero letto in input è primo, provando tutti i possibili divisori.',
+    workspaceState: {
+      "blocks": {
+        "languageVersion": 0,
+        "blocks": [
+          {
+            "type": "program",
+            "id": "p_program",
+            "x": 0,
+            "y": 0,
+            "inputs": {
+              "BODY": {
+                "block": {
+                  "type": "read",
+                  "id": "b_read_n",
+                  "fields": {
+                    "VAR": {
+                      "id": "var_n"
+                    }
+                  },
+                  "next": {
+                    "block": {
+                      "type": "assign",
+                      "id": "b_init_i",
+                      "fields": {
+                        "VAR": {
+                          "id": "var_i"
+                        }
+                      },
+                      "inputs": {
+                        "VALUE": {
+                          "block": {
+                            "type": "number_literal",
+                            "id": "b_two",
+                            "fields": {
+                              "VALUE": 2
+                            }
+                          }
+                        }
+                      },
+                      "next": {
+                        "block": {
+                          "type": "assign",
+                          "id": "b_init_primo",
+                          "fields": {
+                            "VAR": {
+                              "id": "var_primo"
+                            }
+                          },
+                          "inputs": {
+                            "VALUE": {
+                              "block": {
+                                "type": "number_literal",
+                                "id": "b_one1",
+                                "fields": {
+                                  "VALUE": 1
+                                }
+                              }
+                            }
+                          },
+                          "next": {
+                            "block": {
+                              "type": "controls_while",
+                              "id": "b_while",
+                              "inputs": {
+                                "COND": {
+                                  "block": {
+                                    "type": "compare_op",
+                                    "id": "b_lt",
+                                    "fields": {
+                                      "OP": "LT"
+                                    },
+                                    "inputs": {
+                                      "A": {
+                                        "block": {
+                                          "type": "variable_get",
+                                          "id": "b_i_get1",
+                                          "fields": {
+                                            "VAR": {
+                                              "id": "var_i"
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "B": {
+                                        "block": {
+                                          "type": "variable_get",
+                                          "id": "b_n_get1",
+                                          "fields": {
+                                            "VAR": {
+                                              "id": "var_n"
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "BODY": {
+                                  "block": {
+                                    "type": "controls_if_simple",
+                                    "id": "b_if_mod",
+                                    "inputs": {
+                                      "COND": {
+                                        "block": {
+                                          "type": "compare_op",
+                                          "id": "b_eq_zero",
+                                          "fields": {
+                                            "OP": "EQ"
+                                          },
+                                          "inputs": {
+                                            "A": {
+                                              "block": {
+                                                "type": "arith_op",
+                                                "id": "b_mod",
+                                                "fields": {
+                                                  "OP": "MOD"
+                                                },
+                                                "inputs": {
+                                                  "A": {
+                                                    "block": {
+                                                      "type": "variable_get",
+                                                      "id": "b_n_get2",
+                                                      "fields": {
+                                                        "VAR": {
+                                                          "id": "var_n"
+                                                        }
+                                                      }
+                                                    }
+                                                  },
+                                                  "B": {
+                                                    "block": {
+                                                      "type": "variable_get",
+                                                      "id": "b_i_get2",
+                                                      "fields": {
+                                                        "VAR": {
+                                                          "id": "var_i"
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            },
+                                            "B": {
+                                              "block": {
+                                                "type": "number_literal",
+                                                "id": "b_zero",
+                                                "fields": {
+                                                  "VALUE": 0
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "THEN": {
+                                        "block": {
+                                          "type": "assign",
+                                          "id": "b_set_false",
+                                          "fields": {
+                                            "VAR": {
+                                              "id": "var_primo"
+                                            }
+                                          },
+                                          "inputs": {
+                                            "VALUE": {
+                                              "block": {
+                                                "type": "number_literal",
+                                                "id": "b_zero_lit",
+                                                "fields": {
+                                                  "VALUE": 0
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    },
+                                    "next": {
+                                      "block": {
+                                        "type": "assign",
+                                        "id": "b_inc_i",
+                                        "fields": {
+                                          "VAR": {
+                                            "id": "var_i"
+                                          }
+                                        },
+                                        "inputs": {
+                                          "VALUE": {
+                                            "block": {
+                                              "type": "arith_op",
+                                              "id": "b_add",
+                                              "fields": {
+                                                "OP": "ADD"
+                                              },
+                                              "inputs": {
+                                                "A": {
+                                                  "block": {
+                                                    "type": "variable_get",
+                                                    "id": "b_i_get3",
+                                                    "fields": {
+                                                      "VAR": {
+                                                        "id": "var_i"
+                                                      }
+                                                    }
+                                                  }
+                                                },
+                                                "B": {
+                                                  "block": {
+                                                    "type": "number_literal",
+                                                    "id": "b_one2",
+                                                    "fields": {
+                                                      "VALUE": 1
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "next": {
+                                "block": {
+                                  "type": "controls_if_else",
+                                  "id": "b_write_result",
+                                  "inputs": {
+                                    "COND": {
+                                      "block": {
+                                        "type": "compare_op",
+                                        "id": "b_eq_one",
+                                        "fields": {
+                                          "OP": "EQ"
+                                        },
+                                        "inputs": {
+                                          "A": {
+                                            "block": {
+                                              "type": "variable_get",
+                                              "id": "b_primo_get",
+                                              "fields": {
+                                                "VAR": {
+                                                  "id": "var_primo"
+                                                }
+                                              }
+                                            }
+                                          },
+                                          "B": {
+                                            "block": {
+                                              "type": "number_literal",
+                                              "id": "b_one_lit",
+                                              "fields": {
+                                                "VALUE": 1
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    },
+                                    "THEN": {
+                                      "block": {
+                                        "type": "write",
+                                        "id": "b_w1",
+                                        "inputs": {
+                                          "VALUE": {
+                                            "block": {
+                                              "type": "number_literal",
+                                              "id": "b_lit_one",
+                                              "fields": {
+                                                "VALUE": 1
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    },
+                                    "ELSE": {
+                                      "block": {
+                                        "type": "write",
+                                        "id": "b_w0",
+                                        "inputs": {
+                                          "VALUE": {
+                                            "block": {
+                                              "type": "number_literal",
+                                              "id": "b_lit_zero",
+                                              "fields": {
+                                                "VALUE": 0
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "variables": [
+        {
+          "name": "n",
+          "id": "var_n"
+        },
+        {
+          "name": "i",
+          "id": "var_i"
+        },
+        {
+          "name": "primo",
+          "id": "var_primo"
+        }
+      ]
+    },
+  },
 ];

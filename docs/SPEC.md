@@ -28,6 +28,12 @@ rappresentazioni non sarebbero garantite equivalenti.
   vera, condizione valutata prima di ogni iterazione
 - **Iterazione a contatore** (per/for): variabile che va da un valore iniziale a un
   valore finale incluso, passo 1
+- **Iterazione a ripetizione fissa** (ripeti N volte): ripete un numero di volte
+  stabilito, senza esporre un contatore. Aggiunta rispetto al set minimo iniziale:
+  utile per la corrispondenza diretta con esempi "vita reale" del tipo "mescola 3
+  volte il composto", dove non serve sapere a che ripetizione ci si trova. Non
+  sostituisce l'iterazione a contatore, che resta necessaria quando l'algoritmo usa
+  l'indice (es. il fattoriale).
 
 ### Espressioni
 - Valori numerici letterali (solo interi in Fase 1)

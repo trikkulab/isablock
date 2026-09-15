@@ -2,6 +2,12 @@
 
 ## Fase 1 — Editor a blocchi con tre output sincronizzati
 
+**Stato: implementata.** Tutti e cinque gli algoritmi di esempio sono disponibili
+come esempi precaricati nello strumento (oltre al costrutto minimo richiesto, è
+stato aggiunto "ripeti N volte" — vedi `SPEC.md`). Salvataggio/caricamento locale
+presente. Prima di iniziare la Fase 2, resta da validare l'uso in classe come
+indicato sotto.
+
 Obiettivo: uno strumento usabile in classe che copre tutti i costrutti elencati in
 `SPEC.md`, con pseudocodice/C/Python generati in tempo reale dallo stesso algoritmo.
 
