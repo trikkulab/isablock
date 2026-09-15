@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IsaBlock</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="toolbar">
+    <div class="title-block">
+      <h1>IsaBlock</h1>
+      <p class="tagline">Tu metti la logica, il codice lo mettiamo noi.</p>
+    </div>
+    <div class="toolbar-actions">
+      <button id="btnNew" type="button">Nuovo</button>
+      <button id="btnSave" type="button">Salva</button>
+      <button id="btnLoad" type="button">Apri&hellip;</button>
+      <input id="fileInput" type="file" accept="application/json,.json" hidden />
+      <label class="example-picker">
+        Esempio:
+        <select id="exampleSelect">
+          <option value="">&mdash; scegli &mdash;</option>
+        </select>
+      </label>
+    </div>
+  </header>
+
+  <main class="workspace-area">
+    <div id="blocklyDiv"></div>
+
+    <div class="outputs">
+      <div class="tabs" role="tablist">
+        <button class="tab-btn active" data-tab="pseudocode" type="button" role="tab" aria-selected="true">Pseudocodice</button>
+        <button class="tab-btn" data-tab="c" type="button" role="tab" aria-selected="false">C</button>
+        <button class="tab-btn" data-tab="python" type="button" role="tab" aria-selected="false">Python</button>
+      </div>
+      <div class="code-body">
+        <div class="code-panel active" data-tab="pseudocode">
+          <button class="copy-btn" data-copy-target="outputPseudocode" type="button">Copia</button>
+          <pre id="outputPseudocode" class="output-code"></pre>
+        </div>
+        <div class="code-panel" data-tab="c">
+          <button class="copy-btn" data-copy-target="outputC" type="button">Copia</button>
+          <pre id="outputC" class="output-code"></pre>
+        </div>
+        <div class="code-panel" data-tab="python">
+          <button class="copy-btn" data-copy-target="outputPython" type="button">Copia</button>
+          <pre id="outputPython" class="output-code"></pre>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Blockly vendorizzato: file statici, nessuna dipendenza di rete. -->
+  <script src="vendor/blockly/blockly_compressed.js"></script>
+  <script src="vendor/blockly/msg/it.js"></script>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

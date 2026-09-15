@@ -1,4 +1,6 @@
-# Blocchi → Codice
+# IsaBlock
+
+> Tu metti la logica, il codice lo mettiamo noi.
 
 ## Il problema che vogliamo risolvere
 

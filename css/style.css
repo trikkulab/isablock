@@ -1,0 +1,196 @@
+:root {
+  color-scheme: light;
+  --border: #d7dce1;
+  --bg: #f4f6f8;
+  --panel-bg: #ffffff;
+  --text: #1f2933;
+  --accent: #4a6fa5;
+  --code-bg: #12222f;
+  --code-fg: #dce8f0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.title-block {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.toolbar h1 {
+  font-size: 1.1rem;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.tagline {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #52606d;
+  white-space: nowrap;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.toolbar-actions button,
+.toolbar-actions select {
+  font-size: 0.95rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  cursor: pointer;
+}
+
+.toolbar-actions button:hover {
+  background: #eef1f4;
+}
+
+.example-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.workspace-area {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+#blocklyDiv {
+  flex: 1.4;
+  min-width: 0;
+  height: 100%;
+}
+
+.outputs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: var(--code-bg);
+}
+
+.tabs {
+  display: flex;
+  flex: none;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 0.6rem 0.5rem;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #52606d;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+
+.tab-btn:hover {
+  color: var(--text);
+}
+
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.code-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.code-panel {
+  display: none;
+  height: 100%;
+}
+
+.code-panel.active {
+  display: block;
+}
+
+.output-code {
+  height: 100%;
+  margin: 0;
+  padding: 0.9rem 1rem;
+  overflow: auto;
+  box-sizing: border-box;
+  color: var(--code-fg);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre;
+}
+
+.copy-btn {
+  position: absolute;
+  top: 0.6rem;
+  right: 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.3rem 0.65rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--code-fg);
+  cursor: pointer;
+}
+
+.copy-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+@media (max-width: 900px) {
+  .workspace-area {
+    flex-direction: column;
+  }
+  #blocklyDiv {
+    height: 55vh;
+  }
+  .outputs {
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+}
