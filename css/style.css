@@ -86,6 +86,50 @@ body {
   font-size: 0.9rem;
 }
 
+/* --- Barra di esecuzione ------------------------------------------------ */
+.exec-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.exec-bar button {
+  font-size: 0.9rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  cursor: pointer;
+}
+
+.exec-bar button:hover:not(:disabled) {
+  background: #eef1f4;
+}
+
+.exec-bar button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+#btnRun {
+  border-color: #3fa66a;
+  color: #1e6b3f;
+}
+
+#btnStop {
+  border-color: #d9534f;
+  color: #a33328;
+}
+
+.exec-status {
+  font-size: 0.85rem;
+  color: #52606d;
+  margin-left: 0.25rem;
+}
+
 .workspace-area {
   flex: 1;
   display: flex;
@@ -96,6 +140,21 @@ body {
   flex: 1.4;
   min-width: 0;
   height: 100%;
+  transition: opacity 0.15s ease;
+}
+
+#blocklyDiv.exec-locked {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Rinforza l'evidenziazione nativa di Blockly (workspace.highlightBlock),
+   altrimenti troppo tenue rispetto a .exec-highlight nei pannelli di
+   codice: stesso colore, cosi' lo studente riconosce a colpo d'occhio che
+   e' lo stesso "passo" evidenziato in due punti diversi dello schermo. */
+.blocklyHighlighted .blocklyPath {
+  stroke: #f4c95d;
+  stroke-width: 3px;
 }
 
 .outputs {
@@ -180,6 +239,89 @@ body {
 
 .copy-btn:hover {
   background: rgba(255, 255, 255, 0.18);
+}
+
+/* --- Evidenziazione del blocco in esecuzione nei pannelli di codice ---- */
+.exec-highlight {
+  background: #f4c95d;
+  color: #12222f;
+  border-radius: 3px;
+  padding: 0 2px;
+  margin: 0 -2px;
+}
+
+/* --- Scheda "Esecuzione" (console) ------------------------------------- */
+.run-panel.active {
+  display: flex;
+  flex-direction: column;
+}
+
+.run-console {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.9rem 1rem;
+  color: var(--code-fg);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.run-line {
+  white-space: pre-wrap;
+}
+
+.run-line.run-output::before {
+  content: "→ ";
+  opacity: 0.7;
+}
+
+.run-line.run-input {
+  color: #8fd0ff;
+}
+
+.run-line.run-error {
+  color: #ff9d8a;
+  font-weight: 600;
+}
+
+.run-input-form {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  background: rgba(255, 255, 255, 0.06);
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--code-fg);
+  font-size: 0.85rem;
+}
+
+.run-input-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--code-fg);
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.run-input-form button {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.3rem 0.65rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--code-fg);
+  cursor: pointer;
+}
+
+.run-input-form button:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 
 /* --- Notifica toast --------------------------------------------------- */

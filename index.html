@@ -26,6 +26,13 @@
     </div>
   </header>
 
+  <div class="exec-bar">
+    <button id="btnRun" type="button">▶ Esegui</button>
+    <button id="btnStep" type="button">⏭ Passo</button>
+    <button id="btnStop" type="button" disabled>⏹ Interrompi</button>
+    <span id="execStatus" class="exec-status">Pronto</span>
+  </div>
+
   <main class="workspace-area">
     <div id="blocklyDiv"></div>
 
@@ -34,6 +41,7 @@
         <button class="tab-btn active" data-tab="pseudocode" type="button" role="tab" aria-selected="true">Pseudocodice</button>
         <button class="tab-btn" data-tab="c" type="button" role="tab" aria-selected="false">C</button>
         <button class="tab-btn" data-tab="python" type="button" role="tab" aria-selected="false">Python</button>
+        <button class="tab-btn" data-tab="run" type="button" role="tab" aria-selected="false">Esecuzione</button>
       </div>
       <div class="code-body">
         <div class="code-panel active" data-tab="pseudocode">
@@ -47,6 +55,14 @@
         <div class="code-panel" data-tab="python">
           <button class="copy-btn" data-copy-target="outputPython" type="button">Copia</button>
           <pre id="outputPython" class="output-code"></pre>
+        </div>
+        <div class="code-panel run-panel" data-tab="run">
+          <div id="runConsole" class="run-console"></div>
+          <form id="runInputForm" class="run-input-form" hidden>
+            <label for="runInputField">Valore per LEGGI:</label>
+            <input id="runInputField" type="text" inputmode="numeric" autocomplete="off" />
+            <button type="submit">Invia</button>
+          </form>
         </div>
       </div>
     </div>

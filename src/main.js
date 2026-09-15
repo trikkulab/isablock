@@ -3,9 +3,11 @@ import { toolbox } from './blocks/toolbox.js';
 import { createPseudocodeGenerator } from './codegen/pseudocode.js';
 import { createCGenerator } from './codegen/c.js';
 import { createPythonGenerator } from './codegen/python.js';
+import { extractSourceMap } from './codegen/common.js';
 import { pseudocodeConfig } from './pseudocode-config.js';
 import { saveWorkspaceToFile, loadWorkspaceFromFile } from './persistence.js';
 import { examples } from './examples.js';
+import { runProgram, ExecutionError } from './runtime/interpreter.js';
 
 const Blockly = window.Blockly;
 
@@ -22,14 +24,58 @@ const pseudocodeGen = createPseudocodeGenerator(Blockly, pseudocodeConfig);
 const cGen = createCGenerator(Blockly, pseudocodeConfig);
 const pythonGen = createPythonGenerator(Blockly, pseudocodeConfig);
 
+// Attiva la source map blocco->testo (vedi src/codegen/common.js): serve a
+// evidenziare la riga corrispondente al blocco in esecuzione, senza mai
+// eseguire il testo generato.
+pseudocodeGen.sourceMap = true;
+cGen.sourceMap = true;
+pythonGen.sourceMap = true;
+
 const outputPseudocode = document.getElementById('outputPseudocode');
 const outputC = document.getElementById('outputC');
 const outputPython = document.getElementById('outputPython');
 
+// Testo pulito e mappa blockId -> {start, end} per ciascun output,
+// ricalcolati ad ogni modifica del workspace; usati sia per la
+// visualizzazione normale sia per l'evidenziazione durante l'esecuzione.
+let outputTexts = { pseudocode: '', c: '', python: '' };
+let sourceMaps = { pseudocode: new Map(), c: new Map(), python: new Map() };
+
+// blockId attualmente in esecuzione (null quando non si sta eseguendo):
+// e' lo stato condiviso che lega l'evidenziazione dei blocchi Blockly a
+// quella dei tre pannelli di codice, indipendentemente da quale scheda e'
+// aperta in un dato momento.
+let currentBlockId = null;
+
+function escapeHtml(text) {
+  return text.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+}
+
+function renderCodePanel(el, text, range) {
+  if (!range) {
+    el.textContent = text;
+    return;
+  }
+  el.innerHTML =
+    escapeHtml(text.slice(0, range.start)) +
+    `<mark class="exec-highlight">${escapeHtml(text.slice(range.start, range.end))}</mark>` +
+    escapeHtml(text.slice(range.end));
+  el.querySelector('.exec-highlight').scrollIntoView({ block: 'nearest' });
+}
+
+function renderAllPanels() {
+  renderCodePanel(outputPseudocode, outputTexts.pseudocode, currentBlockId && sourceMaps.pseudocode.get(currentBlockId));
+  renderCodePanel(outputC, outputTexts.c, currentBlockId && sourceMaps.c.get(currentBlockId));
+  renderCodePanel(outputPython, outputTexts.python, currentBlockId && sourceMaps.python.get(currentBlockId));
+}
+
 function updateOutputs() {
-  outputPseudocode.textContent = pseudocodeGen.workspaceToCode(workspace);
-  outputC.textContent = cGen.workspaceToCode(workspace);
-  outputPython.textContent = pythonGen.workspaceToCode(workspace);
+  const pseudo = extractSourceMap(pseudocodeGen.workspaceToCode(workspace));
+  const c = extractSourceMap(cGen.workspaceToCode(workspace));
+  const python = extractSourceMap(pythonGen.workspaceToCode(workspace));
+  outputTexts = { pseudocode: pseudo.text, c: c.text, python: python.text };
+  sourceMaps = { pseudocode: pseudo.ranges, c: c.ranges, python: python.ranges };
+  renderAllPanels();
 }
 
 // Il blocco "program" e' il contenitore fisso (INIZIO/FINE) richiesto
@@ -172,4 +218,145 @@ exampleSelect.addEventListener('change', () => {
   enforceProgramBlock();
   updateOutputs();
   showToast(`Esempio "${example.title}" caricato`, 'success');
+});
+
+// --- Esecuzione a blocchi -------------------------------------------------
+// L'unico "motore" che gira davvero e' l'interprete (src/runtime/interpreter.js),
+// che cammina l'albero di blocchi. I tre pannelli di codice non vengono mai
+// eseguiti: si limitano a evidenziare, tramite la source map, la porzione di
+// testo che corrisponde al blockId corrente - lo stesso stato condiviso da
+// cui dipende anche l'evidenziazione del blocco nel canvas Blockly.
+const btnRun = document.getElementById('btnRun');
+const btnStep = document.getElementById('btnStep');
+const btnStop = document.getElementById('btnStop');
+const execStatus = document.getElementById('execStatus');
+const blocklyDiv = document.getElementById('blocklyDiv');
+const runConsole = document.getElementById('runConsole');
+const runInputForm = document.getElementById('runInputForm');
+const runInputField = document.getElementById('runInputField');
+
+const RUN_STEP_DELAY_MS = 350;
+
+let execGenerator = null;
+let execRunning = false; // true = esecuzione continua ("Esegui"), false = passo singolo o in pausa
+let execTimer = null;
+
+function appendConsoleLine(text, className) {
+  const line = document.createElement('div');
+  line.className = className ? `run-line ${className}` : 'run-line';
+  line.textContent = text;
+  runConsole.appendChild(line);
+  runConsole.scrollTop = runConsole.scrollHeight;
+}
+
+function setWorkspaceLocked(locked) {
+  blocklyDiv.classList.toggle('exec-locked', locked);
+  document.getElementById('btnNew').disabled = locked;
+  document.getElementById('btnLoad').disabled = locked;
+  exampleSelect.disabled = locked;
+}
+
+function updateExecButtons() {
+  const active = execGenerator !== null;
+  btnStop.disabled = !active;
+  // In esecuzione continua i due comandi "manuali" restano disabilitati
+  // finche' non arriva una pausa (fine ciclo di setTimeout o attesa LEGGI).
+  btnRun.disabled = active && execRunning;
+  btnStep.disabled = active && execRunning;
+}
+
+function stopExecution(statusText) {
+  clearTimeout(execTimer);
+  execGenerator = null;
+  execRunning = false;
+  currentBlockId = null;
+  workspace.highlightBlock(null);
+  renderAllPanels();
+  runInputForm.hidden = true;
+  setWorkspaceLocked(false);
+  execStatus.textContent = statusText || 'Pronto';
+  updateExecButtons();
+}
+
+function startExecution() {
+  const programBlock = workspace.getTopBlocks(false).find((b) => b.type === 'program');
+  if (!programBlock) return;
+  runConsole.innerHTML = '';
+  runInputForm.hidden = true;
+  const io = {
+    stepCount: 0,
+    onOutput: (value) => appendConsoleLine(String(value), 'run-output'),
+  };
+  execGenerator = runProgram(programBlock, io);
+  setWorkspaceLocked(true);
+}
+
+// Fa avanzare l'interprete di un passo (un solo yield). inputValue viene
+// passato a generator.next(...) per sbloccare un LEGGI in attesa.
+function advance(inputValue) {
+  let result;
+  try {
+    result = execGenerator.next(inputValue);
+  } catch (err) {
+    if (!(err instanceof ExecutionError)) throw err;
+    appendConsoleLine(err.message, 'run-error');
+    showToast(err.message, 'error');
+    stopExecution('Interrotto');
+    return;
+  }
+
+  if (result.done) {
+    stopExecution('Esecuzione terminata');
+    return;
+  }
+
+  const event = result.value;
+  currentBlockId = event.blockId;
+  workspace.highlightBlock(event.blockId);
+  renderAllPanels();
+
+  if (event.awaitingInput) {
+    execRunning = false;
+    execStatus.textContent = 'In attesa di un valore da LEGGI…';
+    runInputForm.hidden = false;
+    runInputField.value = '';
+    runInputField.focus();
+    updateExecButtons();
+    return;
+  }
+
+  runInputForm.hidden = true;
+  if (execRunning) {
+    execStatus.textContent = 'In esecuzione…';
+    execTimer = setTimeout(() => advance(), RUN_STEP_DELAY_MS);
+  } else {
+    execStatus.textContent = 'In pausa — Passo per continuare';
+  }
+  updateExecButtons();
+}
+
+btnRun.addEventListener('click', () => {
+  execRunning = true;
+  if (!execGenerator) startExecution();
+  advance();
+});
+
+btnStep.addEventListener('click', () => {
+  execRunning = false;
+  if (!execGenerator) startExecution();
+  advance();
+});
+
+btnStop.addEventListener('click', () => stopExecution());
+
+runInputForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const raw = runInputField.value.trim();
+  if (!/^-?\d+$/.test(raw)) {
+    showToast('Inserisci un numero intero', 'error');
+    return;
+  }
+  appendConsoleLine(`LEGGI → ${raw}`, 'run-input');
+  runInputForm.hidden = true;
+  advance(parseInt(raw, 10));
 });
