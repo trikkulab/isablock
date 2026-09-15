@@ -62,6 +62,12 @@ export function createPseudocodeGenerator(Blockly, cfg) {
     return `${cfg.FOR} ${varName(variable)} ${cfg.FROM} ${from} ${cfg.TO} ${to}\n${body}${cfg.END_FOR}\n`;
   };
 
+  gen.forBlock['repeat_times'] = function (block, generator) {
+    const times = generator.valueToCode(block, 'TIMES', Order.NONE) || cfg.MISSING_VALUE;
+    const body = generator.statementToCode(block, 'BODY');
+    return `${cfg.REPEAT} ${times} ${cfg.TIMES}\n${body}${cfg.END_REPEAT}\n`;
+  };
+
   gen.forBlock['number_literal'] = function (block) {
     return [String(block.getFieldValue('VALUE')), Order.ATOMIC];
   };

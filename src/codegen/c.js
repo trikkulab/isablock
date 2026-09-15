@@ -89,6 +89,20 @@ export function createCGenerator(Blockly, cfg) {
     return `for (${v} = ${from}; ${v} <= ${to}; ${v}++) {\n${body}}\n`;
   };
 
+  gen.forBlock['repeat_times'] = function (block, generator) {
+    const times = generator.valueToCode(block, 'TIMES', Order.NONE) || cfg.MISSING_VALUE;
+    // Contatore anonimo, dichiarato dentro il ciclo stesso (non tra le
+    // variabili dello studente in cima a main): "ripeti N volte" non
+    // espone alcun indice, quindi il nome non deve comparire altrove.
+    // Il numero di annidamento evita collisioni tra "ripeti" annidati.
+    const depth = (generator.repeatDepth || 0) + 1;
+    const counter = depth === 1 ? '_i' : `_i${depth}`;
+    generator.repeatDepth = depth;
+    const body = generator.statementToCode(block, 'BODY');
+    generator.repeatDepth = depth - 1;
+    return `for (int ${counter} = 0; ${counter} < ${times}; ${counter}++) {\n${body}}\n`;
+  };
+
   gen.forBlock['number_literal'] = function (block) {
     return [String(block.getFieldValue('VALUE')), Order.ATOMIC];
   };

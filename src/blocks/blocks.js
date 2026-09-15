@@ -113,6 +113,19 @@ const blockDefinitions = [
     colour: COLOR_STATEMENT,
     tooltip: 'Iterazione a contatore, da un valore iniziale a un valore finale incluso, passo 1',
   },
+  {
+    type: 'repeat_times',
+    message0: 'RIPETI %1 VOLTE',
+    args0: [{ type: 'input_value', name: 'TIMES', check: 'Number' }],
+    message1: '%1',
+    args1: [{ type: 'input_statement', name: 'BODY' }],
+    message2: 'FINE RIPETI',
+    inputsInline: true,
+    previousStatement: null,
+    nextStatement: null,
+    colour: COLOR_STATEMENT,
+    tooltip: 'Ripete le istruzioni un numero di volte fissato, senza bisogno di un contatore',
+  },
 
   // --- Espressioni numeriche -------------------------------------------
   {

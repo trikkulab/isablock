@@ -86,6 +86,12 @@ export function createPythonGenerator(Blockly, cfg) {
     return `for ${v} in range(${from}, ${to} + 1):\n${body}`;
   };
 
+  gen.forBlock['repeat_times'] = function (block, generator) {
+    const times = generator.valueToCode(block, 'TIMES', Order.NONE) || cfg.MISSING_VALUE;
+    const body = bodyOrPass(generator.statementToCode(block, 'BODY'), generator.INDENT);
+    return `for _ in range(${times}):\n${body}`;
+  };
+
   gen.forBlock['number_literal'] = function (block) {
     return [String(block.getFieldValue('VALUE')), Order.ATOMIC];
   };

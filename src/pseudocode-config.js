@@ -23,6 +23,10 @@ export const pseudocodeConfig = {
   TO: 'A',
   END_FOR: 'FINE PER',
 
+  REPEAT: 'RIPETI',
+  TIMES: 'VOLTE',
+  END_REPEAT: 'FINE RIPETI',
+
   AND: 'E',
   OR: 'O',
   NOT: 'NON',
