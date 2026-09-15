@@ -67,16 +67,48 @@ workspace.addChangeListener((event) => {
 enforceProgramBlock();
 updateOutputs();
 
+// --- Notifica toast ------------------------------------------------------
+const toast = document.getElementById('toast');
+let toastTimer = null;
+function showToast(message, type = 'info') {
+  clearTimeout(toastTimer);
+  toast.textContent = message;
+  toast.className = `toast show ${type}`;
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+}
+
+// --- Modale di benvenuto (solo al primo utilizzo) -------------------------
+const welcomeModal = document.getElementById('welcomeModal');
+const WELCOME_SEEN_KEY = 'isablock-welcome-seen';
+try {
+  if (!window.localStorage.getItem(WELCOME_SEEN_KEY)) {
+    welcomeModal.hidden = false;
+  }
+} catch {
+  // Storage non disponibile (es. navigazione privata): non e' grave,
+  // semplicemente la modale potrebbe ricomparire ad ogni visita.
+}
+document.getElementById('welcomeAcceptBtn').addEventListener('click', () => {
+  welcomeModal.hidden = true;
+  try {
+    window.localStorage.setItem(WELCOME_SEEN_KEY, '1');
+  } catch {
+    // vedi sopra
+  }
+});
+
 // --- Barra dei comandi ------------------------------------------------
 document.getElementById('btnNew').addEventListener('click', () => {
   if (!window.confirm('Cancellare il programma corrente e ricominciare da zero?')) return;
   workspace.clear();
   enforceProgramBlock();
   updateOutputs();
+  showToast('Nuovo programma creato', 'success');
 });
 
 document.getElementById('btnSave').addEventListener('click', () => {
   saveWorkspaceToFile(Blockly, workspace);
+  showToast('Programma salvato', 'success');
 });
 
 const fileInput = document.getElementById('fileInput');
@@ -89,9 +121,10 @@ fileInput.addEventListener('change', () => {
     .then(() => {
       enforceProgramBlock();
       updateOutputs();
+      showToast('Programma caricato', 'success');
     })
     .catch(() => {
-      window.alert('Il file scelto non e’ un programma valido.');
+      showToast('Il file scelto non è un programma valido', 'error');
     });
 });
 
@@ -138,4 +171,5 @@ exampleSelect.addEventListener('change', () => {
   Blockly.serialization.workspaces.load(example.workspaceState, workspace);
   enforceProgramBlock();
   updateOutputs();
+  showToast(`Esempio "${example.title}" caricato`, 'success');
 });

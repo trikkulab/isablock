@@ -52,6 +52,19 @@
     </div>
   </main>
 
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <div id="welcomeModal" class="modal" hidden>
+    <div class="modal-box">
+      <h2>Benvenuto su IsaBlock</h2>
+      <p>Componi un algoritmo trascinando i blocchi dalla tavolozza a sinistra dentro il blocco INIZIO&hellip;FINE. Pseudocodice, C e Python si aggiornano da soli a destra, sempre coerenti tra loro.</p>
+      <p>Non hai mai programmato prima? Nessun problema: carica l'esempio precaricato dal menu in alto per vedere subito come funziona, poi prova a modificarlo.</p>
+      <div class="modal-actions">
+        <button id="welcomeAcceptBtn" class="modal-btn primary" type="button">Ho capito, iniziamo</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Blockly vendorizzato: file statici, nessuna dipendenza di rete. -->
   <script src="vendor/blockly/blockly_compressed.js"></script>
   <script src="vendor/blockly/msg/it.js"></script>
