@@ -68,6 +68,10 @@ export function createPseudocodeGenerator(Blockly, cfg) {
     return `${cfg.REPEAT} ${times} ${cfg.TIMES}\n${body}${cfg.END_REPEAT}\n`;
   };
 
+  gen.forBlock['comment_line'] = function (block) {
+    return `${cfg.COMMENT} ${block.getFieldValue('TEXT')}\n`;
+  };
+
   gen.forBlock['number_literal'] = function (block) {
     return [String(block.getFieldValue('VALUE')), Order.ATOMIC];
   };

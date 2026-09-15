@@ -34,6 +34,10 @@ rappresentazioni non sarebbero garantite equivalenti.
   volte il composto", dove non serve sapere a che ripetizione ci si trova. Non
   sostituisce l'iterazione a contatore, che resta necessaria quando l'algoritmo usa
   l'indice (es. il fattoriale).
+- **Commento**: riga di testo libero senza alcun effetto sull'esecuzione. Aggiunta
+  rispetto al set minimo iniziale, per abituare da subito alla pratica di documentare
+  il codice. Tradotto nella sintassi di commento reale di ciascun linguaggio (`//` in
+  pseudocodice e C, `#` in Python), non solo come annotazione dell'editor.
 
 ### Espressioni
 - Valori numerici letterali (solo interi in Fase 1)

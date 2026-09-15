@@ -60,5 +60,11 @@ export const toolbox = {
         { kind: 'block', type: 'repeat_times' },
       ],
     },
+    {
+      kind: 'category',
+      name: 'Commenti',
+      colour: '#8a94a6',
+      contents: [{ kind: 'block', type: 'comment_line' }],
+    },
   ],
 };

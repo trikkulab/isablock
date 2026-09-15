@@ -46,6 +46,8 @@ export const pseudocodeConfig = {
   DIV: '÷',
   MOD: 'mod',
 
+  COMMENT: '//',
+
   INDENT: '   ',
 
   // Segnaposto mostrati quando un blocco ha uno slot vuoto: rendono

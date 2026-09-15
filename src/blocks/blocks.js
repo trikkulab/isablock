@@ -12,6 +12,7 @@ export const COLOR_PROGRAM = '#5b6770';
 export const COLOR_STATEMENT = '#4a6fa5';
 export const COLOR_NUMBER = '#e0a458';
 export const COLOR_BOOLEAN = '#c1666b';
+export const COLOR_COMMENT = '#8a94a6';
 
 const blockDefinitions = [
   // --- Struttura -----------------------------------------------------
@@ -125,6 +126,17 @@ const blockDefinitions = [
     nextStatement: null,
     colour: COLOR_STATEMENT,
     tooltip: 'Ripete le istruzioni un numero di volte fissato, senza bisogno di un contatore',
+  },
+
+  // --- Commenti ----------------------------------------------------------
+  {
+    type: 'comment_line',
+    message0: '// %1',
+    args0: [{ type: 'field_input', name: 'TEXT', text: 'commento' }],
+    previousStatement: null,
+    nextStatement: null,
+    colour: COLOR_COMMENT,
+    tooltip: 'Nota per chi legge il codice: non ha alcun effetto sull’esecuzione',
   },
 
   // --- Espressioni numeriche -------------------------------------------

@@ -103,6 +103,15 @@ export function createCGenerator(Blockly, cfg) {
     return `for (int ${counter} = 0; ${counter} < ${times}; ${counter}++) {\n${body}}\n`;
   };
 
+  gen.forBlock['comment_line'] = function (block) {
+    // Un backslash a fine riga in un commento "//" unisce la riga
+    // successiva al commento (line-splicing del preprocessore C): lo
+    // rimuoviamo per evitare che una riga di codice sparisca in modo
+    // silenzioso e sorprendente.
+    const text = block.getFieldValue('TEXT').replace(/\\+$/, '');
+    return `// ${text}\n`;
+  };
+
   gen.forBlock['number_literal'] = function (block) {
     return [String(block.getFieldValue('VALUE')), Order.ATOMIC];
   };

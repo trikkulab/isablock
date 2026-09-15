@@ -92,6 +92,10 @@ export function createPythonGenerator(Blockly, cfg) {
     return `for _ in range(${times}):\n${body}`;
   };
 
+  gen.forBlock['comment_line'] = function (block) {
+    return `# ${block.getFieldValue('TEXT')}\n`;
+  };
+
   gen.forBlock['number_literal'] = function (block) {
     return [String(block.getFieldValue('VALUE')), Order.ATOMIC];
   };
