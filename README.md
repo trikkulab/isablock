@@ -39,8 +39,11 @@ Il dettaglio dei requisiti è in `docs/SPEC.md`. Le fasi di sviluppo previste so
 
 ## Cosa NON deve fare (almeno inizialmente)
 
-- Non deve compilare o eseguire davvero il codice generato — è uno strumento di
-  visualizzazione/traduzione, non un IDE.
+- Non deve compilare o eseguire davvero il C o il Python generati — è uno
+  strumento di visualizzazione/traduzione, non un IDE. (È invece presente
+  un'esecuzione passo-passo del *programma a blocchi*, che mostra la logica in
+  azione evidenziando in sincrono i tre output: guida la lettura del codice,
+  non lo esegue.)
 - Non deve richiedere account, login o salvataggio lato server nella prima fase.
 - Non deve introdurre concetti di tipo (stringhe, virgola mobile) nella prima fase:
   tutte le variabili sono numeri interi, per tenere il focus sulla logica di

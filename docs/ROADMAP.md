@@ -5,8 +5,12 @@
 **Stato: implementata.** Tutti e cinque gli algoritmi di esempio sono disponibili
 come esempi precaricati nello strumento (oltre al costrutto minimo richiesto, è
 stato aggiunto "ripeti N volte" — vedi `SPEC.md`). Salvataggio/caricamento locale
-presente. Prima di iniziare la Fase 2, resta da validare l'uso in classe come
-indicato sotto.
+presente. Aggiunta anche un'esecuzione passo-passo del programma a blocchi (tasti
+Esegui/Passo), che evidenzia in tempo reale sia il blocco attivo sia la riga
+corrispondente in ciascuno dei tre output: esegue il modello a blocchi, non il
+testo generato — non è quindi in contraddizione con "Cosa NON deve fare" in
+`README.md`, che riguarda l'esecuzione reale di C/Python. Prima di iniziare la
+Fase 2, resta da validare l'uso in classe come indicato sotto.
 
 Obiettivo: uno strumento usabile in classe che copre tutti i costrutti elencati in
 `SPEC.md`, con pseudocodice/C/Python generati in tempo reale dallo stesso algoritmo.
@@ -51,7 +55,9 @@ il bisogno reale:
 - Tipi di dato oltre agli interi (stringhe, numeri decimali) — come blocchi distinti,
   vedi nota in SPEC.md
 - Funzioni/procedure definite dallo studente
-- Esecuzione reale del codice generato (Python è il candidato più semplice da
+- Esecuzione reale del codice generato in C/Python (distinta dall'esecuzione a
+  blocchi già presente in Fase 1: qui si intende compilare/interpretare
+  davvero il testo C o Python prodotto — Python è il candidato più semplice da
   eseguire direttamente nel browser; C richiede un compilatore, quindi più complesso)
 - Libreria di esempi precaricati più ampia, per costruire una piccola progressione
   didattica dentro lo strumento stesso
