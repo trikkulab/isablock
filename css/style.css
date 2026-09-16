@@ -7,6 +7,16 @@
   --accent: #4a6fa5;
   --code-bg: #12222f;
   --code-fg: #dce8f0;
+
+  /* Colorazione sintattica dei tre pannelli di output (vedi
+     src/codegen/highlight.js): pochi colori distinti, coerenti sui tre
+     linguaggi, cosi' lo stesso costrutto si riconosce a colpo d'occhio
+     passando da uno all'altro. */
+  --tok-keyword: #7fb2f0;
+  --tok-number: #f2b880;
+  --tok-string: #a8d98f;
+  --tok-comment: #8296a6;
+  --tok-builtin: #d9a8f0;
 }
 
 * {
@@ -186,6 +196,51 @@ body {
   stroke-width: 3px;
 }
 
+/* --- Separatori trascinabili (solo vista desktop, vedi media query in
+   fondo al file) --------------------------------------------------------- */
+.splitter {
+  flex: none;
+  position: relative;
+  background: var(--border);
+  touch-action: none;
+}
+
+.splitter::after {
+  content: "";
+  position: absolute;
+}
+
+.splitter-vertical {
+  width: 5px;
+  cursor: col-resize;
+}
+
+.splitter-vertical::after {
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  right: -4px;
+}
+
+.splitter-horizontal {
+  height: 5px;
+  cursor: row-resize;
+}
+
+.splitter-horizontal::after {
+  left: 0;
+  right: 0;
+  top: -4px;
+  bottom: -4px;
+}
+
+.splitter:hover,
+.splitter:focus-visible,
+.splitter.dragging {
+  background: var(--accent);
+  outline: none;
+}
+
 .outputs {
   flex: 1;
   min-width: 0;
@@ -270,6 +325,18 @@ body {
   background: rgba(255, 255, 255, 0.18);
 }
 
+/* --- Colorazione sintattica ---------------------------------------------
+   Classi applicate dal tokenizzatore in src/codegen/highlight.js: stesse
+   categorie (parola chiave, numero, stringa, commento, funzione di
+   libreria) sui tre output, per farli restare confrontabili a colpo
+   d'occhio. */
+.tok-keyword { color: var(--tok-keyword); }
+.tok-number { color: var(--tok-number); }
+.tok-string,
+.tok-preprocessor { color: var(--tok-string); }
+.tok-comment { color: var(--tok-comment); font-style: italic; }
+.tok-builtin { color: var(--tok-builtin); }
+
 /* --- Evidenziazione del blocco in esecuzione nei pannelli di codice ---- */
 .exec-highlight {
   background: #f4c95d;
@@ -277,6 +344,13 @@ body {
   border-radius: 3px;
   padding: 0 2px;
   margin: 0 -2px;
+}
+
+/* Dentro l'evidenziazione dell'esecuzione i colori sintattici tornerebbero
+   poco leggibili sullo sfondo ambra: si torna al colore scuro del testo
+   evidenziato, uniforme come prima di introdurre la colorazione. */
+.exec-highlight [class^="tok-"] {
+  color: inherit;
 }
 
 /* --- Striscia di esecuzione (console) -----------------------------------
@@ -603,5 +677,11 @@ body {
   }
   .run-strip {
     height: 160px;
+  }
+  /* Sotto i 900px i pannelli sono impilati con altezze fisse pensate per lo
+     schermo piccolo: trascinare un separatore col dito e' piu' scomodo che
+     utile in questa vista, quindi i separatori restano nascosti. */
+  .splitter {
+    display: none;
   }
 }
