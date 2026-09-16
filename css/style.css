@@ -101,10 +101,28 @@ body {
 .exec-bar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
   background: var(--panel-bg);
   border-bottom: 1px solid var(--border);
+}
+
+.exec-speed {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: #52606d;
+}
+
+.exec-speed select {
+  font-size: 0.85rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  cursor: pointer;
 }
 
 .exec-bar button {
