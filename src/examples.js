@@ -20,7 +20,7 @@ export const examples = [
             y: 0,
             inputs: {
               BODY: {
-                block: {
+                block: { type: 'comment_line', id: 'p_comment_intro', fields: { TEXT: 'Legge i due numeri da confrontare' }, next: { block: {
                   type: 'read',
                   id: 'p_read_a',
                   fields: { VAR: { id: 'var_a' } },
@@ -30,7 +30,7 @@ export const examples = [
                       id: 'p_read_b',
                       fields: { VAR: { id: 'var_b' } },
                       next: {
-                        block: {
+                        block: { type: 'comment_line', id: 'p_comment_if', fields: { TEXT: 'Confronta i due numeri e stampa il maggiore' }, next: { block: {
                           type: 'controls_if_else',
                           id: 'p_if',
                           inputs: {
@@ -60,11 +60,11 @@ export const examples = [
                               },
                             },
                           },
-                        },
+                        } } },
                       },
                     },
                   },
-                },
+                } } },
               },
             },
           },
@@ -91,7 +91,7 @@ export const examples = [
             "y": 0,
             "inputs": {
               "BODY": {
-                "block": {
+                "block": { "type": "comment_line", "id": "b_comment_read_n", "fields": { "TEXT": "Chiede quanti numeri sommare" }, "next": { "block": {
                   "type": "read",
                   "id": "b_read_n",
                   "fields": {
@@ -100,7 +100,7 @@ export const examples = [
                     }
                   },
                   "next": {
-                    "block": {
+                    "block": { "type": "comment_line", "id": "b_comment_init_somma", "fields": { "TEXT": "La somma parte da zero" }, "next": { "block": {
                       "type": "assign",
                       "id": "b_init_somma",
                       "fields": {
@@ -120,7 +120,7 @@ export const examples = [
                         }
                       },
                       "next": {
-                        "block": {
+                        "block": { "type": "comment_line", "id": "b_comment_for", "fields": { "TEXT": "Legge un numero alla volta e lo aggiunge alla somma" }, "next": { "block": {
                           "type": "controls_for_simple",
                           "id": "b_for",
                           "fields": {
@@ -226,11 +226,11 @@ export const examples = [
                               }
                             }
                           }
-                        }
+                        } } }
                       }
-                    }
+                    } } }
                   }
-                }
+                } } }
               }
             }
           }
@@ -271,7 +271,7 @@ export const examples = [
             "y": 0,
             "inputs": {
               "BODY": {
-                "block": {
+                "block": { "type": "comment_line", "id": "b_comment_read_n", "fields": { "TEXT": "Legge quanti numeri ci sono nella sequenza" }, "next": { "block": {
                   "type": "read",
                   "id": "b_read_n",
                   "fields": {
@@ -289,7 +289,7 @@ export const examples = [
                         }
                       },
                       "next": {
-                        "block": {
+                        "block": { "type": "comment_line", "id": "b_comment_init_pos", "fields": { "TEXT": "Posizione a 0 significa che non è stato ancora trovato" }, "next": { "block": {
                           "type": "assign",
                           "id": "b_init_pos",
                           "fields": {
@@ -329,7 +329,7 @@ export const examples = [
                                 }
                               },
                               "next": {
-                                "block": {
+                                "block": { "type": "comment_line", "id": "b_comment_while", "fields": { "TEXT": "Scorre i numeri finché non trova il valore cercato o li ha controllati tutti" }, "next": { "block": {
                                   "type": "controls_while",
                                   "id": "b_while",
                                   "inputs": {
@@ -418,7 +418,7 @@ export const examples = [
                                           }
                                         },
                                         "next": {
-                                          "block": {
+                                          "block": { "type": "comment_line", "id": "b_comment_if_eq", "fields": { "TEXT": "Se il valore letto è quello cercato, memorizza la posizione" }, "next": { "block": {
                                             "type": "controls_if_simple",
                                             "id": "b_if_eq",
                                             "inputs": {
@@ -524,7 +524,7 @@ export const examples = [
                                                 }
                                               }
                                             }
-                                          }
+                                          } } }
                                         }
                                       }
                                     }
@@ -548,15 +548,15 @@ export const examples = [
                                       }
                                     }
                                   }
-                                }
+                                } } }
                               }
                             }
                           }
-                        }
+                        } } }
                       }
                     }
                   }
-                }
+                } } }
               }
             }
           }
@@ -610,7 +610,7 @@ export const examples = [
                     }
                   },
                   "next": {
-                    "block": {
+                    "block": { "type": "comment_line", "id": "b_comment_init_fatt", "fields": { "TEXT": "Il fattoriale parte da 1" }, "next": { "block": {
                       "type": "assign",
                       "id": "b_init_fatt",
                       "fields": {
@@ -630,7 +630,7 @@ export const examples = [
                         }
                       },
                       "next": {
-                        "block": {
+                        "block": { "type": "comment_line", "id": "b_comment_for", "fields": { "TEXT": "Moltiplica via via per ogni numero da 1 a n" }, "next": { "block": {
                           "type": "controls_for_simple",
                           "id": "b_for",
                           "fields": {
@@ -725,9 +725,9 @@ export const examples = [
                               }
                             }
                           }
-                        }
+                        } } }
                       }
-                    }
+                    } } }
                   }
                 }
               }
@@ -775,7 +775,7 @@ export const examples = [
                     }
                   },
                   "next": {
-                    "block": {
+                    "block": { "type": "comment_line", "id": "b_comment_init_i", "fields": { "TEXT": "Si parte a controllare dal primo possibile divisore, cioè 2" }, "next": { "block": {
                       "type": "assign",
                       "id": "b_init_i",
                       "fields": {
@@ -815,7 +815,7 @@ export const examples = [
                             }
                           },
                           "next": {
-                            "block": {
+                            "block": { "type": "comment_line", "id": "b_comment_while", "fields": { "TEXT": "Prova tutti i possibili divisori minori di n" }, "next": { "block": {
                               "type": "controls_while",
                               "id": "b_while",
                               "inputs": {
@@ -853,7 +853,7 @@ export const examples = [
                                   }
                                 },
                                 "BODY": {
-                                  "block": {
+                                  "block": { "type": "comment_line", "id": "b_comment_if_mod", "fields": { "TEXT": "Se n è divisibile per i, allora n non è primo" }, "next": { "block": {
                                     "type": "controls_if_simple",
                                     "id": "b_if_mod",
                                     "inputs": {
@@ -977,11 +977,11 @@ export const examples = [
                                         }
                                       }
                                     }
-                                  }
+                                  } } }
                                 }
                               },
                               "next": {
-                                "block": {
+                                "block": { "type": "comment_line", "id": "b_comment_write_result", "fields": { "TEXT": "Stampa 1 se è primo, 0 se non lo è" }, "next": { "block": {
                                   "type": "controls_if_else",
                                   "id": "b_write_result",
                                   "inputs": {
@@ -1051,13 +1051,13 @@ export const examples = [
                                       }
                                     }
                                   }
-                                }
+                                } } }
                               }
-                            }
+                            } } }
                           }
                         }
                       }
-                    }
+                    } } }
                   }
                 }
               }
