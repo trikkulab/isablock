@@ -143,6 +143,25 @@ document.getElementById('welcomeAcceptBtn').addEventListener('click', () => {
   }
 });
 
+// --- Guida rapida (riapribile in qualsiasi momento, a differenza della
+// modale di benvenuto che compare solo al primo utilizzo) --------------
+const helpModal = document.getElementById('helpModal');
+function openHelp() {
+  helpModal.hidden = false;
+}
+function closeHelp() {
+  helpModal.hidden = true;
+}
+document.getElementById('btnHelp').addEventListener('click', openHelp);
+document.getElementById('helpCloseBtn').addEventListener('click', closeHelp);
+document.getElementById('helpCloseBtn2').addEventListener('click', closeHelp);
+helpModal.addEventListener('click', (event) => {
+  if (event.target === helpModal) closeHelp();
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !helpModal.hidden) closeHelp();
+});
+
 // --- Barra dei comandi ------------------------------------------------
 document.getElementById('btnNew').addEventListener('click', () => {
   if (!window.confirm('Cancellare il programma corrente e ricominciare da zero?')) return;
