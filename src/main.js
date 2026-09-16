@@ -143,6 +143,25 @@ document.getElementById('welcomeAcceptBtn').addEventListener('click', () => {
   }
 });
 
+// --- Guida rapida (riapribile in qualsiasi momento, a differenza della
+// modale di benvenuto che compare solo al primo utilizzo) --------------
+const helpModal = document.getElementById('helpModal');
+function openHelp() {
+  helpModal.hidden = false;
+}
+function closeHelp() {
+  helpModal.hidden = true;
+}
+document.getElementById('btnHelp').addEventListener('click', openHelp);
+document.getElementById('helpCloseBtn').addEventListener('click', closeHelp);
+document.getElementById('helpCloseBtn2').addEventListener('click', closeHelp);
+helpModal.addEventListener('click', (event) => {
+  if (event.target === helpModal) closeHelp();
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !helpModal.hidden) closeHelp();
+});
+
 // --- Barra dei comandi ------------------------------------------------
 document.getElementById('btnNew').addEventListener('click', () => {
   if (!window.confirm('Cancellare il programma corrente e ricominciare da zero?')) return;
@@ -231,6 +250,8 @@ const btnStep = document.getElementById('btnStep');
 const btnStop = document.getElementById('btnStop');
 const execStatus = document.getElementById('execStatus');
 const blocklyDiv = document.getElementById('blocklyDiv');
+const runStrip = document.getElementById('runStrip');
+const runStripClose = document.getElementById('runStripClose');
 const runConsole = document.getElementById('runConsole');
 const runInputForm = document.getElementById('runInputForm');
 const runInputField = document.getElementById('runInputField');
@@ -264,6 +285,10 @@ function updateExecButtons() {
   // finche' non arriva una pausa (fine ciclo di setTimeout o attesa LEGGI).
   btnRun.disabled = active && execRunning;
   btnStep.disabled = active && execRunning;
+  // Il pannello si chiude solo a esecuzione ferma (terminata/interrotta):
+  // mentre gira, specialmente in attesa di un LEGGI, non ha senso poterlo
+  // nascondere.
+  runStripClose.disabled = active;
 }
 
 function stopExecution(statusText) {
@@ -282,6 +307,7 @@ function stopExecution(statusText) {
 function startExecution() {
   const programBlock = workspace.getTopBlocks(false).find((b) => b.type === 'program');
   if (!programBlock) return;
+  runStrip.hidden = false;
   runConsole.innerHTML = '';
   runInputForm.hidden = true;
   const io = {
@@ -350,6 +376,10 @@ btnStep.addEventListener('click', () => {
 });
 
 btnStop.addEventListener('click', () => stopExecution());
+
+runStripClose.addEventListener('click', () => {
+  runStrip.hidden = true;
+});
 
 runInputForm.addEventListener('submit', (event) => {
   event.preventDefault();
