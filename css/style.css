@@ -186,6 +186,51 @@ body {
   stroke-width: 3px;
 }
 
+/* --- Separatori trascinabili (solo vista desktop, vedi media query in
+   fondo al file) --------------------------------------------------------- */
+.splitter {
+  flex: none;
+  position: relative;
+  background: var(--border);
+  touch-action: none;
+}
+
+.splitter::after {
+  content: "";
+  position: absolute;
+}
+
+.splitter-vertical {
+  width: 5px;
+  cursor: col-resize;
+}
+
+.splitter-vertical::after {
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  right: -4px;
+}
+
+.splitter-horizontal {
+  height: 5px;
+  cursor: row-resize;
+}
+
+.splitter-horizontal::after {
+  left: 0;
+  right: 0;
+  top: -4px;
+  bottom: -4px;
+}
+
+.splitter:hover,
+.splitter:focus-visible,
+.splitter.dragging {
+  background: var(--accent);
+  outline: none;
+}
+
 .outputs {
   flex: 1;
   min-width: 0;
@@ -603,5 +648,11 @@ body {
   }
   .run-strip {
     height: 160px;
+  }
+  /* Sotto i 900px i pannelli sono impilati con altezze fisse pensate per lo
+     schermo piccolo: trascinare un separatore col dito e' piu' scomodo che
+     utile in questa vista, quindi i separatori restano nascosti. */
+  .splitter {
+    display: none;
   }
 }
