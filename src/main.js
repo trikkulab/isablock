@@ -240,6 +240,7 @@ const RUN_STEP_DELAY_MS = 350;
 let execGenerator = null;
 let execRunning = false; // true = esecuzione continua ("Esegui"), false = passo singolo o in pausa
 let execTimer = null;
+let resumeRunningAfterInput = false; // execRunning da ripristinare dopo un LEGGI in attesa
 
 function appendConsoleLine(text, className) {
   const line = document.createElement('div');
@@ -316,6 +317,7 @@ function advance(inputValue) {
   renderAllPanels();
 
   if (event.awaitingInput) {
+    resumeRunningAfterInput = execRunning;
     execRunning = false;
     execStatus.textContent = 'In attesa di un valore da LEGGI…';
     runInputForm.hidden = false;
@@ -358,5 +360,6 @@ runInputForm.addEventListener('submit', (event) => {
   }
   appendConsoleLine(`LEGGI → ${raw}`, 'run-input');
   runInputForm.hidden = true;
+  execRunning = resumeRunningAfterInput;
   advance(parseInt(raw, 10));
 });
