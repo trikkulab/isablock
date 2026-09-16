@@ -28,9 +28,18 @@
   </header>
 
   <div class="exec-bar">
-    <button id="btnRun" type="button">▶ Esegui</button>
-    <button id="btnStep" type="button">⏭ Passo</button>
-    <button id="btnStop" type="button" disabled>⏹ Interrompi</button>
+    <button id="btnRun" type="button" title="Esegui (Invio)">▶ Esegui</button>
+    <button id="btnStep" type="button" title="Passo (Spazio)">⏭ Passo</button>
+    <button id="btnStop" type="button" disabled title="Interrompi (Esc)">⏹ Interrompi</button>
+    <label class="exec-speed">
+      Velocità:
+      <select id="execSpeed">
+        <option value="800">Lenta</option>
+        <option value="350" selected>Normale</option>
+        <option value="120">Veloce</option>
+        <option value="0">Istantanea</option>
+      </select>
+    </label>
     <span id="execStatus" class="exec-status">Pronto</span>
   </div>
 
@@ -126,7 +135,7 @@
 
       <section class="guide-section">
         <h3>5. Esegui il tuo algoritmo passo-passo</h3>
-        <p>La barra sopra l'area di lavoro fa scorrere davvero la logica del tuo algoritmo, blocco per blocco: <strong>▶ Esegui</strong> avanza da solo, <strong>⏭ Passo</strong> avanza un blocco alla volta, <strong>⏹ Interrompi</strong> ferma tutto. Il blocco attivo si illumina insieme alla riga corrispondente nei tre output, per capire cosa fa l'algoritmo passo dopo passo (non esegue davvero il C o il Python generati). Se incontri un blocco <strong>LEGGI</strong>, l'esecuzione si ferma e sotto al codice compare un pannello che ti chiede un numero — resta lì anche se cambi scheda tra Pseudocodice/C/Python.</p>
+        <p>La barra sopra l'area di lavoro fa scorrere davvero la logica del tuo algoritmo, blocco per blocco: <strong>▶ Esegui</strong> avanza da solo, <strong>⏭ Passo</strong> avanza un blocco alla volta, <strong>⏹ Interrompi</strong> ferma tutto. Ci sono anche le scorciatoie da tastiera <strong>Invio</strong>, <strong>Spazio</strong> ed <strong>Esc</strong> (non funzionano mentre stai scrivendo in un campo di testo), e un menu <strong>Velocità</strong> per rallentare o accelerare l'esecuzione automatica. Il blocco attivo si illumina insieme alla riga corrispondente nei tre output, per capire cosa fa l'algoritmo passo dopo passo (non esegue davvero il C o il Python generati). Se incontri un blocco <strong>LEGGI</strong>, l'esecuzione si ferma e sotto al codice compare un pannello che ti chiede un numero — resta lì anche se cambi scheda tra Pseudocodice/C/Python.</p>
       </section>
 
       <section class="guide-section">

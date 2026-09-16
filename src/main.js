@@ -255,13 +255,18 @@ const runStripClose = document.getElementById('runStripClose');
 const runConsole = document.getElementById('runConsole');
 const runInputForm = document.getElementById('runInputForm');
 const runInputField = document.getElementById('runInputField');
+const execSpeedSelect = document.getElementById('execSpeed');
 
-const RUN_STEP_DELAY_MS = 350;
+let runStepDelayMs = Number(execSpeedSelect.value);
+execSpeedSelect.addEventListener('change', () => {
+  runStepDelayMs = Number(execSpeedSelect.value);
+});
 
 let execGenerator = null;
 let execRunning = false; // true = esecuzione continua ("Esegui"), false = passo singolo o in pausa
 let execTimer = null;
 let resumeRunningAfterInput = false; // execRunning da ripristinare dopo un LEGGI in attesa
+let awaitingInput = false; // in attesa di un valore per un blocco LEGGI
 
 function appendConsoleLine(text, className) {
   const line = document.createElement('div');
@@ -281,10 +286,12 @@ function setWorkspaceLocked(locked) {
 function updateExecButtons() {
   const active = execGenerator !== null;
   btnStop.disabled = !active;
-  // In esecuzione continua i due comandi "manuali" restano disabilitati
-  // finche' non arriva una pausa (fine ciclo di setTimeout o attesa LEGGI).
-  btnRun.disabled = active && execRunning;
-  btnStep.disabled = active && execRunning;
+  // In esecuzione continua, o mentre si aspetta un valore da LEGGI, i due
+  // comandi "manuali" restano disabilitati: durante l'attesa di un LEGGI
+  // l'unico modo per proseguire e' fornire il valore (altrimenti
+  // generator.next() riprenderebbe con un valore mancante).
+  btnRun.disabled = active && (execRunning || awaitingInput);
+  btnStep.disabled = active && (execRunning || awaitingInput);
   // Il pannello si chiude solo a esecuzione ferma (terminata/interrotta):
   // mentre gira, specialmente in attesa di un LEGGI, non ha senso poterlo
   // nascondere.
@@ -295,6 +302,7 @@ function stopExecution(statusText) {
   clearTimeout(execTimer);
   execGenerator = null;
   execRunning = false;
+  awaitingInput = false;
   currentBlockId = null;
   workspace.highlightBlock(null);
   renderAllPanels();
@@ -345,6 +353,7 @@ function advance(inputValue) {
   if (event.awaitingInput) {
     resumeRunningAfterInput = execRunning;
     execRunning = false;
+    awaitingInput = true;
     execStatus.textContent = 'In attesa di un valore da LEGGI…';
     runInputForm.hidden = false;
     runInputField.value = '';
@@ -356,7 +365,7 @@ function advance(inputValue) {
   runInputForm.hidden = true;
   if (execRunning) {
     execStatus.textContent = 'In esecuzione…';
-    execTimer = setTimeout(() => advance(), RUN_STEP_DELAY_MS);
+    execTimer = setTimeout(() => advance(), runStepDelayMs);
   } else {
     execStatus.textContent = 'In pausa — Passo per continuare';
   }
@@ -390,6 +399,51 @@ runInputForm.addEventListener('submit', (event) => {
   }
   appendConsoleLine(`LEGGI → ${raw}`, 'run-input');
   runInputForm.hidden = true;
+  awaitingInput = false;
   execRunning = resumeRunningAfterInput;
   advance(parseInt(raw, 10));
+});
+
+// --- Scorciatoie da tastiera per l'esecuzione ---------------------------
+// Invio/Spazio/Esc richiamano semplicemente il click dei bottoni
+// corrispondenti: rispettano quindi automaticamente lo stato "disabled"
+// (un click su un bottone disabilitato non genera l'evento 'click').
+// Vanno pero' ignorate mentre si sta scrivendo da qualche parte (campo
+// LEGGI, rinominare una variabile, modificare un commento, un altro
+// bottone con il focus) o mentre e' aperto un modale. Esc fa eccezione:
+// e' una convenzione universale di "annulla" che non confligge mai con la
+// digitazione (a differenza di Spazio/Invio), quindi resta attiva anche
+// dentro al campo LEGGI.
+function shouldIgnoreShortcut(target) {
+  const tag = target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable) return true;
+  // Un bottone diverso dai tre di esecuzione: rispetta la sua attivazione
+  // nativa con Invio/Spazio invece di dirottarla su Esegui (es. il focus
+  // resta su "Guida" dopo un Tab, Invio deve attivare "Guida", non Esegui).
+  // I tre bottoni dell'esecuzione restano invece sempre attivi: dopo un
+  // click su "Passo" il focus vi resta sopra, e le scorciatoie devono
+  // continuare a funzionare.
+  if (tag === 'BUTTON' && target !== btnRun && target !== btnStep && target !== btnStop) return true;
+  return false;
+}
+
+document.addEventListener('keydown', (event) => {
+  if (!welcomeModal.hidden || !helpModal.hidden) return;
+  if (event.key === 'Escape') {
+    btnStop.click();
+    return;
+  }
+  if (shouldIgnoreShortcut(event.target)) return;
+  switch (event.key) {
+    case ' ':
+      event.preventDefault(); // altrimenti Spazio scorre la pagina
+      btnStep.click();
+      break;
+    case 'Enter':
+      event.preventDefault();
+      btnRun.click();
+      break;
+    default:
+      break;
+  }
 });
