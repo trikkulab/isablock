@@ -7,6 +7,16 @@
   --accent: #4a6fa5;
   --code-bg: #12222f;
   --code-fg: #dce8f0;
+
+  /* Colorazione sintattica dei tre pannelli di output (vedi
+     src/codegen/highlight.js): pochi colori distinti, coerenti sui tre
+     linguaggi, cosi' lo stesso costrutto si riconosce a colpo d'occhio
+     passando da uno all'altro. */
+  --tok-keyword: #7fb2f0;
+  --tok-number: #f2b880;
+  --tok-string: #a8d98f;
+  --tok-comment: #8296a6;
+  --tok-builtin: #d9a8f0;
 }
 
 * {
@@ -315,6 +325,18 @@ body {
   background: rgba(255, 255, 255, 0.18);
 }
 
+/* --- Colorazione sintattica ---------------------------------------------
+   Classi applicate dal tokenizzatore in src/codegen/highlight.js: stesse
+   categorie (parola chiave, numero, stringa, commento, funzione di
+   libreria) sui tre output, per farli restare confrontabili a colpo
+   d'occhio. */
+.tok-keyword { color: var(--tok-keyword); }
+.tok-number { color: var(--tok-number); }
+.tok-string,
+.tok-preprocessor { color: var(--tok-string); }
+.tok-comment { color: var(--tok-comment); font-style: italic; }
+.tok-builtin { color: var(--tok-builtin); }
+
 /* --- Evidenziazione del blocco in esecuzione nei pannelli di codice ---- */
 .exec-highlight {
   background: #f4c95d;
@@ -322,6 +344,13 @@ body {
   border-radius: 3px;
   padding: 0 2px;
   margin: 0 -2px;
+}
+
+/* Dentro l'evidenziazione dell'esecuzione i colori sintattici tornerebbero
+   poco leggibili sullo sfondo ambra: si torna al colore scuro del testo
+   evidenziato, uniforme come prima di introdurre la colorazione. */
+.exec-highlight [class^="tok-"] {
+  color: inherit;
 }
 
 /* --- Striscia di esecuzione (console) -----------------------------------

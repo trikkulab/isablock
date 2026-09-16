@@ -4,6 +4,7 @@ import { createPseudocodeGenerator } from './codegen/pseudocode.js';
 import { createCGenerator } from './codegen/c.js';
 import { createPythonGenerator } from './codegen/python.js';
 import { extractSourceMap } from './codegen/common.js';
+import { tokenizePseudocode, tokenizeC, tokenizePython } from './codegen/highlight.js';
 import { pseudocodeConfig } from './pseudocode-config.js';
 import { saveWorkspaceToFile, loadWorkspaceFromFile } from './persistence.js';
 import { examples } from './examples.js';
@@ -41,6 +42,12 @@ const outputPython = document.getElementById('outputPython');
 let outputTexts = { pseudocode: '', c: '', python: '' };
 let sourceMaps = { pseudocode: new Map(), c: new Map(), python: new Map() };
 
+// Token di colorazione sintattica per ciascun output, ricalcolati insieme
+// al testo (vedi updateOutputs): array di {start, end, type} nello stesso
+// sistema di offset della source map, cosi' i due si possono fondere in
+// renderCodePanel senza doversi rincorrere.
+let tokenMaps = { pseudocode: [], c: [], python: [] };
+
 // blockId attualmente in esecuzione (null quando non si sta eseguendo):
 // e' lo stato condiviso che lega l'evidenziazione dei blocchi Blockly a
 // quella dei tre pannelli di codice, indipendentemente da quale scheda e'
@@ -51,22 +58,41 @@ function escapeHtml(text) {
   return text.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 }
 
-function renderCodePanel(el, text, range) {
+// Restituisce l'HTML di text.slice(from, to), con gli span di colorazione
+// sintattica applicati (ritagliati sul segmento se un token ne straborda).
+// Usata sia per il testo "a riposo" sia per le due meta' del pannello in
+// esecuzione, ai due lati del <mark> — vedi renderCodePanel.
+function renderSegment(text, tokens, from, to) {
+  let html = '';
+  let pos = from;
+  for (const token of tokens) {
+    const start = Math.max(token.start, from);
+    const end = Math.min(token.end, to);
+    if (start >= end) continue;
+    if (start > pos) html += escapeHtml(text.slice(pos, start));
+    html += `<span class="tok-${token.type}">${escapeHtml(text.slice(start, end))}</span>`;
+    pos = end;
+  }
+  if (pos < to) html += escapeHtml(text.slice(pos, to));
+  return html;
+}
+
+function renderCodePanel(el, text, tokens, range) {
   if (!range) {
-    el.textContent = text;
+    el.innerHTML = renderSegment(text, tokens, 0, text.length);
     return;
   }
   el.innerHTML =
-    escapeHtml(text.slice(0, range.start)) +
-    `<mark class="exec-highlight">${escapeHtml(text.slice(range.start, range.end))}</mark>` +
-    escapeHtml(text.slice(range.end));
+    renderSegment(text, tokens, 0, range.start) +
+    `<mark class="exec-highlight">${renderSegment(text, tokens, range.start, range.end)}</mark>` +
+    renderSegment(text, tokens, range.end, text.length);
   el.querySelector('.exec-highlight').scrollIntoView({ block: 'nearest' });
 }
 
 function renderAllPanels() {
-  renderCodePanel(outputPseudocode, outputTexts.pseudocode, currentBlockId && sourceMaps.pseudocode.get(currentBlockId));
-  renderCodePanel(outputC, outputTexts.c, currentBlockId && sourceMaps.c.get(currentBlockId));
-  renderCodePanel(outputPython, outputTexts.python, currentBlockId && sourceMaps.python.get(currentBlockId));
+  renderCodePanel(outputPseudocode, outputTexts.pseudocode, tokenMaps.pseudocode, currentBlockId && sourceMaps.pseudocode.get(currentBlockId));
+  renderCodePanel(outputC, outputTexts.c, tokenMaps.c, currentBlockId && sourceMaps.c.get(currentBlockId));
+  renderCodePanel(outputPython, outputTexts.python, tokenMaps.python, currentBlockId && sourceMaps.python.get(currentBlockId));
 }
 
 function updateOutputs() {
@@ -75,6 +101,11 @@ function updateOutputs() {
   const python = extractSourceMap(pythonGen.workspaceToCode(workspace));
   outputTexts = { pseudocode: pseudo.text, c: c.text, python: python.text };
   sourceMaps = { pseudocode: pseudo.ranges, c: c.ranges, python: python.ranges };
+  tokenMaps = {
+    pseudocode: tokenizePseudocode(pseudo.text, pseudocodeConfig),
+    c: tokenizeC(c.text),
+    python: tokenizePython(python.text),
+  };
   renderAllPanels();
 }
 
