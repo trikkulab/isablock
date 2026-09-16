@@ -42,7 +42,6 @@
         <button class="tab-btn active" data-tab="pseudocode" type="button" role="tab" aria-selected="true">Pseudocodice</button>
         <button class="tab-btn" data-tab="c" type="button" role="tab" aria-selected="false">C</button>
         <button class="tab-btn" data-tab="python" type="button" role="tab" aria-selected="false">Python</button>
-        <button class="tab-btn" data-tab="run" type="button" role="tab" aria-selected="false">Esecuzione</button>
       </div>
       <div class="code-body">
         <div class="code-panel active" data-tab="pseudocode">
@@ -57,14 +56,18 @@
           <button class="copy-btn" data-copy-target="outputPython" type="button">Copia</button>
           <pre id="outputPython" class="output-code"></pre>
         </div>
-        <div class="code-panel run-panel" data-tab="run">
-          <div id="runConsole" class="run-console"></div>
-          <form id="runInputForm" class="run-input-form" hidden>
-            <label for="runInputField">Valore per LEGGI:</label>
-            <input id="runInputField" type="text" inputmode="numeric" autocomplete="off" />
-            <button type="submit">Invia</button>
-          </form>
+      </div>
+      <div id="runStrip" class="run-strip" hidden>
+        <div class="run-strip-header">
+          <span>Esecuzione</span>
+          <button id="runStripClose" class="run-strip-close" type="button" aria-label="Chiudi il pannello di esecuzione">✕</button>
         </div>
+        <div id="runConsole" class="run-console"></div>
+        <form id="runInputForm" class="run-input-form" hidden>
+          <label for="runInputField">Valore per LEGGI:</label>
+          <input id="runInputField" type="text" inputmode="numeric" autocomplete="off" />
+          <button type="submit">Invia</button>
+        </form>
       </div>
     </div>
   </main>
@@ -123,7 +126,7 @@
 
       <section class="guide-section">
         <h3>5. Esegui il tuo algoritmo passo-passo</h3>
-        <p>La barra sopra l'area di lavoro fa scorrere davvero la logica del tuo algoritmo, blocco per blocco: <strong>▶ Esegui</strong> avanza da solo, <strong>⏭ Passo</strong> avanza un blocco alla volta, <strong>⏹ Interrompi</strong> ferma tutto. Il blocco attivo si illumina insieme alla riga corrispondente nei tre output, per capire cosa fa l'algoritmo passo dopo passo (non esegue davvero il C o il Python generati). Se incontri un blocco <strong>LEGGI</strong>, l'esecuzione si ferma nella scheda "Esecuzione" e ti chiede un numero.</p>
+        <p>La barra sopra l'area di lavoro fa scorrere davvero la logica del tuo algoritmo, blocco per blocco: <strong>▶ Esegui</strong> avanza da solo, <strong>⏭ Passo</strong> avanza un blocco alla volta, <strong>⏹ Interrompi</strong> ferma tutto. Il blocco attivo si illumina insieme alla riga corrispondente nei tre output, per capire cosa fa l'algoritmo passo dopo passo (non esegue davvero il C o il Python generati). Se incontri un blocco <strong>LEGGI</strong>, l'esecuzione si ferma e sotto al codice compare un pannello che ti chiede un numero — resta lì anche se cambi scheda tra Pseudocodice/C/Python.</p>
       </section>
 
       <section class="guide-section">

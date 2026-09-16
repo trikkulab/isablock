@@ -261,10 +261,56 @@ body {
   margin: 0 -2px;
 }
 
-/* --- Scheda "Esecuzione" (console) ------------------------------------- */
-.run-panel.active {
+/* --- Striscia di esecuzione (console) -----------------------------------
+   Fissa sotto le tre schede di codice, non una scheda a sua volta: resta
+   visibile qualunque sia la scheda aperta, cosi' non serve piu' cambiare
+   vista per rispondere a un LEGGI mentre si guarda il codice. */
+.run-strip {
+  flex: none;
   display: flex;
   flex-direction: column;
+  height: 220px;
+  border-top: 2px solid var(--border);
+  background: var(--code-bg);
+}
+
+.run-strip[hidden] {
+  display: none;
+}
+
+.run-strip-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 1rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--code-fg);
+  opacity: 0.8;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.run-strip-close {
+  border: none;
+  background: none;
+  color: var(--code-fg);
+  opacity: 0.7;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0.1rem 0.3rem;
+  cursor: pointer;
+}
+
+.run-strip-close:hover:not(:disabled) {
+  opacity: 1;
+}
+
+.run-strip-close:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 .run-console {
@@ -294,6 +340,10 @@ body {
 .run-line.run-error {
   color: #ff9d8a;
   font-weight: 600;
+}
+
+.run-input-form[hidden] {
+  display: none;
 }
 
 .run-input-form {
@@ -532,5 +582,8 @@ body {
   .outputs {
     border-left: none;
     border-top: 1px solid var(--border);
+  }
+  .run-strip {
+    height: 160px;
   }
 }
