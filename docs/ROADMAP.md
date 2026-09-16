@@ -3,13 +3,20 @@
 ## Fase 1 — Editor a blocchi con tre output sincronizzati
 
 **Stato: implementata.** Tutti e cinque gli algoritmi di esempio sono disponibili
-come esempi precaricati nello strumento (oltre al costrutto minimo richiesto, è
-stato aggiunto "ripeti N volte" — vedi `SPEC.md`). Salvataggio/caricamento locale
-presente. Aggiunta anche un'esecuzione passo-passo del programma a blocchi (tasti
-Esegui/Passo), che evidenzia in tempo reale sia il blocco attivo sia la riga
-corrispondente in ciascuno dei tre output: esegue il modello a blocchi, non il
-testo generato — non è quindi in contraddizione con "Cosa NON deve fare" in
-`README.md`, che riguarda l'esecuzione reale di C/Python. Prima di iniziare la
+come esempi precaricati nello strumento, ora con commenti esplicativi nei punti
+chiave (oltre al costrutto minimo richiesto, è stato aggiunto "ripeti N volte" —
+vedi `SPEC.md`). Salvataggio/caricamento locale presente. Aggiunta anche
+un'esecuzione passo-passo del programma a blocchi (tasti Esegui/Passo, richiamabili
+anche da tastiera, a velocità regolabile, con la console di input/output in una
+striscia fissa sotto il codice), che evidenzia in tempo reale sia il blocco attivo
+sia la riga corrispondente — colorata sintatticamente — in ciascuno dei tre output:
+esegue il modello a blocchi, non il testo generato — non è quindi in contraddizione
+con "Cosa NON deve fare" in `README.md`, che riguarda l'esecuzione reale di C/Python.
+La colorazione sintattica dei tre output (parole chiave, numeri, commenti,
+stringhe/funzioni di libreria) legge anch'essa il testo già generato: non introduce
+una quarta implementazione indipendente da tenere sincronizzata con i tre
+generatori. Completano l'usabilità in laboratorio una guida rapida richiamabile in
+ogni momento e pannelli ridimensionabili in vista desktop. Prima di iniziare la
 Fase 2, resta da validare l'uso in classe come indicato sotto.
 
 Obiettivo: uno strumento usabile in classe che copre tutti i costrutti elencati in
