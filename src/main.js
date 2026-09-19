@@ -6,7 +6,8 @@ import { createPythonGenerator } from './codegen/python.js';
 import { extractSourceMap } from './codegen/common.js';
 import { tokenizePseudocode, tokenizeC, tokenizePython } from './codegen/highlight.js';
 import { pseudocodeConfig } from './pseudocode-config.js';
-import { saveWorkspaceToFile, loadWorkspaceFromFile } from './persistence.js';
+import { appConfig } from './app-config.js';
+import { saveWorkspaceToFile, saveWorkspaceWithPicker, hasNativeSavePicker, loadWorkspaceFromFile, FileFormatError } from './persistence.js';
 import { examples } from './examples.js';
 import { runProgram, ExecutionError } from './runtime/interpreter.js';
 
@@ -193,6 +194,9 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !helpModal.hidden) closeHelp();
 });
 
+// La versione ha una sola fonte (app-config.js): il piè di pagina la legge da lì.
+document.getElementById('appVersion').textContent = appConfig.version;
+
 // --- Barra dei comandi ------------------------------------------------
 document.getElementById('btnNew').addEventListener('click', () => {
   if (!window.confirm('Cancellare il programma corrente e ricominciare da zero?')) return;
@@ -202,9 +206,31 @@ document.getElementById('btnNew').addEventListener('click', () => {
   showToast('Nuovo programma creato', 'success');
 });
 
-document.getElementById('btnSave').addEventListener('click', () => {
-  saveWorkspaceToFile(Blockly, workspace);
+// Nome proposto per il file: lo stesso per selettore nativo e per il ripiego.
+const DEFAULT_FILE_NAME = 'programma-a-blocchi';
+
+function saveWithPrompt() {
+  // prompt() funziona in tutti i browser: è il ripiego dove manca il
+  // selettore nativo, ed è coerente con i confirm() degli altri comandi.
+  const answer = window.prompt('Con che nome vuoi salvare il programma?', DEFAULT_FILE_NAME);
+  if (answer === null) return; // Annulla: nessun salvataggio
+  // Via i caratteri non ammessi nei nomi di file e l'eventuale .json già digitato.
+  const name = answer.trim().replace(/\.json$/i, '').replace(/[\\/:*?"<>|]/g, '-');
+  saveWorkspaceToFile(Blockly, workspace, `${name || DEFAULT_FILE_NAME}.json`);
   showToast('Programma salvato', 'success');
+}
+
+document.getElementById('btnSave').addEventListener('click', async () => {
+  if (hasNativeSavePicker) {
+    try {
+      const saved = await saveWorkspaceWithPicker(Blockly, workspace, `${DEFAULT_FILE_NAME}.json`);
+      if (saved) showToast('Programma salvato', 'success');
+      return;
+    } catch {
+      // Selettore non utilizzabile (es. contesto non sicuro): ripiego sul nome.
+    }
+  }
+  saveWithPrompt();
 });
 
 const fileInput = document.getElementById('fileInput');
@@ -219,8 +245,8 @@ fileInput.addEventListener('change', () => {
       updateOutputs();
       showToast('Programma caricato', 'success');
     })
-    .catch(() => {
-      showToast('Il file scelto non è un programma valido', 'error');
+    .catch((err) => {
+      showToast(err instanceof FileFormatError ? err.message : 'Il file scelto non è un programma valido', 'error');
     });
 });
 
