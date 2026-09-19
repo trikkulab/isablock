@@ -20,7 +20,7 @@ Le estensioni si introducono solo dopo la validazione in classe della Fase 1 (ve
 | Funzioni/procedure | Solo analisi; scelte di progetto da fare |
 | Profili base/avanzato | Proposta: un solo codice con profili; da confermare |
 | Login istituzionale | Futuro; predisporre solo una struttura, nessun backend ora |
-| Versione app e versione formato file | **Deciso** (implementazione rimandata a un'altra sessione) |
+| Versione app e versione formato file | **Fatto** (commit 9117438, vedi "Versionamento e configurazione") |
 | Tag/numero di versione "vero" | **Rimandato** a dopo la validazione in classe |
 
 ## Punto di partenza tecnico (com'è oggi)
@@ -276,20 +276,26 @@ server al login, con possibilità di sblocco progressivo durante l'anno.
 
 ## Versionamento e configurazione
 
-**Deciso** (implementazione affidata a un'altra sessione, con prompt già preparato):
+**Fatto** (commit `9117438`, realizzato in un'altra sessione). Stato attuale:
 
-- Nuovo file `src/app-config.js` (in coerenza con `src/pseudocode-config.js`), modulo JS
-  con oggetto congelato: `version: '0.0.1'` e `fileFormatVersion: 1`. Contiene solo
-  valori dell'applicazione; le convenzioni dello pseudocodice restano separate. Altri
-  valori fissi (per es. `MAX_STEPS`, nome file predefinito) non si spostano finché non
-  serve. Ospiterà in seguito funzionalità e profili.
-- Il piè di pagina (`index.html`, oggi con `IsaBlock v0.0.1` scritto a mano) legge la
-  versione da `app-config.js`, così ha una sola fonte.
-- I file salvati contengono `formatVersion` **e** `appVersion` (quest'ultima solo
-  informativa). Un file senza `formatVersion` (salvato prima) è trattato come formato 1;
-  un file con `formatVersion` maggiore di quello supportato è rifiutato con messaggio
-  chiaro; il controllo va fatto **prima** di `workspace.clear()`, che oggi cancella il
-  lavoro in corso anche per un file non valido.
+- `src/app-config.js` (in coerenza con `src/pseudocode-config.js`): modulo JS con
+  oggetto congelato `appConfig`, oggi `version: '0.1.0'` e `fileFormatVersion: 1`.
+  Contiene solo valori dell'applicazione; le convenzioni dello pseudocodice restano
+  separate. Altri valori fissi (per es. `MAX_STEPS`, nome file predefinito) non sono
+  stati spostati: si spostano quando serve. Ospiterà in seguito funzionalità e profili.
+- Il piè di pagina (`index.html`) mostra la versione in un `<span id="appVersion">`
+  che `main.js` compila da `appConfig.version`: una sola fonte.
+- `src/persistence.js`: i file salvati contengono `formatVersion` **e** `appVersion`
+  (quest'ultima solo informativa, mai usata per decidere), **accanto alle chiavi di
+  Blockly**, senza contenitore. Un file senza `formatVersion` (salvato prima) è
+  trattato come formato 1; un file con `formatVersion` maggiore di quello supportato
+  è rifiutato con un `FileFormatError` dal messaggio chiaro, e il controllo avviene
+  **prima** di `workspace.clear()`, quindi il lavoro in corso non si perde.
+- Nello stesso commit è stata aggiunta anche la scelta del nome al salvataggio
+  (selettore "Salva con nome" dove il browser lo supporta), non prevista qui.
+- Non ancora fatto: l'elenco delle funzionalità usate nel file (serve solo se si
+  sceglie di rifiutare i file con funzionalità non abilitate nel profilo, vedi
+  "Profili").
 - Due numeri distinti perché cambiano con frequenza diversa: la versione dell'app sale a
   ogni rilascio, il formato solo quando un file nuovo non è più leggibile da un'app
   vecchia (o viceversa).
