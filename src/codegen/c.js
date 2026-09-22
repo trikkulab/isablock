@@ -11,6 +11,16 @@ const C_KEYWORDS = new Set([
 const LOGIC_SYMBOLS = { AND: '&&', OR: '||' };
 const ARITH_SYMBOLS = { ADD: '+', SUB: '-', MUL: '*', DIV: '/', MOD: '%' };
 
+// workspace.arraySizes (Map<variabileId, dimensione>) e' popolata dal
+// validator dei blocchi vettore (src/blocks/blocks.js) o ripristinata da un
+// file (src/persistence.js): qui la si legge soltanto, con lo stesso
+// ripiego "creala se manca" per restare robusti anche in un workspace
+// headless di test che non e' mai passato da main.js.
+function getArraySizes(workspace) {
+  if (!workspace.arraySizes) workspace.arraySizes = new Map();
+  return workspace.arraySizes;
+}
+
 // Genera codice C compilabile (gcc, C99): #include/main/dichiarazioni
 // int/scanf/printf, dallo stesso modello a blocchi usato dagli altri due
 // generatori. Nota di dominio: divisione e modulo tra interi negativi
@@ -39,14 +49,20 @@ export function createCGenerator(Blockly, cfg) {
     // Solo le variabili davvero usate da almeno un blocco: evita di
     // dichiarare in C variabili "orfane" (es. il valore di default di un
     // campo variabile mai personalizzato, o rimasto tale dopo aver
-    // cambiato blocco/variabile). Raggruppate per tipo: una riga "int ..."
-    // e, solo se serve, una riga "bool ...".
+    // cambiato blocco/variabile). Raggruppate per tipo: una riga "int ...",
+    // una "bool ..." e una riga per vettore (dimensioni diverse, non
+    // raggruppabili in una dichiarazione sola restando leggibili).
     const usedVars = Blockly.Variables.allUsedVarModels(generator.workspace);
-    const numberVars = [...new Set(usedVars.filter((v) => v.type !== 'Boolean').map(name))];
+    const numberVars = [...new Set(usedVars.filter((v) => v.type === '').map(name))];
     const boolVars = [...new Set(usedVars.filter((v) => v.type === 'Boolean').map(name))];
+    const arrayVars = usedVars.filter((v) => v.type === 'Array');
+    const arraySizes = getArraySizes(generator.workspace);
     let decl = '';
     if (numberVars.length) decl += `${generator.INDENT}int ${numberVars.join(', ')};\n`;
     if (boolVars.length) decl += `${generator.INDENT}bool ${boolVars.join(', ')};\n`;
+    for (const variable of arrayVars) {
+      decl += `${generator.INDENT}int ${name(variable)}[${arraySizes.get(variable.getId())}] = {0};\n`;
+    }
     const stdbool = boolVars.length ? '#include <stdbool.h>\n' : '';
     return `#include <stdio.h>\n${stdbool}\nint main(void) {\n${decl}${body}${generator.INDENT}return 0;\n}\n`;
   };
@@ -175,6 +191,31 @@ export function createCGenerator(Blockly, cfg) {
     // quindi non serve altro (niente lunghezza, niente concatenazione).
     const escaped = block.getFieldValue('TEXT').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
     return [`"${escaped}"`, Order.ATOMIC];
+  };
+
+  gen.forBlock['array_get'] = function (block, generator) {
+    const variable = block.getField('VAR').getVariable();
+    const index = generator.valueToCode(block, 'INDEX', Order.NONE) || cfg.MISSING_VALUE;
+    return [`${name(variable)}[${index}]`, Order.ATOMIC];
+  };
+
+  gen.forBlock['array_set'] = function (block, generator) {
+    const variable = block.getField('VAR').getVariable();
+    const index = generator.valueToCode(block, 'INDEX', Order.NONE) || cfg.MISSING_VALUE;
+    const value = generator.valueToCode(block, 'VALUE', Order.NONE) || cfg.MISSING_VALUE;
+    return `${name(variable)}[${index}] = ${value};\n`;
+  };
+
+  gen.forBlock['array_read'] = function (block, generator) {
+    const variable = block.getField('VAR').getVariable();
+    const index = generator.valueToCode(block, 'INDEX', Order.NONE) || cfg.MISSING_VALUE;
+    return `scanf("%d", &${name(variable)}[${index}]);\n`;
+  };
+
+  gen.forBlock['array_length'] = function (block, generator) {
+    const variable = block.getField('VAR').getVariable();
+    const size = getArraySizes(generator.workspace).get(variable.getId());
+    return [String(size ?? 0), Order.ATOMIC];
   };
 
   return gen;

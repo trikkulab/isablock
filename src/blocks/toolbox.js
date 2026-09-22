@@ -59,6 +59,17 @@ export const toolbox = {
     },
     {
       kind: 'category',
+      name: 'Vettori',
+      colour: '#5f7a61',
+      contents: [
+        { kind: 'block', type: 'array_get' },
+        { kind: 'block', type: 'array_set' },
+        { kind: 'block', type: 'array_read' },
+        { kind: 'block', type: 'array_length' },
+      ],
+    },
+    {
+      kind: 'category',
       name: 'Cicli',
       colour: '#8659a8',
       contents: [

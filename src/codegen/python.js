@@ -7,11 +7,19 @@ const PY_KEYWORDS = new Set([
   'not', 'or', 'pass', 'raise', 'return', 'try', 'while', 'with', 'yield',
   // builtin che il codice generato usa direttamente: una variabile con lo
   // stesso nome li nasconderebbe (shadowing) e romperebbe il programma.
-  'print', 'input', 'int', 'range',
+  'print', 'input', 'int', 'range', 'len',
 ]);
 
 const LOGIC_SYMBOLS = { AND: 'and', OR: 'or' };
 const ARITH_SYMBOLS = { ADD: '+', SUB: '-', MUL: '*', MOD: '%' };
+
+// Vedi la stessa funzione in src/codegen/c.js: workspace.arraySizes e'
+// popolata dal validator dei blocchi vettore o ripristinata da un file, qui
+// la si legge soltanto.
+function getArraySizes(workspace) {
+  if (!workspace.arraySizes) workspace.arraySizes = new Map();
+  return workspace.arraySizes;
+}
 
 // Genera codice Python 3 idiomatico dallo stesso modello a blocchi usato
 // dagli altri due generatori. La divisione intera usa int(a / b) invece
@@ -29,6 +37,11 @@ export function createPythonGenerator(Blockly, cfg) {
   const name = (variableModel) => sanitizeIdentifier(variableModel.name, PY_KEYWORDS);
   const bodyOrPass = (code, indent) => code || `${indent}pass\n`;
 
+  gen.init = function (workspace) {
+    Blockly.Generator.prototype.init.call(this, workspace);
+    this.workspace = workspace;
+  };
+
   gen.scrub_ = function (block, code, opt_thisOnly) {
     return chainNextBlock(this, block, code);
   };
@@ -38,8 +51,14 @@ export function createPythonGenerator(Blockly, cfg) {
     // indentato, a differenza del corpo di se/mentre/per. Non si puo'
     // usare statementToCode (indenta sempre di un livello), quindi si
     // cammina l'albero a mano con blockToCode.
+    // I vettori vanno inizializzati a zero prima del corpo (Python non ha
+    // una sezione dichiarazioni: l'inizializzazione e' la prima "istruzione"
+    // reale, coerente con C che dichiara int v[10] = {0}; in cima a main).
+    const arrayVars = Blockly.Variables.allUsedVarModels(generator.workspace).filter((v) => v.type === 'Array');
+    const arraySizes = getArraySizes(generator.workspace);
+    const init = arrayVars.map((v) => `${name(v)} = [0] * ${arraySizes.get(v.getId())}\n`).join('');
     const first = block.getInputTargetBlock('BODY');
-    return first ? generator.blockToCode(first) : '';
+    return init + (first ? generator.blockToCode(first) : '');
   };
 
   gen.forBlock['assign'] = function (block, generator) {
@@ -151,6 +170,30 @@ export function createPythonGenerator(Blockly, cfg) {
     // formato da scegliere in base al tipo.
     const escaped = block.getFieldValue('TEXT').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
     return [`"${escaped}"`, Order.ATOMIC];
+  };
+
+  gen.forBlock['array_get'] = function (block, generator) {
+    const variable = block.getField('VAR').getVariable();
+    const index = generator.valueToCode(block, 'INDEX', Order.NONE) || cfg.MISSING_VALUE;
+    return [`${name(variable)}[${index}]`, Order.ATOMIC];
+  };
+
+  gen.forBlock['array_set'] = function (block, generator) {
+    const variable = block.getField('VAR').getVariable();
+    const index = generator.valueToCode(block, 'INDEX', Order.NONE) || cfg.MISSING_VALUE;
+    const value = generator.valueToCode(block, 'VALUE', Order.NONE) || cfg.MISSING_VALUE;
+    return `${name(variable)}[${index}] = ${value}\n`;
+  };
+
+  gen.forBlock['array_read'] = function (block, generator) {
+    const variable = block.getField('VAR').getVariable();
+    const index = generator.valueToCode(block, 'INDEX', Order.NONE) || cfg.MISSING_VALUE;
+    return `${name(variable)}[${index}] = int(input())\n`;
+  };
+
+  gen.forBlock['array_length'] = function (block, generator) {
+    const variable = block.getField('VAR').getVariable();
+    return [`len(${name(variable)})`, Order.ATOMIC];
   };
 
   return gen;

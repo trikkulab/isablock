@@ -122,5 +122,29 @@ export function createPseudocodeGenerator(Blockly, cfg) {
     return [`"${block.getFieldValue('TEXT')}"`, Order.ATOMIC];
   };
 
+  gen.forBlock['array_get'] = function (block, generator) {
+    const variable = block.getField('VAR').getVariable();
+    const index = generator.valueToCode(block, 'INDEX', Order.NONE) || cfg.MISSING_VALUE;
+    return [`${varName(variable)}[${index}]`, Order.ATOMIC];
+  };
+
+  gen.forBlock['array_set'] = function (block, generator) {
+    const variable = block.getField('VAR').getVariable();
+    const index = generator.valueToCode(block, 'INDEX', Order.NONE) || cfg.MISSING_VALUE;
+    const value = generator.valueToCode(block, 'VALUE', Order.NONE) || cfg.MISSING_VALUE;
+    return `${cfg.ASSIGN_TO} ${varName(variable)}[${index}] ${cfg.ASSIGN_VALUE} ${value}\n`;
+  };
+
+  gen.forBlock['array_read'] = function (block, generator) {
+    const variable = block.getField('VAR').getVariable();
+    const index = generator.valueToCode(block, 'INDEX', Order.NONE) || cfg.MISSING_VALUE;
+    return `${cfg.READ} ${varName(variable)}[${index}]\n`;
+  };
+
+  gen.forBlock['array_length'] = function (block) {
+    const variable = block.getField('VAR').getVariable();
+    return [`${cfg.LENGTH_OF} ${varName(variable)}`, Order.ATOMIC];
+  };
+
   return gen;
 }

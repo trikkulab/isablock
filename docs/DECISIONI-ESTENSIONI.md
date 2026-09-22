@@ -16,7 +16,7 @@ Le estensioni si introducono solo dopo la validazione in classe della Fase 1 (ve
 | Ordine di lavoro: booleani, stringhe, vettori, funzioni | **Deciso** come ordine desiderato |
 | Booleani | **Fatto** (2026-09-22) |
 | Stringhe | Livello A **fatto** (2026-09-22); livello B rimandato |
-| Vettori | Proposta dettagliata, da confermare |
+| Vettori | **Fatto** (2026-09-22) |
 | Array di caratteri (esercizi su singolo carattere) | Proposta preliminare, distinta dalle stringhe immutabili |
 | Funzioni/procedure | Solo analisi; scelte di progetto da fare |
 | Profili base/avanzato | Proposta: un solo codice con profili; da confermare |
@@ -230,37 +230,87 @@ numerici.
 
 Costo stimato: livello A basso, livello B medio.
 
-## Vettori
+## Vettori — fatto (2026-09-22)
 
 **Solo vettori di interi.** Niente vettori di stringhe (eviterebbero le matrici di
 `char`, la parte più pesante del C). Niente matrici.
 
-**Proposta**
-- **Dichiarazione:** la dimensione è una proprietà **della variabile**, scelta alla
-  creazione (finestra "crea vettore": nome + dimensione), non un blocco-istruzione
-  nella sequenza. Un blocco dichiarazione potrebbe finire dentro un ciclo: Python lo
-  riazzererebbe a ogni giro, mentre un `int v[10]` in C dentro le graffe non sarebbe
-  visibile fuori. Con la dimensione sulla variabile, C dichiara `int v[10] = {0};` in
-  cima a `main` e Python inizializza con `[0] * N` a inizio programma.
-- **Dimensione: numero letterale fisso**, non espressione (in C sarebbe un array a
-  lunghezza variabile).
-- **Blocchi nuovi:** `v[i]` (espressione, restituisce `Number`), `v[i] ← espressione`
-  (istruzione, separata da `assign`), `LEGGI v[i]`, e opzionale "lunghezza di v" (in C
-  la costante `N`, in Python `len(v)`).
-- **Filtro dei menu variabili per tipo** (`variableTypes` di Blockly): un vettore non
-  deve poter comparire in `assign`, `variable_get`, `PER`, `LEGGI` scalari.
-- **Indice base 0 in tutti e tre gli output** (`PER i DA 0 A n-1`), da dire nella guida.
-  Convertire da base 1 nel generatore (`v[i-1]`) produce codice illeggibile. Se un libro
-  usa base 1 sarebbe un'opzione con effetto su tutti e tre gli output.
-- **Indici fuori limiti (divergenza più seria):** in C è comportamento indefinito; in
-  Python `v[10]` dà errore ma `v[-1]` è valido. L'interprete deve segnalare l'errore
-  "indice fuori dai limiti" in entrambi i casi.
-- Inizializzazione a zero in tutti gli output (vedi nota su C nel punto di partenza).
+**Come è stato fatto**
+- **Dichiarazione:** la dimensione è una proprietà della variabile, scelta alla
+  creazione — ma **senza una finestra "crea vettore" dedicata**: si riusa lo stesso
+  meccanismo dei booleani (`variableTypes`/`defaultType` su `field_variable`), e la
+  dimensione viene chiesta con un secondo `window.prompt` subito dopo, dallo stesso
+  punto che gestisce la creazione. Un solo modo di creare variabili in tutta l'app,
+  indipendentemente dal tipo. C dichiara `int v[10] = {0};` in cima a `main`, Python
+  inizializza con `v = [0] * 10` prima del corpo del programma (`gen.forBlock['program']`
+  in Python non produceva prima nessuna riga extra: ora la produce anche lì, non solo
+  in C, perché Python non ha una sezione dichiarazioni dove appoggiarsi).
+- **Dimensione: numero fisso**, scelto una sola volta alla creazione della variabile,
+  non modificabile in seguito (si ricrea la variabile con un altro nome se serve una
+  dimensione diversa).
+- **Blocchi nuovi:** `array_get` (`v[i]`, espressione, `Number`), `array_set`
+  (`ASSEGNA A v[i] IL VALORE ...`, istruzione separata da `assign`), `array_read`
+  (`LEGGI v[i]`), `array_length` (`LUNGHEZZA DI v`, incluso da subito, non rimandato:
+  in C è la dimensione letterale, in Python `len(v)`).
+- **Filtro dei menu variabili per tipo:** i quattro blocchi vettore usano
+  `variableTypes: ['Array']`; i blocchi scalari (`assign`, `read`, `variable_get`,
+  `controls_for_simple`) elencavano già esplicitamente i propri tipi ammessi (fatto per
+  i booleani), quindi non potevano già comparirvi un vettore — nessuna modifica
+  necessaria lì.
+- **Indice base 0, inizializzazione a zero, indici fuori limiti**: implementati come da
+  proposta originale (sotto), verificati con test dedicati (vedi sotto).
+
+**Dove vive la dimensione (il punto architetturale nuovo rispetto ai booleani):**
+Blockly non serializza dati extra sulle variabili. La dimensione vive in
+`workspace.arraySizes`, una `Map<variabileId, dimensione>` attaccata direttamente
+all'oggetto workspace (stesso stile ad-hoc già usato da `generator.repeatDepth` in
+`src/codegen/c.js` per i contatori anonimi di `repeat_times`): niente modulo a parte,
+c'è un solo workspace in tutta l'app. `src/persistence.js` la salva/ripristina accanto
+alle chiavi di Blockly, come già fa con `formatVersion`/`appVersion`.
+
+**Tre insidie trovate solo testando davvero (non nella proposta originale), stesso
+tema dei booleani — un blocco il cui comportamento dipende da uno stato esterno al
+singolo blocco va verificato su *tutti* i percorsi che possono valorizzare quello
+stato, non solo quello "ovvio" (l'interazione dello studente):**
+1. **Creare un blocco vettore per la prima volta (anche solo trascinandolo dalla
+   tavolozza, senza toccare il menu VAR) fa scattare una creazione automatica di
+   variabile da parte di Blockly stesso, che non passa né dal validator né da
+   `field.loadState()`.** Verificato: senza contromisura, il primissimo vettore di un
+   programma restava senza dimensione registrata. La variabile viene risolta per
+   davvero solo in `field.initModel()` (un terzo punto di ingresso, oltre a validator e
+   `loadState`, mai emerso con i booleani perché lì il valore di default JSON — la
+   variabile numerica "variabile" — già esisteva sempre). Risolto avvolgendo anche
+   `initModel()`.
+2. **Il caso "Annulla" sul prompt della dimensione non può cancellare la variabile
+   appena creata.** Prima idea (per analogia con "Annulla" su "Salva con nome"): se lo
+   studente annulla, cancellare la variabile appena creata e rifiutare il cambio.
+   Verificato che non funziona: un campo `field_variable` con un solo tipo ammesso non
+   può restare "vuoto", quindi Blockly ne crea subito un'altra di default — che a sua
+   volta non ha una dimensione, e richiederebbe un altro prompt, in un ciclo senza
+   una vera via d'uscita pulita. Cambiata la scelta: "Annulla" assegna una dimensione
+   predefinita (10), correggibile ricreando la variabile con un altro nome.
+3. **Su un workspace renderizzato (non nell'equivalente headless usato per i test),
+   `initModel()` può scattare un istante prima che Blockly registri davvero la
+   variabile nella propria variable map** (riprodotto solo chiamando `initSvg()`/
+   `render()` su un blocco appena creato, come fa l'editor reale — non riproducibile
+   nel workspace headless di `test/regression.mjs`, che non renderizza). Un
+   `getVariableById` in quel punto restituisce `null` e andrebbe in eccezione. Risolto
+   riprovando al giro successivo dell'event loop invece di fallire.
+
+**Verificato:** headless (Node, stesso approccio dei booleani) e su Chromium reale via
+Playwright — tavolozza "Vettori", creazione con il vero `window.prompt()` del browser,
+ciclo `PER` che riempie un vettore, `LUNGHEZZA DI`, indice fuori dai limiti durante
+l'esecuzione (messaggio chiaro, esecuzione interrotta in modo pulito, non un'eccezione
+JS grezza), e il flusso reale Salva → Nuovo → Apri... con output identico prima e dopo.
+I 5 esempi precaricati restano invariati (nessuno usa vettori). `fileFormatVersion`
+passato da 3 a 4.
 
 Sblocca algoritmi da manuale: massimo e ricerca lineare su un vettore, inversione,
-somma, media, bubble/selection sort.
+somma, media, bubble/selection sort (non ancora aggiunti come esempi precaricati:
+stessa scelta fatta per booleani e testo, funzionalità ed esempi in passi separati).
 
-Costo stimato: medio.
+Costo stimato: medio — confermato, con il giro in più imprevisto sulla dimensione
+(stesso tipo di sorpresa già visto con il salvataggio dei booleani).
 
 ## Array di caratteri (esercizi su singolo carattere) — proposta preliminare
 
@@ -484,7 +534,8 @@ end-to-end su un browser reale, non è parte della suite automatica.
 1. ~~Stringhe: livello A o anche livello B?~~ **Deciso (2026-09-22): solo livello A
    per ora** (vedi sopra); si riapre dopo aver usato il livello A in classe.
 2. Spunta "senza a capo" su `SCRIVI`: sì/no, e come si comporta la console.
-3. Vettori: conferma di indice base 0 e di dimensione letterale fissa.
+3. ~~Vettori: conferma di indice base 0 e di dimensione letterale fissa.~~
+   **Fatto (2026-09-22)**, vedi sopra.
 4. Funzioni: conferma di scope locale + passaggio per valore, e se partire dai soli
    interi.
 5. Profili: conferma del parametro nell'indirizzo come meccanismo iniziale; cosa fare

@@ -14,6 +14,7 @@ export const COLOR_NUMBER = '#e0a458';
 export const COLOR_BOOLEAN = '#c1666b';
 export const COLOR_COMMENT = '#8a94a6';
 export const COLOR_TEXT = '#4f9d8d';
+export const COLOR_ARRAY = '#5f7a61';
 
 const blockDefinitions = [
   // --- Struttura -----------------------------------------------------
@@ -338,6 +339,171 @@ export function registerBlocks(Blockly) {
         originalLoadState(state);
         updateValueCheck(field.getValue());
       };
+    },
+  };
+
+  // --- Vettori (solo interi, dimensione fissa scelta alla creazione) -----
+  // I quattro blocchi condividono lo stesso campo VAR (variableTypes:
+  // ['Array']) e lo stesso meccanismo di creazione: quando si sceglie
+  // "Crea variabile..." dal menu del campo, il validator (sincrono, gira
+  // dentro field.setValue()) chiede subito anche la dimensione con un
+  // secondo prompt e la registra in workspace.arraySizes - una Map
+  // <variabileId, dimensione> attaccata al workspace (stesso stile ad-hoc
+  // gia' usato da generator.repeatDepth in src/codegen/c.js), perche'
+  // Blockly non serializza dati extra sulle variabili di suo.
+  //
+  // A differenza di 'assign' con i booleani, qui NON serve intercettare
+  // anche field.loadState(): nessuno dei quattro blocchi ha un check di
+  // connessione che dipende dalla dimensione (INDEX e VALUE sono sempre
+  // 'Number', fissi), quindi non c'e' rischio che Blockly rifiuti di
+  // ricollegare un figlio salvato durante il caricamento di un file.
+  // workspace.arraySizes viene ripristinato da src/persistence.js subito
+  // dopo il caricamento, in tempo per quando generatori e interprete ne
+  // avranno bisogno (loro sì, a differenza di Blockly stesso, lo leggono
+  // solo dopo che il workspace è stato ricostruito per intero).
+  //
+  // Verificato empiricamente un altro caso non ovvio: quando un blocco
+  // vettore viene creato per la prima volta (anche solo trascinandolo dalla
+  // tavolozza, senza che lo studente tocchi il menu VAR), Blockly assegna da
+  // solo una variabile Array di default per riempire il campo - un percorso
+  // interno che, come loadState, NON passa dal validator. Senza contromisura
+  // il primissimo vettore di un programma resterebbe senza dimensione
+  // registrata. Per questo ensureArraySize() viene richiamata sia dal
+  // validator sia una volta subito dopo jsonInit, sul valore iniziale del
+  // campo. Per lo stesso motivo "Annulla" sul prompt non cancella la
+  // variabile (si era provato: Blockly ne ricrea subito un'altra di
+  // default, altrettanto priva di dimensione, in un ciclo senza uscita) ma
+  // assegna una dimensione predefinita (10), che lo studente puo' comunque
+  // correggere ricreando la variabile con un altro nome.
+  const DEFAULT_ARRAY_SIZE = 10;
+
+  function getArraySizes(workspace) {
+    if (!workspace.arraySizes) workspace.arraySizes = new Map();
+    return workspace.arraySizes;
+  }
+
+  function promptArraySize(variableName) {
+    for (;;) {
+      const answer = window.prompt(
+        `Quanti elementi ha il vettore "${variableName}"? (numero fisso, per esempio 10)`,
+        String(DEFAULT_ARRAY_SIZE)
+      );
+      if (answer === null) return DEFAULT_ARRAY_SIZE; // Annulla: dimensione predefinita
+      const trimmed = answer.trim();
+      if (/^[1-9]\d*$/.test(trimmed)) {
+        return parseInt(trimmed, 10);
+      }
+      window.alert('Inserisci un numero intero maggiore di zero.');
+    }
+  }
+
+  function ensureArraySize(workspace, variableId) {
+    const arraySizes = getArraySizes(workspace);
+    if (arraySizes.has(variableId)) return;
+    const variable = workspace.getVariableMap().getVariableById(variableId);
+    if (!variable) {
+      // Verificato su un workspace renderizzato (non nell'equivalente
+      // headless): initModel() puo' scattare per un istante prima che la
+      // variabile sia gia' registrata nella variable map (es. durante
+      // initSvg()/render() chiamati subito dopo la creazione del blocco).
+      // Si riprova al giro successivo invece di fallire: e' un caso limite
+      // dell'ordine interno di Blockly, non qualcosa su cui possiamo contare.
+      setTimeout(() => ensureArraySize(workspace, variableId), 0);
+      return;
+    }
+    arraySizes.set(variableId, promptArraySize(variable.name));
+  }
+
+  function attachArraySizeValidator(block) {
+    const field = block.getField('VAR');
+    field.setValidator(function (newVariableId) {
+      ensureArraySize(block.workspace, newVariableId);
+      return newVariableId;
+    });
+    // Il valore iniziale del campo (creato da Blockly stesso a partire da
+    // 'variable'/'defaultType' nel JSON) non esiste ancora subito dopo
+    // jsonInit: il campo risolve/crea la variabile vera e propria solo in
+    // initModel() (verificato: leggerla prima restituisce un id senza
+    // variabile corrispondente). Il validator da solo non la vedrebbe mai,
+    // quindi va intercettato anche questo, sullo stesso modello di
+    // field.loadState per 'assign'.
+    const originalInitModel = field.initModel.bind(field);
+    field.initModel = function () {
+      originalInitModel();
+      ensureArraySize(block.workspace, field.getValue());
+    };
+  }
+
+  // Ripetuta identica in ciascun blocco (non condivisa come oggetto: alcuni
+  // percorsi interni di Blockly possono annotare l'oggetto args passato a
+  // jsonInit, quindi condividere lo stesso riferimento tra piu' blocchi
+  // rischierebbe un'interferenza tra loro).
+  const arrayVarFieldSpec = () => ({
+    type: 'field_variable',
+    name: 'VAR',
+    variable: 'v',
+    variableTypes: ['Array'],
+    defaultType: 'Array',
+  });
+
+  Blockly.Blocks['array_get'] = {
+    init: function () {
+      this.jsonInit({
+        message0: '%1[%2]',
+        args0: [arrayVarFieldSpec(), { type: 'input_value', name: 'INDEX', check: 'Number' }],
+        inputsInline: true,
+        output: 'Number',
+        colour: COLOR_ARRAY,
+        tooltip: 'Elemento del vettore in posizione INDICE (indice da 0)',
+      });
+      attachArraySizeValidator(this);
+    },
+  };
+
+  Blockly.Blocks['array_set'] = {
+    init: function () {
+      this.jsonInit({
+        message0: 'ASSEGNA A %1[%2] IL VALORE %3',
+        args0: [
+          arrayVarFieldSpec(),
+          { type: 'input_value', name: 'INDEX', check: 'Number' },
+          { type: 'input_value', name: 'VALUE', check: 'Number' },
+        ],
+        inputsInline: true,
+        previousStatement: null,
+        nextStatement: null,
+        colour: COLOR_STATEMENT,
+        tooltip: 'Assegna un valore a un elemento del vettore',
+      });
+      attachArraySizeValidator(this);
+    },
+  };
+
+  Blockly.Blocks['array_read'] = {
+    init: function () {
+      this.jsonInit({
+        message0: 'LEGGI %1[%2]',
+        args0: [arrayVarFieldSpec(), { type: 'input_value', name: 'INDEX', check: 'Number' }],
+        inputsInline: true,
+        previousStatement: null,
+        nextStatement: null,
+        colour: COLOR_STATEMENT,
+        tooltip: 'Legge un valore in input e lo salva in un elemento del vettore',
+      });
+      attachArraySizeValidator(this);
+    },
+  };
+
+  Blockly.Blocks['array_length'] = {
+    init: function () {
+      this.jsonInit({
+        message0: 'LUNGHEZZA DI %1',
+        args0: [arrayVarFieldSpec()],
+        output: 'Number',
+        colour: COLOR_ARRAY,
+        tooltip: 'Numero di elementi del vettore',
+      });
+      attachArraySizeValidator(this);
     },
   };
 }

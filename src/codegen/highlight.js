@@ -63,6 +63,7 @@ const PSEUDOCODE_KEYWORD_KEYS = [
   'AND', 'OR', 'NOT', 'TRUE', 'FALSE',
   'EQ', 'NEQ', 'LT', 'LTE', 'GT', 'GTE',
   'ADD', 'SUB', 'MUL', 'DIV', 'MOD',
+  'LENGTH_OF',
 ];
 
 let cachedPseudocodeCfg = null;
@@ -102,7 +103,7 @@ const tokenizePythonImpl = buildTokenizer([
   { type: 'string', source: '"(?:[^"\\\\]|\\\\.)*"' },
   { type: 'number', source: NUMBER_SOURCE },
   { type: 'keyword', source: '\\b(?:if|elif|else|while|for|in|and|or|not|True|False|pass)\\b' },
-  { type: 'builtin', source: '\\b(?:print|input|int|range)\\b' },
+  { type: 'builtin', source: '\\b(?:print|input|int|range|len)\\b' },
 ]);
 export function tokenizePython(text) {
   return tokenizePythonImpl(text);
