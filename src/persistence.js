@@ -12,9 +12,12 @@ function serializeWorkspace(Blockly, workspace) {
   // legge solo le chiavi dei propri serializzatori e ignora le altre.
   // appVersion è solo informativa (da quale app arriva il file): non si usa
   // mai per decidere se il file è leggibile, lo decide formatVersion.
+  // arraySizes (dimensione dei vettori, vedi src/blocks/blocks.js) è dati
+  // dell'app allo stesso modo: Blockly non lo conosce e non lo tocca.
   const state = {
     formatVersion: appConfig.fileFormatVersion,
     appVersion: appConfig.version,
+    arraySizes: Object.fromEntries(workspace.arraySizes || []),
     ...Blockly.serialization.workspaces.save(workspace),
   };
   return JSON.stringify(state, null, 2);
@@ -68,5 +71,10 @@ export function loadWorkspaceFromFile(Blockly, workspace, file) {
     }
     workspace.clear();
     Blockly.serialization.workspaces.load(state, workspace);
+    // Dopo, non prima: qui non c'è il problema visto con 'assign' e i
+    // booleani (Blockly che ricollega subito i figli durante load()) -
+    // arraySizes lo consultano solo generatori e interprete, chiamati da
+    // main.js dopo che questa funzione è tornata.
+    workspace.arraySizes = new Map(Object.entries(state.arraySizes ?? {}));
   });
 }

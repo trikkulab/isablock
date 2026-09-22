@@ -1,0 +1,12 @@
+INIZIO
+   // Chiede quanti numeri sommare
+   LEGGI n
+   // La somma parte da zero
+   ASSEGNA A somma IL VALORE 0
+   // Legge un numero alla volta e lo aggiunge alla somma
+   PER i DA 1 A n
+      LEGGI valore
+      ASSEGNA A somma IL VALORE somma + valore
+   FINE PER
+   SCRIVI somma
+FINE

@@ -27,6 +27,28 @@ function checkStepBudget(io) {
   }
 }
 
+// L'array JS vero e proprio vive in vars (pre-popolato a zero da
+// runProgram per ogni variabile di tipo 'Array', vedi sotto): la sua
+// lunghezza reale è quindi già la dimensione scelta alla creazione, non
+// serve consultare di nuovo workspace.arraySizes qui.
+function getArray(block, vars) {
+  const variable = block.getField('VAR').getVariable();
+  return vars.get(variable.getId());
+}
+
+// Sia in C (comportamento indefinito) sia in Python (eccezione) un indice
+// fuori dai limiti è un errore da segnalare, non da eseguire in silenzio
+// (vedi docs/DECISIONI-ESTENSIONI.md, sezione Vettori): qui lo trattiamo
+// allo stesso modo per entrambe le direzioni (troppo piccolo o troppo
+// grande), a differenza di Python dove v[-1] sarebbe valido.
+function checkIndex(variableName, index, array) {
+  if (!Number.isInteger(index) || index < 0 || index >= array.length) {
+    throw new ExecutionError(
+      `Indice fuori dai limiti: ${variableName}[${index}] (dimensione ${array.length}).`
+    );
+  }
+}
+
 // Stessa identica semantica di divisione/modulo gia' scelta e documentata
 // nei tre generatori (vedi src/codegen/c.js e src/codegen/python.js): non e'
 // una nuova convenzione, e' quella che i tre output dichiarano di produrre.
@@ -39,10 +61,24 @@ function evalExpression(block, vars) {
       return block.getFieldValue('VALUE');
     case 'bool_literal':
       return block.getFieldValue('VALUE') === 'TRUE';
+    case 'text_literal':
+      return block.getFieldValue('TEXT');
     case 'variable_get': {
       const variable = block.getField('VAR').getVariable();
       return vars.has(variable.getId()) ? vars.get(variable.getId()) : 0;
     }
+    case 'variable_get_bool': {
+      const variable = block.getField('VAR').getVariable();
+      return vars.has(variable.getId()) ? vars.get(variable.getId()) : false;
+    }
+    case 'array_get': {
+      const array = getArray(block, vars);
+      const index = evalExpression(block.getInputTargetBlock('INDEX'), vars);
+      checkIndex(block.getField('VAR').getVariable().name, index, array);
+      return array[index];
+    }
+    case 'array_length':
+      return getArray(block, vars).length;
     case 'arith_op': {
       const a = evalExpression(block.getInputTargetBlock('A'), vars);
       const b = evalExpression(block.getInputTargetBlock('B'), vars);
@@ -127,6 +163,22 @@ function* runStatement(block, vars, io) {
       io.onOutput(evalExpression(block.getInputTargetBlock('VALUE'), vars));
       return;
     }
+    case 'array_set': {
+      yield { blockId: block.id };
+      const array = getArray(block, vars);
+      const index = evalExpression(block.getInputTargetBlock('INDEX'), vars);
+      checkIndex(block.getField('VAR').getVariable().name, index, array);
+      array[index] = evalExpression(block.getInputTargetBlock('VALUE'), vars);
+      return;
+    }
+    case 'array_read': {
+      const array = getArray(block, vars);
+      const index = evalExpression(block.getInputTargetBlock('INDEX'), vars);
+      checkIndex(block.getField('VAR').getVariable().name, index, array);
+      const value = yield { blockId: block.id, awaitingInput: true };
+      array[index] = value;
+      return;
+    }
     case 'comment_line': {
       // Nessun effetto (per definizione), ma resta un passo visibile: la
       // spec lo descrive come una riga reale della sequenza, non solo
@@ -186,6 +238,17 @@ function* runStatement(block, vars, io) {
 // chiamante e viene aggiornato qui dentro per il tetto anti-ciclo-infinito.
 export function* runProgram(programBlock, io) {
   const vars = new Map();
+  // Ogni vettore usato nel programma viene azzerato PRIMA di eseguire
+  // qualunque istruzione, stessa semantica di "int v[10] = {0};" in C e
+  // "v = [0] * 10" in cima al modulo Python: non è pigro come le variabili
+  // scalari (che leggono 0/false di default solo se interrogate), perché un
+  // array_get prima di un array_set deve comunque trovare un vettore reale
+  // della dimensione giusta, non `undefined`.
+  const workspace = programBlock.workspace;
+  const arraySizes = workspace.arraySizes || new Map();
+  for (const variable of workspace.getVariableMap().getVariablesOfType('Array')) {
+    vars.set(variable.getId(), new Array(arraySizes.get(variable.getId()) || 0).fill(0));
+  }
   const body = programBlock.getInputTargetBlock('BODY');
   if (body) {
     yield* runStatements(body, vars, io);

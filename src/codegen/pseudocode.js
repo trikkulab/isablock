@@ -81,6 +81,8 @@ export function createPseudocodeGenerator(Blockly, cfg) {
     return [varName(variable), Order.ATOMIC];
   };
 
+  gen.forBlock['variable_get_bool'] = gen.forBlock['variable_get'];
+
   gen.forBlock['arith_op'] = function (block, generator) {
     const op = block.getFieldValue('OP');
     const info = ARITH_OPS[op];
@@ -112,6 +114,36 @@ export function createPseudocodeGenerator(Blockly, cfg) {
   gen.forBlock['bool_literal'] = function (block) {
     const value = block.getFieldValue('VALUE');
     return [value === 'TRUE' ? cfg.TRUE : cfg.FALSE, Order.ATOMIC];
+  };
+
+  gen.forBlock['text_literal'] = function (block) {
+    // Nessun escaping: lo pseudocodice non viene ne' compilato ne' eseguito,
+    // le virgolette servono solo a mostrare allo studente che e' testo.
+    return [`"${block.getFieldValue('TEXT')}"`, Order.ATOMIC];
+  };
+
+  gen.forBlock['array_get'] = function (block, generator) {
+    const variable = block.getField('VAR').getVariable();
+    const index = generator.valueToCode(block, 'INDEX', Order.NONE) || cfg.MISSING_VALUE;
+    return [`${varName(variable)}[${index}]`, Order.ATOMIC];
+  };
+
+  gen.forBlock['array_set'] = function (block, generator) {
+    const variable = block.getField('VAR').getVariable();
+    const index = generator.valueToCode(block, 'INDEX', Order.NONE) || cfg.MISSING_VALUE;
+    const value = generator.valueToCode(block, 'VALUE', Order.NONE) || cfg.MISSING_VALUE;
+    return `${cfg.ASSIGN_TO} ${varName(variable)}[${index}] ${cfg.ASSIGN_VALUE} ${value}\n`;
+  };
+
+  gen.forBlock['array_read'] = function (block, generator) {
+    const variable = block.getField('VAR').getVariable();
+    const index = generator.valueToCode(block, 'INDEX', Order.NONE) || cfg.MISSING_VALUE;
+    return `${cfg.READ} ${varName(variable)}[${index}]\n`;
+  };
+
+  gen.forBlock['array_length'] = function (block) {
+    const variable = block.getField('VAR').getVariable();
+    return [`${cfg.LENGTH_OF} ${varName(variable)}`, Order.ATOMIC];
   };
 
   return gen;

@@ -1,0 +1,10 @@
+INIZIO
+   LEGGI n
+   // Il fattoriale parte da 1
+   ASSEGNA A fattoriale IL VALORE 1
+   // Moltiplica via via per ogni numero da 1 a n
+   PER i DA 1 A n
+      ASSEGNA A fattoriale IL VALORE fattoriale × i
+   FINE PER
+   SCRIVI fattoriale
+FINE
