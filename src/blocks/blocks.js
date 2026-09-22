@@ -28,9 +28,9 @@ const blockDefinitions = [
   // --- Istruzioni ------------------------------------------------------
   {
     type: 'assign',
-    message0: '%1  ←  %2',
+    message0: 'ASSEGNA A %1 IL VALORE %2',
     args0: [
-      { type: 'field_variable', name: 'VAR', variable: 'valore' },
+      { type: 'field_variable', name: 'VAR', variable: 'variabile' },
       { type: 'input_value', name: 'VALUE', check: 'Number' },
     ],
     inputsInline: true,
@@ -42,7 +42,7 @@ const blockDefinitions = [
   {
     type: 'read',
     message0: 'LEGGI %1',
-    args0: [{ type: 'field_variable', name: 'VAR', variable: 'valore' }],
+    args0: [{ type: 'field_variable', name: 'VAR', variable: 'variabile' }],
     previousStatement: null,
     nextStatement: null,
     colour: COLOR_STATEMENT,
@@ -150,7 +150,7 @@ const blockDefinitions = [
   {
     type: 'variable_get',
     message0: '%1',
-    args0: [{ type: 'field_variable', name: 'VAR', variable: 'valore' }],
+    args0: [{ type: 'field_variable', name: 'VAR', variable: 'variabile' }],
     output: 'Number',
     colour: COLOR_NUMBER,
   },

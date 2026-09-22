@@ -4,6 +4,11 @@ Contesto di progetto per Claude Code. Il codice non esiste ancora: questo reposi
 parte vuoto. Leggi anche @README.md (visione del progetto) e @docs/SPEC.md (requisiti
 funzionali dettagliati) e @docs/ROADMAP.md (fasi di sviluppo) prima di scrivere codice.
 
+Se il lavoro riguarda le estensioni successive alla Fase 1 (tipi di dato, stringhe,
+vettori, funzioni, profili/funzionalità attivabili, versionamento dei file), leggi
+prima `docs/DECISIONI-ESTENSIONI.md`: raccoglie decisioni già prese, proposte e
+questioni aperte, da non rimettere in discussione senza motivo.
+
 ## Il tuo compito
 
 Progettare e costruire da zero l'applicazione descritta in `docs/SPEC.md`, a partire

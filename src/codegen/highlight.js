@@ -55,7 +55,7 @@ const NUMBER_SOURCE = '-?\\b\\d+\\b';
 // della classe. Il tokenizzatore va quindi ricostruito quando cambia la
 // configurazione, non puo' avere una lista di parole scritta a mano qui.
 const PSEUDOCODE_KEYWORD_KEYS = [
-  'PROGRAM_START', 'PROGRAM_END', 'READ', 'WRITE', 'ASSIGN_ARROW',
+  'PROGRAM_START', 'PROGRAM_END', 'READ', 'WRITE', 'ASSIGN_TO', 'ASSIGN_VALUE',
   'IF', 'THEN', 'ELSE', 'END_IF',
   'WHILE', 'DO', 'END_WHILE',
   'FOR', 'FROM', 'TO', 'END_FOR',
