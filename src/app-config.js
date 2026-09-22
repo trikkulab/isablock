@@ -3,7 +3,7 @@
 export const appConfig = Object.freeze({
   // Versione dell'applicazione mostrata nel piè di pagina e scritta nei file
   // salvati come sola informazione di provenienza.
-  version: '1.0.0',
+  version: '1.1.0',
 
   // Versione del formato dei file salvati (vedi persistence.js). Va aumentata
   // solo quando un cambio di formato rende illeggibili i file vecchi per il
