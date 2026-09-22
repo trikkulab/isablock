@@ -1,4 +1,4 @@
-import { Order, ARITH_OPS, COMPARE_SYMBOLS_ASCII, chainNextBlock, sanitizeIdentifier } from './common.js';
+import { Order, ARITH_OPS, COMPARE_SYMBOLS_ASCII, chainNextBlock, sanitizeIdentifier, isBooleanExpr } from './common.js';
 
 const PY_KEYWORDS = new Set([
   'false', 'none', 'true', 'and', 'as', 'assert', 'async', 'await', 'break',
@@ -55,6 +55,9 @@ export function createPythonGenerator(Blockly, cfg) {
 
   gen.forBlock['write'] = function (block, generator) {
     const value = generator.valueToCode(block, 'VALUE', Order.NONE) || cfg.MISSING_VALUE;
+    if (isBooleanExpr(block.getInputTargetBlock('VALUE'))) {
+      return `print("vero" if ${value} else "falso")\n`;
+    }
     return `print(${value})\n`;
   };
 
@@ -105,6 +108,8 @@ export function createPythonGenerator(Blockly, cfg) {
     return [name(variable), Order.ATOMIC];
   };
 
+  gen.forBlock['variable_get_bool'] = gen.forBlock['variable_get'];
+
   gen.forBlock['arith_op'] = function (block, generator) {
     const op = block.getFieldValue('OP');
     const info = ARITH_OPS[op];
@@ -138,6 +143,14 @@ export function createPythonGenerator(Blockly, cfg) {
 
   gen.forBlock['bool_literal'] = function (block) {
     return [block.getFieldValue('VALUE') === 'TRUE' ? 'True' : 'False', Order.ATOMIC];
+  };
+
+  gen.forBlock['text_literal'] = function (block) {
+    // Stesso escaping del letterale C (backslash e virgolette): print() non
+    // ha bisogno di altro, a differenza di SCRIVI in C non c'e' nessun
+    // formato da scegliere in base al tipo.
+    const escaped = block.getFieldValue('TEXT').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    return [`"${escaped}"`, Order.ATOMIC];
   };
 
   return gen;

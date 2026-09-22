@@ -8,5 +8,5 @@ export const appConfig = Object.freeze({
   // Versione del formato dei file salvati (vedi persistence.js). Va aumentata
   // solo quando un cambio di formato rende illeggibili i file vecchi per il
   // codice nuovo (o viceversa), non a ogni rilascio dell'app.
-  fileFormatVersion: 1,
+  fileFormatVersion: 3,
 });

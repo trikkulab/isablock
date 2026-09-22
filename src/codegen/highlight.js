@@ -74,6 +74,7 @@ export function tokenizePseudocode(text, cfg) {
       .sort((a, b) => b.length - a.length);
     cachedPseudocodeTokenize = buildTokenizer([
       { type: 'comment', source: `${escapeRegExp(cfg.COMMENT)}[^\\n]*` },
+      { type: 'string', source: '"[^"\\n]*"' },
       { type: 'number', source: NUMBER_SOURCE },
       { type: 'keyword', source: `(?:${words.map(keywordToPattern).join('|')})` },
     ]);
@@ -88,7 +89,7 @@ const tokenizeCImpl = buildTokenizer([
   { type: 'preprocessor', source: '#include\\s*<[^>]*>' },
   { type: 'string', source: '"(?:[^"\\\\]|\\\\.)*"' },
   { type: 'number', source: NUMBER_SOURCE },
-  { type: 'keyword', source: '\\b(?:int|void|if|else|while|for|return)\\b' },
+  { type: 'keyword', source: '\\b(?:int|void|if|else|while|for|return|bool)\\b' },
   { type: 'builtin', source: '\\b(?:printf|scanf)\\b' },
 ]);
 export function tokenizeC(text) {
@@ -98,6 +99,7 @@ export function tokenizeC(text) {
 // --- Python ------------------------------------------------------------
 const tokenizePythonImpl = buildTokenizer([
   { type: 'comment', source: '#[^\\n]*' },
+  { type: 'string', source: '"(?:[^"\\\\]|\\\\.)*"' },
   { type: 'number', source: NUMBER_SOURCE },
   { type: 'keyword', source: '\\b(?:if|elif|else|while|for|in|and|or|not|True|False|pass)\\b' },
   { type: 'builtin', source: '\\b(?:print|input|int|range)\\b' },

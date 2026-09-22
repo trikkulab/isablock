@@ -1,0 +1,9 @@
+# Chiede quanti numeri sommare
+n = int(input())
+# La somma parte da zero
+somma = 0
+# Legge un numero alla volta e lo aggiunge alla somma
+for i in range(1, n + 1):
+    valore = int(input())
+    somma = somma + valore
+print(somma)

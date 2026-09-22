@@ -1,0 +1,11 @@
+INIZIO
+   // Legge i due numeri da confrontare
+   LEGGI a
+   LEGGI b
+   // Confronta i due numeri e stampa il maggiore
+   SE a > b ALLORA
+      SCRIVI a
+   ALTRIMENTI
+      SCRIVI b
+   FINE SE
+FINE

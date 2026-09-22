@@ -1,4 +1,4 @@
-import { Order, ARITH_OPS, COMPARE_SYMBOLS_ASCII, chainNextBlock, sanitizeIdentifier } from './common.js';
+import { Order, ARITH_OPS, COMPARE_SYMBOLS_ASCII, chainNextBlock, sanitizeIdentifier, isBooleanExpr, isTextExpr } from './common.js';
 
 const C_KEYWORDS = new Set([
   'auto', 'break', 'case', 'char', 'const', 'continue', 'default', 'do',
@@ -39,10 +39,16 @@ export function createCGenerator(Blockly, cfg) {
     // Solo le variabili davvero usate da almeno un blocco: evita di
     // dichiarare in C variabili "orfane" (es. il valore di default di un
     // campo variabile mai personalizzato, o rimasto tale dopo aver
-    // cambiato blocco/variabile).
-    const declared = [...new Set(Blockly.Variables.allUsedVarModels(generator.workspace).map(name))];
-    const decl = declared.length ? `${generator.INDENT}int ${declared.join(', ')};\n` : '';
-    return `#include <stdio.h>\n\nint main(void) {\n${decl}${body}${generator.INDENT}return 0;\n}\n`;
+    // cambiato blocco/variabile). Raggruppate per tipo: una riga "int ..."
+    // e, solo se serve, una riga "bool ...".
+    const usedVars = Blockly.Variables.allUsedVarModels(generator.workspace);
+    const numberVars = [...new Set(usedVars.filter((v) => v.type !== 'Boolean').map(name))];
+    const boolVars = [...new Set(usedVars.filter((v) => v.type === 'Boolean').map(name))];
+    let decl = '';
+    if (numberVars.length) decl += `${generator.INDENT}int ${numberVars.join(', ')};\n`;
+    if (boolVars.length) decl += `${generator.INDENT}bool ${boolVars.join(', ')};\n`;
+    const stdbool = boolVars.length ? '#include <stdbool.h>\n' : '';
+    return `#include <stdio.h>\n${stdbool}\nint main(void) {\n${decl}${body}${generator.INDENT}return 0;\n}\n`;
   };
 
   gen.forBlock['assign'] = function (block, generator) {
@@ -58,6 +64,13 @@ export function createCGenerator(Blockly, cfg) {
 
   gen.forBlock['write'] = function (block, generator) {
     const value = generator.valueToCode(block, 'VALUE', Order.NONE) || cfg.MISSING_VALUE;
+    const valueBlock = block.getInputTargetBlock('VALUE');
+    if (isTextExpr(valueBlock)) {
+      return `printf("%s\\n", ${value});\n`;
+    }
+    if (isBooleanExpr(valueBlock)) {
+      return `printf("%s\\n", (${value}) ? "vero" : "falso");\n`;
+    }
     return `printf("%d\\n", ${value});\n`;
   };
 
@@ -121,6 +134,8 @@ export function createCGenerator(Blockly, cfg) {
     return [name(variable), Order.ATOMIC];
   };
 
+  gen.forBlock['variable_get_bool'] = gen.forBlock['variable_get'];
+
   gen.forBlock['arith_op'] = function (block, generator) {
     const op = block.getFieldValue('OP');
     const info = ARITH_OPS[op];
@@ -151,6 +166,15 @@ export function createCGenerator(Blockly, cfg) {
 
   gen.forBlock['bool_literal'] = function (block) {
     return [block.getFieldValue('VALUE') === 'TRUE' ? '1' : '0', Order.ATOMIC];
+  };
+
+  gen.forBlock['text_literal'] = function (block) {
+    // Escaping di stringa C standard: basta backslash e virgolette, il
+    // testo arriva da un field_input a riga singola (niente "a capo" da
+    // gestire). Livello A: e' sempre un letterale, mai un valore a runtime,
+    // quindi non serve altro (niente lunghezza, niente concatenazione).
+    const escaped = block.getFieldValue('TEXT').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    return [`"${escaped}"`, Order.ATOMIC];
   };
 
   return gen;

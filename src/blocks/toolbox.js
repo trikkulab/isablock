@@ -48,7 +48,14 @@ export const toolbox = {
         { kind: 'block', type: 'logic_op' },
         { kind: 'block', type: 'not_op' },
         { kind: 'block', type: 'bool_literal' },
+        { kind: 'block', type: 'variable_get_bool' },
       ],
+    },
+    {
+      kind: 'category',
+      name: 'Testo',
+      colour: '#4f9d8d',
+      contents: [{ kind: 'block', type: 'text_literal' }],
     },
     {
       kind: 'category',

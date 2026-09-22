@@ -39,9 +39,15 @@ function evalExpression(block, vars) {
       return block.getFieldValue('VALUE');
     case 'bool_literal':
       return block.getFieldValue('VALUE') === 'TRUE';
+    case 'text_literal':
+      return block.getFieldValue('TEXT');
     case 'variable_get': {
       const variable = block.getField('VAR').getVariable();
       return vars.has(variable.getId()) ? vars.get(variable.getId()) : 0;
+    }
+    case 'variable_get_bool': {
+      const variable = block.getField('VAR').getVariable();
+      return vars.has(variable.getId()) ? vars.get(variable.getId()) : false;
     }
     case 'arith_op': {
       const a = evalExpression(block.getInputTargetBlock('A'), vars);

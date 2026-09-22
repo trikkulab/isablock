@@ -1,0 +1,19 @@
+INIZIO
+   // Legge quanti numeri ci sono nella sequenza
+   LEGGI n
+   // Legge il valore da cercare
+   LEGGI target
+   // Posizione a 0 significa che non è stato ancora trovato
+   ASSEGNA A posizione IL VALORE 0
+   ASSEGNA A i IL VALORE 1
+   // Scorre i numeri finché non trova il valore cercato o li ha controllati tutti
+   MENTRE i ≤ n E posizione = 0 RIPETI
+      LEGGI valore
+      // Se il valore letto è quello cercato, memorizza la posizione
+      SE valore = target ALLORA
+         ASSEGNA A posizione IL VALORE i
+      FINE SE
+      ASSEGNA A i IL VALORE i + 1
+   FINE MENTRE
+   SCRIVI posizione
+FINE

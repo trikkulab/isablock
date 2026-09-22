@@ -1,0 +1,15 @@
+# Legge quanti numeri ci sono nella sequenza
+n = int(input())
+# Legge il valore da cercare
+target = int(input())
+# Posizione a 0 significa che non è stato ancora trovato
+posizione = 0
+i = 1
+# Scorre i numeri finché non trova il valore cercato o li ha controllati tutti
+while i <= n and posizione == 0:
+    valore = int(input())
+    # Se il valore letto è quello cercato, memorizza la posizione
+    if valore == target:
+        posizione = i
+    i = i + 1
+print(posizione)

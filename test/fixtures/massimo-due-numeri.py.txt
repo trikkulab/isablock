@@ -1,0 +1,8 @@
+# Legge i due numeri da confrontare
+a = int(input())
+b = int(input())
+# Confronta i due numeri e stampa il maggiore
+if a > b:
+    print(a)
+else:
+    print(b)

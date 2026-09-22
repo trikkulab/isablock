@@ -1,0 +1,7 @@
+n = int(input())
+# Il fattoriale parte da 1
+fattoriale = 1
+# Moltiplica via via per ogni numero da 1 a n
+for i in range(1, n + 1):
+    fattoriale = fattoriale * i
+print(fattoriale)

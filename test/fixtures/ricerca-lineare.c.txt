@@ -1,0 +1,23 @@
+#include <stdio.h>
+
+int main(void) {
+    int n, target, posizione, i, valore;
+    // Legge quanti numeri ci sono nella sequenza
+    scanf("%d", &n);
+    // Legge il valore da cercare
+    scanf("%d", &target);
+    // Posizione a 0 significa che non è stato ancora trovato
+    posizione = 0;
+    i = 1;
+    // Scorre i numeri finché non trova il valore cercato o li ha controllati tutti
+    while (i <= n && posizione == 0) {
+        scanf("%d", &valore);
+        // Se il valore letto è quello cercato, memorizza la posizione
+        if (valore == target) {
+            posizione = i;
+        }
+        i = i + 1;
+    }
+    printf("%d\n", posizione);
+    return 0;
+}

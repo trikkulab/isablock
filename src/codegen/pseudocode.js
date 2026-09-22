@@ -81,6 +81,8 @@ export function createPseudocodeGenerator(Blockly, cfg) {
     return [varName(variable), Order.ATOMIC];
   };
 
+  gen.forBlock['variable_get_bool'] = gen.forBlock['variable_get'];
+
   gen.forBlock['arith_op'] = function (block, generator) {
     const op = block.getFieldValue('OP');
     const info = ARITH_OPS[op];
@@ -112,6 +114,12 @@ export function createPseudocodeGenerator(Blockly, cfg) {
   gen.forBlock['bool_literal'] = function (block) {
     const value = block.getFieldValue('VALUE');
     return [value === 'TRUE' ? cfg.TRUE : cfg.FALSE, Order.ATOMIC];
+  };
+
+  gen.forBlock['text_literal'] = function (block) {
+    // Nessun escaping: lo pseudocodice non viene ne' compilato ne' eseguito,
+    // le virgolette servono solo a mostrare allo studente che e' testo.
+    return [`"${block.getFieldValue('TEXT')}"`, Order.ATOMIC];
   };
 
   return gen;

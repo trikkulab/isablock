@@ -100,6 +100,25 @@ export function extractSourceMap(rawText) {
   return { text: clean, ranges };
 }
 
+// Tipi di blocco che producono un valore booleano. Usata per scegliere il
+// formato di stampa di SCRIVI in C e Python (vero/falso invece di 1/True):
+// e' tutta l'inferenza del tipo di un'espressione di cui c'e' bisogno,
+// perche' ogni tipo ha un blocco distinto (SPEC.md: "blocchi distinti, non
+// polimorfi") invece di un unico blocco il cui tipo dipende dalla variabile
+// scelta al suo interno.
+const BOOLEAN_EXPR_TYPES = new Set(['compare_op', 'logic_op', 'not_op', 'bool_literal', 'variable_get_bool']);
+
+export function isBooleanExpr(block) {
+  return !!block && BOOLEAN_EXPR_TYPES.has(block.type);
+}
+
+// Stessa idea per il testo (livello A): l'unico blocco che produce 'Text' è
+// il letterale, quindi basta il tipo di blocco per sapere che SCRIVI deve
+// stampare una stringa e non un numero.
+export function isTextExpr(block) {
+  return !!block && block.type === 'text_literal';
+}
+
 const RESERVED_SUFFIX = '_var';
 
 // Evita di generare identificatori che collidono con parole chiave del
