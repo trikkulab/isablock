@@ -97,10 +97,21 @@ Due livelli:
   `print("...")`. Costo quasi nullo dopo l'inferenza dei tipi introdotta con i
   booleani. Si può fare insieme ai booleani.
 - **Livello B — leggere una parola in una variabile.** Variabili di testo che ricevono
-  un valore **solo tramite `LEGGI`**; ammessi `SCRIVI parola` e il confronto `=` / `≠`.
-  Niente assegnazione, concatenazione, lunghezza, accesso ai caratteri. Copre password,
-  "come ti chiami", uguaglianza di due parole. **Da decidere in base agli esercizi
-  reali** (l'utente ha ancora da pensarci).
+  un valore tramite `LEGGI` **oppure tramite assegnazione di un letterale o di
+  un'altra variabile testo** (`parola ← "ciao"`, `parola2 ← parola1`); ammessi anche
+  `SCRIVI parola` e il confronto `=` / `≠`. Niente concatenazione, lunghezza, accesso
+  ai caratteri: l'assegnazione copia sempre l'intero valore in un colpo solo, non
+  riapre i problemi (mutabilità, costruzione pezzo per pezzo) che l'immutabilità
+  voleva evitare — per questo è stata ammessa nonostante inizialmente esclusa insieme
+  al resto. Copre password, "come ti chiami", uguaglianza di due parole, messaggi
+  costruiti da valori fissi. **Da decidere in base agli esercizi reali** (l'utente ha
+  ancora da pensarci se implementare il livello B).
+
+  *(Nota del 2026-09-22: l'esclusione iniziale dell'assegnazione non aveva una
+  motivazione tecnica registrata, a differenza per esempio dei float — era stata
+  raggruppata per minimalismo insieme a concatenazione/lunghezza/accesso ai
+  caratteri. Riesaminata: tecnicamente equivalente a `LEGGI` (scrittura dell'intero
+  buffer), quindi ammessa per coerenza con l'assegnazione numerica già esistente.)*
 
 **Perché l'immutabilità aiuta:** niente `strcpy`/`strcat`; sparisce il problema della
 concatenazione come istruzione (in C non è un'espressione) e dell'aliasing; sparisce la
@@ -116,8 +127,9 @@ finestra "nome + dimensione". Le stringhe dipendono solo da: tipo sulle variabil
 inferenza del tipo delle espressioni. Questo è ciò che permette l'ordine deciso
 (booleani → stringhe → vettori).
 
-**Blocchi distinti** (livello B): `LEGGI testo`, variabile di testo, `testo = testo`,
-separati dai blocchi numerici.
+**Blocchi distinti** (livello B): `LEGGI testo`, variabile di testo,
+`testo ← "letterale"` / `testo ← testo`, `testo = testo`, separati dai blocchi
+numerici.
 
 **Punti tecnici da risolvere (livello B e letterali)**
 - Escape nei letterali (virgolette, backslash, `%`) in C e Python; virgolette visibili

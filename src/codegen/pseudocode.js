@@ -22,7 +22,7 @@ export function createPseudocodeGenerator(Blockly, cfg) {
   gen.forBlock['assign'] = function (block, generator) {
     const variable = block.getField('VAR').getVariable();
     const value = generator.valueToCode(block, 'VALUE', Order.NONE) || cfg.MISSING_VALUE;
-    return `${varName(variable)}  ${cfg.ASSIGN_ARROW}  ${value}\n`;
+    return `${cfg.ASSIGN_TO} ${varName(variable)} ${cfg.ASSIGN_VALUE} ${value}\n`;
   };
 
   gen.forBlock['read'] = function (block) {

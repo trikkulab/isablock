@@ -280,7 +280,7 @@ export const examples = [
                     }
                   },
                   "next": {
-                    "block": {
+                    "block": { "type": "comment_line", "id": "b_comment_read_target", "fields": { "TEXT": "Legge il valore da cercare" }, "next": { "block": {
                       "type": "read",
                       "id": "b_read_target",
                       "fields": {
@@ -554,7 +554,7 @@ export const examples = [
                           }
                         } } }
                       }
-                    }
+                    } } }
                   }
                 } } }
               }
