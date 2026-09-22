@@ -1,0 +1,14 @@
+#include <stdio.h>
+
+int main(void) {
+    int n, fattoriale, i;
+    scanf("%d", &n);
+    // Il fattoriale parte da 1
+    fattoriale = 1;
+    // Moltiplica via via per ogni numero da 1 a n
+    for (i = 1; i <= n; i++) {
+        fattoriale = fattoriale * i;
+    }
+    printf("%d\n", fattoriale);
+    return 0;
+}

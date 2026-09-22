@@ -1,0 +1,15 @@
+#include <stdio.h>
+
+int main(void) {
+    int a, b;
+    // Legge i due numeri da confrontare
+    scanf("%d", &a);
+    scanf("%d", &b);
+    // Confronta i due numeri e stampa il maggiore
+    if (a > b) {
+        printf("%d\n", a);
+    } else {
+        printf("%d\n", b);
+    }
+    return 0;
+}

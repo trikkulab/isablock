@@ -1,0 +1,20 @@
+INIZIO
+   LEGGI n
+   // Si parte a controllare dal primo possibile divisore, cioè 2
+   ASSEGNA A i IL VALORE 2
+   ASSEGNA A primo IL VALORE 1
+   // Prova tutti i possibili divisori minori di n
+   MENTRE i < n RIPETI
+      // Se n è divisibile per i, allora n non è primo
+      SE n mod i = 0 ALLORA
+         ASSEGNA A primo IL VALORE 0
+      FINE SE
+      ASSEGNA A i IL VALORE i + 1
+   FINE MENTRE
+   // Stampa 1 se è primo, 0 se non lo è
+   SE primo = 1 ALLORA
+      SCRIVI 1
+   ALTRIMENTI
+      SCRIVI 0
+   FINE SE
+FINE

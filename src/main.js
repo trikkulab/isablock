@@ -22,6 +22,12 @@ const workspace = Blockly.inject('blocklyDiv', {
   move: { scrollbars: true, drag: true, wheel: false },
 });
 
+// Dimensione dei vettori (Map<variabileId, dimensione>): dato dell'app, non
+// di Blockly (che non lo serializza da solo) - vedi src/blocks/blocks.js e
+// src/persistence.js. Un ripiego identico esiste anche in blocks.js/
+// codegen per un workspace headless di test che non passa da qui.
+workspace.arraySizes = new Map();
+
 const pseudocodeGen = createPseudocodeGenerator(Blockly, pseudocodeConfig);
 const cGen = createCGenerator(Blockly, pseudocodeConfig);
 const pythonGen = createPythonGenerator(Blockly, pseudocodeConfig);
@@ -201,6 +207,7 @@ document.getElementById('appVersion').textContent = appConfig.version;
 document.getElementById('btnNew').addEventListener('click', () => {
   if (!window.confirm('Cancellare il programma corrente e ricominciare da zero?')) return;
   workspace.clear();
+  workspace.arraySizes.clear();
   enforceProgramBlock();
   updateOutputs();
   showToast('Nuovo programma creato', 'success');
@@ -291,6 +298,10 @@ exampleSelect.addEventListener('change', () => {
   if (!window.confirm(`Caricare l’esempio "${example.title}"? Il programma corrente andrà perso.`)) return;
   workspace.clear();
   Blockly.serialization.workspaces.load(example.workspaceState, workspace);
+  // Nessun esempio precaricato usa vettori oggi: se un domani ne avrà uno,
+  // basterà aggiungere un campo arraySizes accanto a workspaceState in
+  // src/examples.js, letto qui allo stesso modo di persistence.js.
+  workspace.arraySizes = new Map(Object.entries(example.arraySizes ?? {}));
   enforceProgramBlock();
   updateOutputs();
   showToast(`Esempio "${example.title}" caricato`, 'success');
@@ -370,6 +381,15 @@ function stopExecution(statusText) {
   updateExecButtons();
 }
 
+// Stessa convenzione "vero"/"falso" scelta per SCRIVI in C e Python (vedi
+// src/codegen/c.js e src/codegen/python.js): un booleano JS si stamperebbe
+// altrimenti come "true"/"false", disallineando la console di esecuzione dai
+// due pannelli di codice che mostrano lo stesso identico programma.
+function formatOutputValue(value) {
+  if (typeof value === 'boolean') return value ? 'vero' : 'falso';
+  return String(value);
+}
+
 function startExecution() {
   const programBlock = workspace.getTopBlocks(false).find((b) => b.type === 'program');
   if (!programBlock) return;
@@ -379,7 +399,7 @@ function startExecution() {
   runInputForm.hidden = true;
   const io = {
     stepCount: 0,
-    onOutput: (value) => appendConsoleLine(String(value), 'run-output'),
+    onOutput: (value) => appendConsoleLine(formatOutputValue(value), 'run-output'),
   };
   execGenerator = runProgram(programBlock, io);
   setWorkspaceLocked(true);

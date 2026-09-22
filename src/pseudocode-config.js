@@ -47,6 +47,8 @@ export const pseudocodeConfig = {
   DIV: '÷',
   MOD: 'mod',
 
+  LENGTH_OF: 'LUNGHEZZA DI',
+
   COMMENT: '//',
 
   INDENT: '   ',

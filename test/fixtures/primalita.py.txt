@@ -1,0 +1,15 @@
+n = int(input())
+# Si parte a controllare dal primo possibile divisore, cioè 2
+i = 2
+primo = 1
+# Prova tutti i possibili divisori minori di n
+while i < n:
+    # Se n è divisibile per i, allora n non è primo
+    if n % i == 0:
+        primo = 0
+    i = i + 1
+# Stampa 1 se è primo, 0 se non lo è
+if primo == 1:
+    print(1)
+else:
+    print(0)

@@ -48,6 +48,24 @@ export const toolbox = {
         { kind: 'block', type: 'logic_op' },
         { kind: 'block', type: 'not_op' },
         { kind: 'block', type: 'bool_literal' },
+        { kind: 'block', type: 'variable_get_bool' },
+      ],
+    },
+    {
+      kind: 'category',
+      name: 'Testo',
+      colour: '#4f9d8d',
+      contents: [{ kind: 'block', type: 'text_literal' }],
+    },
+    {
+      kind: 'category',
+      name: 'Vettori',
+      colour: '#5f7a61',
+      contents: [
+        { kind: 'block', type: 'array_get' },
+        { kind: 'block', type: 'array_set' },
+        { kind: 'block', type: 'array_read' },
+        { kind: 'block', type: 'array_length' },
       ],
     },
     {

@@ -14,9 +14,10 @@ Le estensioni si introducono solo dopo la validazione in classe della Fase 1 (ve
 |---|---|
 | Float | **Escluso** (decisione presa) |
 | Ordine di lavoro: booleani, stringhe, vettori, funzioni | **Deciso** come ordine desiderato |
-| Booleani | Proposta dettagliata, da confermare |
-| Stringhe | Orientamento: immutabili; livello B da decidere in base agli esercizi |
-| Vettori | Proposta dettagliata, da confermare |
+| Booleani | **Fatto** (2026-09-22) |
+| Stringhe | Livello A **fatto** (2026-09-22); livello B rimandato |
+| Vettori | **Fatto** (2026-09-22) |
+| Array di caratteri (esercizi su singolo carattere) | Proposta preliminare, distinta dalle stringhe immutabili |
 | Funzioni/procedure | Solo analisi; scelte di progetto da fare |
 | Profili base/avanzato | Proposta: un solo codice con profili; da confermare |
 | Login istituzionale | Futuro; predisporre solo una struttura, nessun backend ora |
@@ -65,24 +66,92 @@ Per memoria, se un giorno servissero: divisione reale vs intera, `mod` in C rich
 `fmod`/`math.h`, confronto di uguaglianza tra float, regola di promozione int→float,
 interprete JS che non distingue int da float.
 
-## Booleani
+## Booleani — fatto (2026-09-22)
 
-Le espressioni booleane esistono già; manca poter salvarle in una variabile.
+Le espressioni booleane esistevano già; mancava poterle salvare in una variabile.
+Implementato con test di regressione (`test/regression.mjs`, i 5 esempi restano
+bit-per-bit identici) e verifica sia headless sia su browser reale (Playwright).
 
-**Proposta**
-- Variabili booleane (blocco `variable_get` che restituisce `Boolean`, o blocco
-  separato per tipo); `assign` accetta `Boolean` quando la variabile è booleana.
-- C: `#include <stdbool.h>` e `bool`. Oggi `vero`/`falso` si traducono in `1`/`0` e già
-  funzionano; Python `True`/`False`.
-- Valore iniziale definito (falso), coerente nei tre output e nell'interprete.
-- **Stampa:** `SCRIVI` di un booleano darebbe `1` in C e `True` in Python. Da unificare,
-  per esempio `vero`/`falso` in tutti e tre (ternario in C e in Python).
-- È il punto in cui si introduce l'**inferenza del tipo delle espressioni**, che le
-  stringhe riusano subito.
-- Vantaggio didattico: variabili "flag" (es. `primo ← vero` nella verifica di
-  primalità).
+**Come è stato fatto**
+- Blocco separato per tipo per l'espressione, non `variable_get` polimorfo:
+  `variable_get_bool` (`variableTypes: ['Boolean']`), accanto a `variable_get`
+  ora esplicitamente `variableTypes: ['']`. Nessun dialogo di scelta del tipo
+  da costruire: Blockly propone/assegna da solo il tipo giusto quando si crea
+  una nuova variabile dal menu di un campo `field_variable` con `defaultType`
+  impostato.
+- `assign` non è più nell'array JSON dei blocchi: è definito a mano
+  (`Blockly.Blocks['assign'] = { init, onchange }`, vedi `src/blocks/blocks.js`)
+  perché il check del suo input VALUE deve seguire il tipo della variabile
+  scelta in VAR (`Number` o `Boolean`) e una definizione JSON statica non può
+  farlo. L'`onchange` aggiorna il check e Blockly stacca da solo un valore
+  diventato incompatibile — verificato che collegare un'espressione numerica
+  a un `ASSEGNA` su variabile booleana viene rifiutato dal connection checker,
+  sia headless sia nel workspace reale.
+- C: `#include <stdbool.h>` solo se esiste almeno una variabile booleana;
+  dichiarazioni raggruppate per tipo (`int ...;` e, se serve, `bool ...;`).
+- **Stampa:** risolto con la minima inferenza di tipo prevista sotto — una
+  tabella `isBooleanExpr` per tipo di blocco (`src/codegen/common.js`), non
+  serve altro perché ogni tipo ha un blocco distinto. `SCRIVI` di un'espressione
+  booleana in C: `printf("%s\n", (expr) ? "vero" : "falso");`; in Python:
+  `print("vero" if expr else "falso")`. **Pseudocodice invariato**: `SCRIVI
+  trovato` o `SCRIVI a > b` restano leggibili così come sono (non essendo
+  eseguito, non ha lo stesso problema di formato di stampa di C/Python) —
+  scelta di semplicità, non ancora aggiunta una sezione dichiarazioni allo
+  pseudocodice (si riconsidera se un libro di testo specifico la richiede).
+- Valore iniziale: l'interprete valutava già correttamente i valori booleani
+  come *espressioni* (`bool_literal`, `compare_op`, `logic_op`, `not_op`), ma
+  **non riconosceva i due blocchi nuovi** `variable_get_bool` e
+  `text_literal`: `evalExpression` in `src/runtime/interpreter.js` smista per
+  `block.type` con un elenco esplicito, e i blocchi nuovi vanno aggiunti lì
+  a mano quanto ai tre generatori — non è automatico. Bug segnalato
+  dall'utente dopo il primo giro di verifica (avevo controllato a fondo la
+  generazione di codice ma non l'esecuzione a blocchi delle due nuove
+  espressioni), corretto aggiungendo i due case mancanti. Una variabile
+  booleana non ancora assegnata legge `false` di default (non `0`, per
+  restare nel tipo giusto).
+- La console di esecuzione passo-passo (`src/main.js`) stampava i valori con
+  `String(value)`: per un booleano JS dà `"true"/"false"`, disallineato dal
+  `vero`/`falso` scelto per C e Python. Corretto con un piccolo
+  `formatOutputValue` che traduce i booleani, lasciando invariato il resto
+  (numeri e testo si stampano già bene con `String`).
+- `fileFormatVersion` passato da 1 a 2 in `src/app-config.js` (un file che usa
+  una variabile booleana non sarebbe leggibile da una versione precedente).
+- **Promemoria per le prossime estensioni:** un nuovo blocco-espressione va
+  aggiunto in **quattro** posti, non tre: i tre generatori **e**
+  `evalExpression` in `src/runtime/interpreter.js`. `CLAUDE.md` ricorda di
+  controllare i tre generatori ma non menziona esplicitamente l'interprete —
+  da tenere a mente per stringhe livello B, vettori e oltre.
+- **Bug più serio, trovato dall'utente con l'uso reale (non dai test
+  automatici): salvare e ricaricare un file con una variabile booleana
+  usata in `ASSEGNA` falliva.** L'aggiornamento dinamico del check di
+  `VALUE` (vedi sopra) viveva nel VALIDATOR del campo `VAR`, che gira
+  sincronamente dentro `field.setValue()` — corretto per quando lo
+  studente sceglie la variabile a mano. Ma
+  `Blockly.serialization.workspaces.load()` ripristina i campi con
+  `field.loadState()`, un percorso **diverso** che non passa dal
+  validator (verificato empiricamente istrumentando i metodi della
+  classe campo). Risultato: un `ASSEGNA` appena ricreato da file restava
+  con il check di default (`Number`) nel momento in cui Blockly provava a
+  ricollegare il valore booleano salvato (un confronto, `vero`/`falso`,
+  ecc.), e il caricamento falliva con un errore di connessione. Corretto
+  avvolgendo anche `field.loadState` (oltre al validator) cosi' che
+  l'aggiornamento del check avvenga comunque prima che Blockly ricolleghi
+  i figli, sia che lo stato arrivi da un click sia da un file. Verificato
+  con il vero flusso "Salva" → "Nuovo" → "Apri..." dell'interfaccia (non
+  solo `Blockly.serialization` chiamato a mano), incluse espressioni
+  composte (`NON`/`E`/`O`) ed esecuzione passo-passo del programma
+  ricaricato. **Promemoria aggiuntivo:** un blocco con un check di
+  connessione che dipende dal valore di un campo (come `assign` con i
+  booleani, e come sarà probabilmente `v[i]` per i vettori) deve
+  aggiornare quel check in un punto che giri sia su modifica interattiva
+  **sia su caricamento da file** — i due percorsi in Blockly non
+  coincidono, verificarlo esplicitamente con un test di salvataggio/
+  ricaricamento reale ogni volta, non solo con la costruzione a mano del
+  blocco.
 
-Costo stimato: basso.
+Costo stimato: basso — confermato per la generazione di codice; il
+salvataggio/caricamento con variabili tipizzate ha richiesto un giro in più
+non previsto.
 
 ## Stringhe
 
@@ -92,10 +161,22 @@ parola") e, se serve, leggere una parola.
 
 Due livelli:
 
-- **Livello A — solo letterali di testo in `SCRIVI`.** Nessuna variabile di testo. Un
-  blocco "testo" accettato da `SCRIVI`; in C `printf("%s\n", "...")`, in Python
-  `print("...")`. Costo quasi nullo dopo l'inferenza dei tipi introdotta con i
-  booleani. Si può fare insieme ai booleani.
+- **Livello A — solo letterali di testo in `SCRIVI`. Fatto (2026-09-22).**
+  Nuovo blocco `text_literal` (tipo `Text`), accettato solo da `SCRIVI`
+  (`check` allargato a `['Number', 'Boolean', 'Text']`); nessuna variabile di
+  testo. In C: `printf("%s\n", "...")` — il testo passa come **argomento**
+  di `%s`, non incorporato nel formato: un `%` scritto dallo studente nel
+  testo non ha quindi bisogno di raddoppio, a differenza di quanto ipotizzato
+  inizialmente. In Python: `print("...")` — nessuna modifica a `SCRIVI`
+  perché `print()` gestisce già correttamente una stringa (la differenza
+  `1`/`True` vista per i booleani non si ripresenta per il testo). Escaping
+  di `"` e `\` in entrambi i generatori; nello pseudocodice nessun escaping
+  (non è né compilato né eseguito), solo virgolette per marcare che è testo.
+  Riusata la stessa inferenza minima dei booleani (`isTextExpr` in
+  `src/codegen/common.js`, stesso principio di `isBooleanExpr`): basta il
+  tipo di blocco perché ogni tipo ha un blocco distinto. Nuova categoria
+  "Testo" nella tavolozza. `fileFormatVersion` passato da 2 a 3. Nessun
+  impatto sui 5 esempi precaricati (verificato con `test/regression.mjs`).
 - **Livello B — leggere una parola in una variabile.** Variabili di testo che ricevono
   un valore tramite `LEGGI` **oppure tramite assegnazione di un letterale o di
   un'altra variabile testo** (`parola ← "ciao"`, `parola2 ← parola1`); ammessi anche
@@ -104,8 +185,9 @@ Due livelli:
   riapre i problemi (mutabilità, costruzione pezzo per pezzo) che l'immutabilità
   voleva evitare — per questo è stata ammessa nonostante inizialmente esclusa insieme
   al resto. Copre password, "come ti chiami", uguaglianza di due parole, messaggi
-  costruiti da valori fissi. **Da decidere in base agli esercizi reali** (l'utente ha
-  ancora da pensarci se implementare il livello B).
+  costruiti da valori fissi. **Deciso (2026-09-22): non ora.** Si implementa solo il
+  livello A per questo passaggio; il livello B resta un'opzione futura, da riaprire
+  in base agli esercizi reali una volta usato il livello A in classe.
 
   *(Nota del 2026-09-22: l'esclusione iniziale dell'assegnazione non aveva una
   motivazione tecnica registrata, a differenza per esempio dei float — era stata
@@ -148,37 +230,141 @@ numerici.
 
 Costo stimato: livello A basso, livello B medio.
 
-## Vettori
+## Vettori — fatto (2026-09-22)
 
 **Solo vettori di interi.** Niente vettori di stringhe (eviterebbero le matrici di
 `char`, la parte più pesante del C). Niente matrici.
 
-**Proposta**
-- **Dichiarazione:** la dimensione è una proprietà **della variabile**, scelta alla
-  creazione (finestra "crea vettore": nome + dimensione), non un blocco-istruzione
-  nella sequenza. Un blocco dichiarazione potrebbe finire dentro un ciclo: Python lo
-  riazzererebbe a ogni giro, mentre un `int v[10]` in C dentro le graffe non sarebbe
-  visibile fuori. Con la dimensione sulla variabile, C dichiara `int v[10] = {0};` in
-  cima a `main` e Python inizializza con `[0] * N` a inizio programma.
-- **Dimensione: numero letterale fisso**, non espressione (in C sarebbe un array a
-  lunghezza variabile).
-- **Blocchi nuovi:** `v[i]` (espressione, restituisce `Number`), `v[i] ← espressione`
-  (istruzione, separata da `assign`), `LEGGI v[i]`, e opzionale "lunghezza di v" (in C
-  la costante `N`, in Python `len(v)`).
-- **Filtro dei menu variabili per tipo** (`variableTypes` di Blockly): un vettore non
-  deve poter comparire in `assign`, `variable_get`, `PER`, `LEGGI` scalari.
-- **Indice base 0 in tutti e tre gli output** (`PER i DA 0 A n-1`), da dire nella guida.
-  Convertire da base 1 nel generatore (`v[i-1]`) produce codice illeggibile. Se un libro
-  usa base 1 sarebbe un'opzione con effetto su tutti e tre gli output.
-- **Indici fuori limiti (divergenza più seria):** in C è comportamento indefinito; in
-  Python `v[10]` dà errore ma `v[-1]` è valido. L'interprete deve segnalare l'errore
-  "indice fuori dai limiti" in entrambi i casi.
-- Inizializzazione a zero in tutti gli output (vedi nota su C nel punto di partenza).
+**Come è stato fatto**
+- **Dichiarazione:** la dimensione è una proprietà della variabile, scelta alla
+  creazione — ma **senza una finestra "crea vettore" dedicata**: si riusa lo stesso
+  meccanismo dei booleani (`variableTypes`/`defaultType` su `field_variable`), e la
+  dimensione viene chiesta con un secondo `window.prompt` subito dopo, dallo stesso
+  punto che gestisce la creazione. Un solo modo di creare variabili in tutta l'app,
+  indipendentemente dal tipo. C dichiara `int v[10] = {0};` in cima a `main`, Python
+  inizializza con `v = [0] * 10` prima del corpo del programma (`gen.forBlock['program']`
+  in Python non produceva prima nessuna riga extra: ora la produce anche lì, non solo
+  in C, perché Python non ha una sezione dichiarazioni dove appoggiarsi).
+- **Dimensione: numero fisso**, scelto una sola volta alla creazione della variabile,
+  non modificabile in seguito (si ricrea la variabile con un altro nome se serve una
+  dimensione diversa).
+- **Blocchi nuovi:** `array_get` (`v[i]`, espressione, `Number`), `array_set`
+  (`ASSEGNA A v[i] IL VALORE ...`, istruzione separata da `assign`), `array_read`
+  (`LEGGI v[i]`), `array_length` (`LUNGHEZZA DI v`, incluso da subito, non rimandato:
+  in C è la dimensione letterale, in Python `len(v)`).
+- **Filtro dei menu variabili per tipo:** i quattro blocchi vettore usano
+  `variableTypes: ['Array']`; i blocchi scalari (`assign`, `read`, `variable_get`,
+  `controls_for_simple`) elencavano già esplicitamente i propri tipi ammessi (fatto per
+  i booleani), quindi non potevano già comparirvi un vettore — nessuna modifica
+  necessaria lì.
+- **Indice base 0, inizializzazione a zero, indici fuori limiti**: implementati come da
+  proposta originale (sotto), verificati con test dedicati (vedi sotto).
+
+**Dove vive la dimensione (il punto architetturale nuovo rispetto ai booleani):**
+Blockly non serializza dati extra sulle variabili. La dimensione vive in
+`workspace.arraySizes`, una `Map<variabileId, dimensione>` attaccata direttamente
+all'oggetto workspace (stesso stile ad-hoc già usato da `generator.repeatDepth` in
+`src/codegen/c.js` per i contatori anonimi di `repeat_times`): niente modulo a parte,
+c'è un solo workspace in tutta l'app. `src/persistence.js` la salva/ripristina accanto
+alle chiavi di Blockly, come già fa con `formatVersion`/`appVersion`.
+
+**Tre insidie trovate solo testando davvero (non nella proposta originale), stesso
+tema dei booleani — un blocco il cui comportamento dipende da uno stato esterno al
+singolo blocco va verificato su *tutti* i percorsi che possono valorizzare quello
+stato, non solo quello "ovvio" (l'interazione dello studente):**
+1. **Creare un blocco vettore per la prima volta (anche solo trascinandolo dalla
+   tavolozza, senza toccare il menu VAR) fa scattare una creazione automatica di
+   variabile da parte di Blockly stesso, che non passa né dal validator né da
+   `field.loadState()`.** Verificato: senza contromisura, il primissimo vettore di un
+   programma restava senza dimensione registrata. La variabile viene risolta per
+   davvero solo in `field.initModel()` (un terzo punto di ingresso, oltre a validator e
+   `loadState`, mai emerso con i booleani perché lì il valore di default JSON — la
+   variabile numerica "variabile" — già esisteva sempre). Risolto avvolgendo anche
+   `initModel()`.
+2. **Il caso "Annulla" sul prompt della dimensione non può cancellare la variabile
+   appena creata.** Prima idea (per analogia con "Annulla" su "Salva con nome"): se lo
+   studente annulla, cancellare la variabile appena creata e rifiutare il cambio.
+   Verificato che non funziona: un campo `field_variable` con un solo tipo ammesso non
+   può restare "vuoto", quindi Blockly ne crea subito un'altra di default — che a sua
+   volta non ha una dimensione, e richiederebbe un altro prompt, in un ciclo senza
+   una vera via d'uscita pulita. Cambiata la scelta: "Annulla" assegna una dimensione
+   predefinita (10), correggibile ricreando la variabile con un altro nome.
+3. **Su un workspace renderizzato (non nell'equivalente headless usato per i test),
+   `initModel()` può scattare un istante prima che Blockly registri davvero la
+   variabile nella propria variable map** (riprodotto solo chiamando `initSvg()`/
+   `render()` su un blocco appena creato, come fa l'editor reale — non riproducibile
+   nel workspace headless di `test/regression.mjs`, che non renderizza). Un
+   `getVariableById` in quel punto restituisce `null` e andrebbe in eccezione. Risolto
+   riprovando al giro successivo dell'event loop invece di fallire.
+
+**Verificato:** headless (Node, stesso approccio dei booleani) e su Chromium reale via
+Playwright — tavolozza "Vettori", creazione con il vero `window.prompt()` del browser,
+ciclo `PER` che riempie un vettore, `LUNGHEZZA DI`, indice fuori dai limiti durante
+l'esecuzione (messaggio chiaro, esecuzione interrotta in modo pulito, non un'eccezione
+JS grezza), e il flusso reale Salva → Nuovo → Apri... con output identico prima e dopo.
+I 5 esempi precaricati restano invariati (nessuno usa vettori). `fileFormatVersion`
+passato da 3 a 4.
 
 Sblocca algoritmi da manuale: massimo e ricerca lineare su un vettore, inversione,
-somma, media, bubble/selection sort.
+somma, media, bubble/selection sort (non ancora aggiunti come esempi precaricati:
+stessa scelta fatta per booleani e testo, funzionalità ed esempi in passi separati).
 
-Costo stimato: medio.
+Costo stimato: medio — confermato, con il giro in più imprevisto sulla dimensione
+(stesso tipo di sorpresa già visto con il salvataggio dei booleani).
+
+## Array di caratteri (esercizi su singolo carattere) — proposta preliminare
+
+Discussione del 2026-09-22, riaperta dopo aver escluso il "char" come surrogato delle
+stringhe (vedi sopra). Motivo per cui torna in discussione: l'esclusione riguardava
+l'uso di un array di `char` **al posto** delle stringhe immutabili (per messaggi e
+lettura di parole intere); qui l'obiettivo è diverso e non coperto dalle stringhe
+immutabili: esercizi che lavorano **carattere per carattere** (conta le vocali,
+verifica palindromo, cifrario di Cesare, inverti una parola). Va quindi trattata come
+un'**estensione a sé**, non come alternativa al tipo testo, e solo dopo aver fatto
+stringhe e vettori (di cui riusa l'infrastruttura di indicizzazione).
+
+**Problemi da risolvere, distinti da quelli già chiusi per le stringhe immutabili:**
+
+1. **Aritmetica su `char` non ha equivalente diretto in Python.** In C `char` è un
+   intero a 1 byte: `v[i] + 1`, `v[i] < 'z'`, `v[i] - 'a'` sono operazioni legittime
+   (così si scrivono maiuscolo/minuscolo o Cesare). In Python una stringa di un
+   carattere non supporta `+1`: serve `ord()`/`chr()`. Se si vogliono ammettere questi
+   esercizi (motivo principale per cui questa estensione avrebbe senso), l'aritmetica
+   sui caratteri va ammessa esplicitamente e tradotta con `ord`/`chr` in Python — un
+   concetto che in C non serve, quindi resta un'asimmetria da spiegare allo studente.
+2. **Le lettere accentate rompono l'indicizzazione, non solo la lunghezza.** In UTF-8
+   "è" occupa 2 byte: in un array di `char` finirebbero in due celle separate, mentre
+   in Python resterebbe un solo elemento della stringa — l'intero contenuto si sfasa,
+   non solo la lunghezza (che era già un problema noto per `strlen`). Per uno
+   strumento per studenti italiani non è un caso limite. Unica via pulita individuata:
+   dichiarare esplicitamente gli array di caratteri **ASCII-only**, da scrivere nella
+   guida.
+3. **Riempire l'array resta comunque un problema "a livello di stringa".** Serve
+   comunque un modo per leggere una parola intera dentro l'array in un colpo solo
+   (`LEGGI parola`), quindi la stessa complessità di lettura già identificata per il
+   livello B delle stringhe (`scanf(" %99[^\n]", ...)` vs `input()`, gestione del
+   troncamento). L'array di caratteri non la evita, la aggiunge sopra.
+4. **Lunghezza logica vs capacità.** Un vettore di interi ha dimensione fissa e tutte
+   le celle sono "vere" dall'inizializzazione a 0. Una parola in un array di capacità
+   fissa (es. 100) di solito ne usa molte meno: serve un terminatore stile C (che
+   riporta dentro una scansione tipo `strlen`) oppure una variabile di lunghezza
+   esplicita da tenere sincronizzata a ogni scrittura — problema che i vettori di
+   interi non hanno.
+5. **È un quarto tipo, non un riuso.** Si aggiungerebbe `char` come tipo a sé
+   (letterale `'a'`, confronto, conversione a/da numero) accanto a intero/booleano/
+   testo, con tutto il "lavoro comune a tutte le estensioni sui tipi" (vedi sopra) da
+   rifare anche per questo. Riguarda direttamente la scelta già presa per i vettori
+   ("niente vettori di stringhe, eviterebbero le matrici di char, la parte più pesante
+   del C", vedi sopra): questa estensione la introdurrebbe di proposito, quindi va
+   valutata con la stessa consapevolezza.
+
+**Vincoli minimi proposti se si procede:** solo ASCII; aritmetica sui caratteri
+ammessa esplicitamente con `ord`/`chr` visibili in Python; lunghezza tracciata come
+variabile esplicita invece che terminatore implicito. Nessuna decisione presa: da
+valutare in base agli esercizi reali, dopo stringhe e vettori.
+
+Costo stimato: medio-alto (si aggiunge a quello di vettori e stringhe, non lo
+sostituisce).
 
 ## Funzioni e procedure
 
@@ -323,22 +509,38 @@ lavoro finito, così `main` e il sito pubblicato restano nella versione stabile.
 
 ## Test
 
-Nel repository non ci sono test automatici. Prima delle estensioni conviene aggiungere
-un controllo minimo: generare i tre output (pseudocodice, C, Python) di un insieme di
-programmi campione (i cinque esempi precaricati come base) e confrontarli con risultati
-attesi. Serve a due cose: garantire che il profilo base resti identico a oggi, e
-intercettare le divergenze tra i tre output che le estensioni tendono a introdurre
-(indici, inizializzazione, formato di stampa, scope).
+**Fatto (2026-09-22).** `node test/regression.mjs` genera i tre output
+(pseudocodice, C, Python) dei cinque esempi precaricati usando i generatori
+veri (nessuna libreria esterna, nessuna riscrittura parallela) e li confronta
+con lo snapshot congelato in `test/fixtures/`; `--update` lo riscrive dopo
+averlo controllato a mano. Richiede un `package.json` alla radice (solo
+`{"private": true, "type": "module"}`, riguarda solo Node/lo sviluppo: i
+browser lo ignorano, non serve per l'app in laboratorio) e
+`vendor/package.json` (`{"type": "commonjs"}`) perché i file Blockly
+precompilati restano leggibili da `require()` anche con quel `"type": "module"`
+alla radice. Serve a due cose: garantire che il profilo base resti identico a
+oggi (verificato prima e dopo i booleani), e intercettare le divergenze tra i
+tre output che le estensioni tendono a introdurre (indici, inizializzazione,
+formato di stampa, scope).
+
+Per una verifica visiva/interattiva vera e propria (tavolozza, drag-and-drop,
+pannelli di output dal vivo) si può usare Playwright (`playwright` in
+`devDependencies`, installato al bisogno con `npm install` +
+`npx playwright install chromium`): usato una volta per verificare i booleani
+end-to-end su un browser reale, non è parte della suite automatica.
 
 ## Questioni aperte (riepilogo)
 
-1. Stringhe: si resta al livello A (solo messaggi) o serve il livello B (leggere
-   parole)? Dipende dagli esercizi che il docente vuole proporre.
+1. ~~Stringhe: livello A o anche livello B?~~ **Deciso (2026-09-22): solo livello A
+   per ora** (vedi sopra); si riapre dopo aver usato il livello A in classe.
 2. Spunta "senza a capo" su `SCRIVI`: sì/no, e come si comporta la console.
-3. Vettori: conferma di indice base 0 e di dimensione letterale fissa.
+3. ~~Vettori: conferma di indice base 0 e di dimensione letterale fissa.~~
+   **Fatto (2026-09-22)**, vedi sopra.
 4. Funzioni: conferma di scope locale + passaggio per valore, e se partire dai soli
    interi.
 5. Profili: conferma del parametro nell'indirizzo come meccanismo iniziale; cosa fare
    dei file con funzionalità non abilitate.
 6. Inizializzare a 0 anche le variabili scalari in C (divergenza preesistente).
 7. Numero di versione "vero" e tag, dopo la validazione in classe.
+8. Array di caratteri per esercizi su singolo carattere: se farli (dopo stringhe e
+   vettori), e se limitarli ad ASCII-only come proposto sopra.

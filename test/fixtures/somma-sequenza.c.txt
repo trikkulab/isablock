@@ -1,0 +1,16 @@
+#include <stdio.h>
+
+int main(void) {
+    int n, somma, i, valore;
+    // Chiede quanti numeri sommare
+    scanf("%d", &n);
+    // La somma parte da zero
+    somma = 0;
+    // Legge un numero alla volta e lo aggiunge alla somma
+    for (i = 1; i <= n; i++) {
+        scanf("%d", &valore);
+        somma = somma + valore;
+    }
+    printf("%d\n", somma);
+    return 0;
+}
