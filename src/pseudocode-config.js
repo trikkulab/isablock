@@ -7,7 +7,8 @@ export const pseudocodeConfig = {
 
   READ: 'LEGGI',
   WRITE: 'SCRIVI',
-  ASSIGN_ARROW: '←',
+  ASSIGN_TO: 'ASSEGNA A',
+  ASSIGN_VALUE: 'IL VALORE',
 
   IF: 'SE',
   THEN: 'ALLORA',
