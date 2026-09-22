@@ -17,6 +17,7 @@ Le estensioni si introducono solo dopo la validazione in classe della Fase 1 (ve
 | Booleani | Proposta dettagliata, da confermare |
 | Stringhe | Orientamento: immutabili; livello B da decidere in base agli esercizi |
 | Vettori | Proposta dettagliata, da confermare |
+| Array di caratteri (esercizi su singolo carattere) | Proposta preliminare, distinta dalle stringhe immutabili |
 | Funzioni/procedure | Solo analisi; scelte di progetto da fare |
 | Profili base/avanzato | Proposta: un solo codice con profili; da confermare |
 | Login istituzionale | Futuro; predisporre solo una struttura, nessun backend ora |
@@ -180,6 +181,60 @@ somma, media, bubble/selection sort.
 
 Costo stimato: medio.
 
+## Array di caratteri (esercizi su singolo carattere) — proposta preliminare
+
+Discussione del 2026-09-22, riaperta dopo aver escluso il "char" come surrogato delle
+stringhe (vedi sopra). Motivo per cui torna in discussione: l'esclusione riguardava
+l'uso di un array di `char` **al posto** delle stringhe immutabili (per messaggi e
+lettura di parole intere); qui l'obiettivo è diverso e non coperto dalle stringhe
+immutabili: esercizi che lavorano **carattere per carattere** (conta le vocali,
+verifica palindromo, cifrario di Cesare, inverti una parola). Va quindi trattata come
+un'**estensione a sé**, non come alternativa al tipo testo, e solo dopo aver fatto
+stringhe e vettori (di cui riusa l'infrastruttura di indicizzazione).
+
+**Problemi da risolvere, distinti da quelli già chiusi per le stringhe immutabili:**
+
+1. **Aritmetica su `char` non ha equivalente diretto in Python.** In C `char` è un
+   intero a 1 byte: `v[i] + 1`, `v[i] < 'z'`, `v[i] - 'a'` sono operazioni legittime
+   (così si scrivono maiuscolo/minuscolo o Cesare). In Python una stringa di un
+   carattere non supporta `+1`: serve `ord()`/`chr()`. Se si vogliono ammettere questi
+   esercizi (motivo principale per cui questa estensione avrebbe senso), l'aritmetica
+   sui caratteri va ammessa esplicitamente e tradotta con `ord`/`chr` in Python — un
+   concetto che in C non serve, quindi resta un'asimmetria da spiegare allo studente.
+2. **Le lettere accentate rompono l'indicizzazione, non solo la lunghezza.** In UTF-8
+   "è" occupa 2 byte: in un array di `char` finirebbero in due celle separate, mentre
+   in Python resterebbe un solo elemento della stringa — l'intero contenuto si sfasa,
+   non solo la lunghezza (che era già un problema noto per `strlen`). Per uno
+   strumento per studenti italiani non è un caso limite. Unica via pulita individuata:
+   dichiarare esplicitamente gli array di caratteri **ASCII-only**, da scrivere nella
+   guida.
+3. **Riempire l'array resta comunque un problema "a livello di stringa".** Serve
+   comunque un modo per leggere una parola intera dentro l'array in un colpo solo
+   (`LEGGI parola`), quindi la stessa complessità di lettura già identificata per il
+   livello B delle stringhe (`scanf(" %99[^\n]", ...)` vs `input()`, gestione del
+   troncamento). L'array di caratteri non la evita, la aggiunge sopra.
+4. **Lunghezza logica vs capacità.** Un vettore di interi ha dimensione fissa e tutte
+   le celle sono "vere" dall'inizializzazione a 0. Una parola in un array di capacità
+   fissa (es. 100) di solito ne usa molte meno: serve un terminatore stile C (che
+   riporta dentro una scansione tipo `strlen`) oppure una variabile di lunghezza
+   esplicita da tenere sincronizzata a ogni scrittura — problema che i vettori di
+   interi non hanno.
+5. **È un quarto tipo, non un riuso.** Si aggiungerebbe `char` come tipo a sé
+   (letterale `'a'`, confronto, conversione a/da numero) accanto a intero/booleano/
+   testo, con tutto il "lavoro comune a tutte le estensioni sui tipi" (vedi sopra) da
+   rifare anche per questo. Riguarda direttamente la scelta già presa per i vettori
+   ("niente vettori di stringhe, eviterebbero le matrici di char, la parte più pesante
+   del C", vedi sopra): questa estensione la introdurrebbe di proposito, quindi va
+   valutata con la stessa consapevolezza.
+
+**Vincoli minimi proposti se si procede:** solo ASCII; aritmetica sui caratteri
+ammessa esplicitamente con `ord`/`chr` visibili in Python; lunghezza tracciata come
+variabile esplicita invece che terminatore implicito. Nessuna decisione presa: da
+valutare in base agli esercizi reali, dopo stringhe e vettori.
+
+Costo stimato: medio-alto (si aggiunge a quello di vettori e stringhe, non lo
+sostituisce).
+
 ## Funzioni e procedure
 
 **Solo analisi, nessuna scelta finale.** È il cambiamento più profondo: tocca la
@@ -342,3 +397,5 @@ intercettare le divergenze tra i tre output che le estensioni tendono a introdur
    dei file con funzionalità non abilitate.
 6. Inizializzare a 0 anche le variabili scalari in C (divergenza preesistente).
 7. Numero di versione "vero" e tag, dopo la validazione in classe.
+8. Array di caratteri per esercizi su singolo carattere: se farli (dopo stringhe e
+   vettori), e se limitarli ad ASCII-only come proposto sopra.
