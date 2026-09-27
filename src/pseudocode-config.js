@@ -4,6 +4,13 @@
 export const pseudocodeConfig = {
   PROGRAM_START: 'INIZIO',
   PROGRAM_END: 'FINE',
+  // Sezione dichiarazioni: compare solo se il programma dichiara almeno un
+  // array (vedi src/codegen/pseudocode.js), altrimenti resta invariato lo
+  // stile INIZIO...FINE di sempre.
+  DECLARATIONS: 'DICHIARAZIONI',
+  DECLARE_ARRAY: 'DICHIARA ARRAY',
+  OF: 'DI',
+  ELEMENTS: 'ELEMENTI',
 
   READ: 'LEGGI',
   WRITE: 'SCRIVI',

@@ -12,12 +12,9 @@ function serializeWorkspace(Blockly, workspace) {
   // legge solo le chiavi dei propri serializzatori e ignora le altre.
   // appVersion è solo informativa (da quale app arriva il file): non si usa
   // mai per decidere se il file è leggibile, lo decide formatVersion.
-  // arraySizes (dimensione dei vettori, vedi src/blocks/blocks.js) è dati
-  // dell'app allo stesso modo: Blockly non lo conosce e non lo tocca.
   const state = {
     formatVersion: appConfig.fileFormatVersion,
     appVersion: appConfig.version,
-    arraySizes: Object.fromEntries(workspace.arraySizes || []),
     ...Blockly.serialization.workspaces.save(workspace),
   };
   return JSON.stringify(state, null, 2);
@@ -69,12 +66,22 @@ export function loadWorkspaceFromFile(Blockly, workspace, file) {
     if (formatVersion > appConfig.fileFormatVersion) {
       throw new FileFormatError('Il file è stato creato con una versione più recente di IsaBlock e non può essere aperto.');
     }
+    // Fino al formato 4 gli array (allora chiamati vettori) salvavano la
+    // dimensione in una mappa a parte (arraySizes), fuori dai blocchi:
+    // rappresentazione sostituita dal blocco DICHIARA ARRAY, che la porta
+    // come campo normale del blocco. Un file di quel formato che dichiara
+    // almeno un array non è più compatibile: aperto senza questo controllo,
+    // l'array esisterebbe come variabile ma senza alcuna dichiarazione, e
+    // genererebbe C non compilabile in modo silenzioso. Un file dello
+    // stesso formato ma senza array (es. solo booleani/testo) si apre
+    // normalmente: il controllo guarda il contenuto, non solo il numero di
+    // versione.
+    if (formatVersion <= 4 && state.arraySizes && Object.keys(state.arraySizes).length > 0) {
+      throw new FileFormatError(
+        'Questo file usa i vettori nel formato precedente all\'introduzione del blocco "DICHIARA ARRAY" e non può essere aperto con questa versione di IsaBlock. Conserva una copia e riaprilo con IsaBlock 1.1.0, oppure ricrea gli array con il nuovo blocco.'
+      );
+    }
     workspace.clear();
     Blockly.serialization.workspaces.load(state, workspace);
-    // Dopo, non prima: qui non c'è il problema visto con 'assign' e i
-    // booleani (Blockly che ricollega subito i figli durante load()) -
-    // arraySizes lo consultano solo generatori e interprete, chiamati da
-    // main.js dopo che questa funzione è tornata.
-    workspace.arraySizes = new Map(Object.entries(state.arraySizes ?? {}));
   });
 }

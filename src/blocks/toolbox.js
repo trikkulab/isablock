@@ -3,10 +3,11 @@
 //
 // Raggruppata per argomento didattico (non per "istruzione vs espressione"
 // come nella primissima versione): piu' intuitivo per chi non ha mai
-// programmato, e nessuna categoria supera i 4 blocchi. Il colore della
-// categoria e' solo per la navigazione nella tavolozza; il colore del
-// singolo blocco (definito in blocks.js) codifica invece il suo tipo
-// (istruzione/numero/booleano) e resta lo stesso in ogni categoria.
+// programmato, e ogni categoria sta in 4 blocchi tranne "Array" (5: la
+// dichiarazione più le quattro operazioni, che non ha senso separare). Il
+// colore della categoria e' solo per la navigazione nella tavolozza; il
+// colore del singolo blocco (definito in blocks.js) codifica invece il suo
+// tipo (istruzione/numero/booleano) e resta lo stesso in ogni categoria.
 export const toolbox = {
   kind: 'categoryToolbox',
   contents: [
@@ -59,9 +60,10 @@ export const toolbox = {
     },
     {
       kind: 'category',
-      name: 'Vettori',
+      name: 'Array',
       colour: '#5f7a61',
       contents: [
+        { kind: 'block', type: 'array_declare' },
         { kind: 'block', type: 'array_get' },
         { kind: 'block', type: 'array_set' },
         { kind: 'block', type: 'array_read' },

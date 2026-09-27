@@ -63,7 +63,7 @@ const PSEUDOCODE_KEYWORD_KEYS = [
   'AND', 'OR', 'NOT', 'TRUE', 'FALSE',
   'EQ', 'NEQ', 'LT', 'LTE', 'GT', 'GTE',
   'ADD', 'SUB', 'MUL', 'DIV', 'MOD',
-  'LENGTH_OF',
+  'LENGTH_OF', 'DECLARATIONS', 'DECLARE_ARRAY', 'OF', 'ELEMENTS',
 ];
 
 let cachedPseudocodeCfg = null;

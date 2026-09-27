@@ -27,18 +27,24 @@ function checkStepBudget(io) {
   }
 }
 
-// L'array JS vero e proprio vive in vars (pre-popolato a zero da
-// runProgram per ogni variabile di tipo 'Array', vedi sotto): la sua
-// lunghezza reale è quindi già la dimensione scelta alla creazione, non
-// serve consultare di nuovo workspace.arraySizes qui.
+// L'array JS vero e proprio vive in vars, messo lì dall'esecuzione del
+// blocco array_declare corrispondente (vedi il case 'array_declare' più
+// sotto): la sua lunghezza reale è quindi già la dimensione dichiarata, non
+// serve consultare di nuovo il campo SIZE qui. Se l'array non è mai stato
+// dichiarato (programma incompleto, non un caso da C/Python) l'errore è
+// leggibile invece di un TypeError grezzo su un valore undefined.
 function getArray(block, vars) {
   const variable = block.getField('VAR').getVariable();
-  return vars.get(variable.getId());
+  const array = vars.get(variable.getId());
+  if (!array) {
+    throw new ExecutionError(`L'array "${variable.name}" non è stato dichiarato (manca un blocco DICHIARA ARRAY).`);
+  }
+  return array;
 }
 
 // Sia in C (comportamento indefinito) sia in Python (eccezione) un indice
 // fuori dai limiti è un errore da segnalare, non da eseguire in silenzio
-// (vedi docs/DECISIONI-ESTENSIONI.md, sezione Vettori): qui lo trattiamo
+// (vedi docs/DECISIONI-ESTENSIONI.md, sezione Array): qui lo trattiamo
 // allo stesso modo per entrambe le direzioni (troppo piccolo o troppo
 // grande), a differenza di Python dove v[-1] sarebbe valido.
 function checkIndex(variableName, index, array) {
@@ -163,6 +169,13 @@ function* runStatement(block, vars, io) {
       io.onOutput(evalExpression(block.getInputTargetBlock('VALUE'), vars));
       return;
     }
+    case 'array_declare': {
+      yield { blockId: block.id };
+      const variable = block.getField('VAR').getVariable();
+      const size = block.getFieldValue('SIZE');
+      vars.set(variable.getId(), new Array(size).fill(0));
+      return;
+    }
     case 'array_set': {
       yield { blockId: block.id };
       const array = getArray(block, vars);
@@ -238,16 +251,13 @@ function* runStatement(block, vars, io) {
 // chiamante e viene aggiornato qui dentro per il tetto anti-ciclo-infinito.
 export function* runProgram(programBlock, io) {
   const vars = new Map();
-  // Ogni vettore usato nel programma viene azzerato PRIMA di eseguire
-  // qualunque istruzione, stessa semantica di "int v[10] = {0};" in C e
-  // "v = [0] * 10" in cima al modulo Python: non è pigro come le variabili
-  // scalari (che leggono 0/false di default solo se interrogate), perché un
-  // array_get prima di un array_set deve comunque trovare un vettore reale
-  // della dimensione giusta, non `undefined`.
-  const workspace = programBlock.workspace;
-  const arraySizes = workspace.arraySizes || new Map();
-  for (const variable of workspace.getVariableMap().getVariablesOfType('Array')) {
-    vars.set(variable.getId(), new Array(arraySizes.get(variable.getId()) || 0).fill(0));
+  // Le dichiarazioni (blocchi array_declare) vengono eseguite per prime,
+  // come istruzioni vere e proprie (yield compreso: visibili durante
+  // "Passo"), esattamente come C dichiara/azzera gli array in cima a main
+  // e Python li inizializza in cima al modulo.
+  const declarations = programBlock.getInputTargetBlock('DECLARATIONS');
+  if (declarations) {
+    yield* runStatements(declarations, vars, io);
   }
   const body = programBlock.getInputTargetBlock('BODY');
   if (body) {

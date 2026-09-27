@@ -18,12 +18,24 @@ export const COLOR_ARRAY = '#5f7a61';
 
 const blockDefinitions = [
   // --- Struttura -----------------------------------------------------
+  // Due zone di istruzioni distinte, non una sola: DECLARATIONS accetta solo
+  // blocchi di tipo 'Declaration' (solo array_declare, vedi sotto), BODY solo
+  // blocchi di tipo 'Statement' (tutte le istruzioni "normali"). Impedisce
+  // fisicamente che un DICHIARA ARRAY finisca dentro un ciclo o una
+  // condizione, dove creerebbe una divergenza reale tra C (dichiarazione
+  // scope-ata alle graffe) e Python/interprete (semplice riassegnazione
+  // rieseguita a ogni giro) — vedi docs/DECISIONI-ESTENSIONI.md, sezione
+  // Array. Se non compare nessun array_declare, DECLARATIONS resta vuoto e i
+  // tre generatori non emettono nessuna sezione dichiarazioni.
   {
     type: 'program',
-    message0: 'INIZIO',
+    message0: 'DICHIARAZIONI',
     message1: '%1',
-    args1: [{ type: 'input_statement', name: 'BODY' }],
-    message2: 'FINE',
+    args1: [{ type: 'input_statement', name: 'DECLARATIONS', check: 'Declaration' }],
+    message2: 'INIZIO',
+    message3: '%1',
+    args3: [{ type: 'input_statement', name: 'BODY', check: 'Statement' }],
+    message4: 'FINE',
     colour: COLOR_PROGRAM,
   },
 
@@ -44,8 +56,8 @@ const blockDefinitions = [
         defaultType: '',
       },
     ],
-    previousStatement: null,
-    nextStatement: null,
+    previousStatement: 'Statement',
+    nextStatement: 'Statement',
     colour: COLOR_STATEMENT,
     tooltip: 'Legge un valore in input e lo salva in una variabile',
   },
@@ -54,8 +66,8 @@ const blockDefinitions = [
     message0: 'SCRIVI %1',
     args0: [{ type: 'input_value', name: 'VALUE', check: ['Number', 'Boolean', 'Text'] }],
     inputsInline: true,
-    previousStatement: null,
-    nextStatement: null,
+    previousStatement: 'Statement',
+    nextStatement: 'Statement',
     colour: COLOR_STATEMENT,
     tooltip: 'Stampa in output il valore di un’espressione',
   },
@@ -64,10 +76,10 @@ const blockDefinitions = [
     message0: 'SE %1 ALLORA',
     args0: [{ type: 'input_value', name: 'COND', check: 'Boolean' }],
     message1: '%1',
-    args1: [{ type: 'input_statement', name: 'THEN' }],
+    args1: [{ type: 'input_statement', name: 'THEN', check: 'Statement' }],
     message2: 'FINE SE',
-    previousStatement: null,
-    nextStatement: null,
+    previousStatement: 'Statement',
+    nextStatement: 'Statement',
     colour: COLOR_STATEMENT,
     tooltip: 'Selezione semplice',
   },
@@ -76,13 +88,13 @@ const blockDefinitions = [
     message0: 'SE %1 ALLORA',
     args0: [{ type: 'input_value', name: 'COND', check: 'Boolean' }],
     message1: '%1',
-    args1: [{ type: 'input_statement', name: 'THEN' }],
+    args1: [{ type: 'input_statement', name: 'THEN', check: 'Statement' }],
     message2: 'ALTRIMENTI',
     message3: '%1',
-    args3: [{ type: 'input_statement', name: 'ELSE' }],
+    args3: [{ type: 'input_statement', name: 'ELSE', check: 'Statement' }],
     message4: 'FINE SE',
-    previousStatement: null,
-    nextStatement: null,
+    previousStatement: 'Statement',
+    nextStatement: 'Statement',
     colour: COLOR_STATEMENT,
     tooltip: 'Selezione con alternativa',
   },
@@ -91,10 +103,10 @@ const blockDefinitions = [
     message0: 'MENTRE %1 RIPETI',
     args0: [{ type: 'input_value', name: 'COND', check: 'Boolean' }],
     message1: '%1',
-    args1: [{ type: 'input_statement', name: 'BODY' }],
+    args1: [{ type: 'input_statement', name: 'BODY', check: 'Statement' }],
     message2: 'FINE MENTRE',
-    previousStatement: null,
-    nextStatement: null,
+    previousStatement: 'Statement',
+    nextStatement: 'Statement',
     colour: COLOR_STATEMENT,
     tooltip: 'Iterazione a condizione iniziale (condizione valutata prima di ogni ripetizione)',
   },
@@ -107,11 +119,11 @@ const blockDefinitions = [
       { type: 'input_value', name: 'TO', check: 'Number' },
     ],
     message1: '%1',
-    args1: [{ type: 'input_statement', name: 'BODY' }],
+    args1: [{ type: 'input_statement', name: 'BODY', check: 'Statement' }],
     message2: 'FINE PER',
     inputsInline: true,
-    previousStatement: null,
-    nextStatement: null,
+    previousStatement: 'Statement',
+    nextStatement: 'Statement',
     colour: COLOR_STATEMENT,
     tooltip: 'Iterazione a contatore, da un valore iniziale a un valore finale incluso, passo 1',
   },
@@ -120,22 +132,24 @@ const blockDefinitions = [
     message0: 'RIPETI %1 VOLTE',
     args0: [{ type: 'input_value', name: 'TIMES', check: 'Number' }],
     message1: '%1',
-    args1: [{ type: 'input_statement', name: 'BODY' }],
+    args1: [{ type: 'input_statement', name: 'BODY', check: 'Statement' }],
     message2: 'FINE RIPETI',
     inputsInline: true,
-    previousStatement: null,
-    nextStatement: null,
+    previousStatement: 'Statement',
+    nextStatement: 'Statement',
     colour: COLOR_STATEMENT,
     tooltip: 'Ripete le istruzioni un numero di volte fissato, senza bisogno di un contatore',
   },
 
   // --- Commenti ----------------------------------------------------------
+  // Unico blocco che vive in entrambe le zone del programma: un commento
+  // deve poter stare sia sopra una dichiarazione sia nel corpo.
   {
     type: 'comment_line',
     message0: '// %1',
     args0: [{ type: 'field_input', name: 'TEXT', text: 'commento' }],
-    previousStatement: null,
-    nextStatement: null,
+    previousStatement: ['Statement', 'Declaration'],
+    nextStatement: ['Statement', 'Declaration'],
     colour: COLOR_COMMENT,
     tooltip: 'Nota per chi legge il codice: non ha alcun effetto sull’esecuzione',
   },
@@ -318,8 +332,8 @@ export function registerBlocks(Blockly) {
           { type: 'input_value', name: 'VALUE', check: 'Number' },
         ],
         inputsInline: true,
-        previousStatement: null,
-        nextStatement: null,
+        previousStatement: 'Statement',
+        nextStatement: 'Statement',
         colour: COLOR_STATEMENT,
         tooltip: 'Assegna il valore di un’espressione a una variabile',
       });
@@ -342,98 +356,14 @@ export function registerBlocks(Blockly) {
     },
   };
 
-  // --- Vettori (solo interi, dimensione fissa scelta alla creazione) -----
-  // I quattro blocchi condividono lo stesso campo VAR (variableTypes:
-  // ['Array']) e lo stesso meccanismo di creazione: quando si sceglie
-  // "Crea variabile..." dal menu del campo, il validator (sincrono, gira
-  // dentro field.setValue()) chiede subito anche la dimensione con un
-  // secondo prompt e la registra in workspace.arraySizes - una Map
-  // <variabileId, dimensione> attaccata al workspace (stesso stile ad-hoc
-  // gia' usato da generator.repeatDepth in src/codegen/c.js), perche'
-  // Blockly non serializza dati extra sulle variabili di suo.
+  // --- Array (solo interi) -------------------------------------------
+  // La dimensione è un campo del blocco DICHIARA ARRAY (field_number),
+  // niente più prompt del browser né mappa a parte fuori dai blocchi: è
+  // Blockly stesso a serializzarla insieme al resto, come qualunque altro
+  // campo. `array_declare` vive nella zona DICHIARAZIONI di `program`
+  // (previousStatement/nextStatement: 'Declaration', vedi sopra), quindi
+  // non può fisicamente finire dentro un ciclo o una condizione.
   //
-  // A differenza di 'assign' con i booleani, qui NON serve intercettare
-  // anche field.loadState(): nessuno dei quattro blocchi ha un check di
-  // connessione che dipende dalla dimensione (INDEX e VALUE sono sempre
-  // 'Number', fissi), quindi non c'e' rischio che Blockly rifiuti di
-  // ricollegare un figlio salvato durante il caricamento di un file.
-  // workspace.arraySizes viene ripristinato da src/persistence.js subito
-  // dopo il caricamento, in tempo per quando generatori e interprete ne
-  // avranno bisogno (loro sì, a differenza di Blockly stesso, lo leggono
-  // solo dopo che il workspace è stato ricostruito per intero).
-  //
-  // Verificato empiricamente un altro caso non ovvio: quando un blocco
-  // vettore viene creato per la prima volta (anche solo trascinandolo dalla
-  // tavolozza, senza che lo studente tocchi il menu VAR), Blockly assegna da
-  // solo una variabile Array di default per riempire il campo - un percorso
-  // interno che, come loadState, NON passa dal validator. Senza contromisura
-  // il primissimo vettore di un programma resterebbe senza dimensione
-  // registrata. Per questo ensureArraySize() viene richiamata sia dal
-  // validator sia una volta subito dopo jsonInit, sul valore iniziale del
-  // campo. Per lo stesso motivo "Annulla" sul prompt non cancella la
-  // variabile (si era provato: Blockly ne ricrea subito un'altra di
-  // default, altrettanto priva di dimensione, in un ciclo senza uscita) ma
-  // assegna una dimensione predefinita (10), che lo studente puo' comunque
-  // correggere ricreando la variabile con un altro nome.
-  const DEFAULT_ARRAY_SIZE = 10;
-
-  function getArraySizes(workspace) {
-    if (!workspace.arraySizes) workspace.arraySizes = new Map();
-    return workspace.arraySizes;
-  }
-
-  function promptArraySize(variableName) {
-    for (;;) {
-      const answer = window.prompt(
-        `Quanti elementi ha il vettore "${variableName}"? (numero fisso, per esempio 10)`,
-        String(DEFAULT_ARRAY_SIZE)
-      );
-      if (answer === null) return DEFAULT_ARRAY_SIZE; // Annulla: dimensione predefinita
-      const trimmed = answer.trim();
-      if (/^[1-9]\d*$/.test(trimmed)) {
-        return parseInt(trimmed, 10);
-      }
-      window.alert('Inserisci un numero intero maggiore di zero.');
-    }
-  }
-
-  function ensureArraySize(workspace, variableId) {
-    const arraySizes = getArraySizes(workspace);
-    if (arraySizes.has(variableId)) return;
-    const variable = workspace.getVariableMap().getVariableById(variableId);
-    if (!variable) {
-      // Verificato su un workspace renderizzato (non nell'equivalente
-      // headless): initModel() puo' scattare per un istante prima che la
-      // variabile sia gia' registrata nella variable map (es. durante
-      // initSvg()/render() chiamati subito dopo la creazione del blocco).
-      // Si riprova al giro successivo invece di fallire: e' un caso limite
-      // dell'ordine interno di Blockly, non qualcosa su cui possiamo contare.
-      setTimeout(() => ensureArraySize(workspace, variableId), 0);
-      return;
-    }
-    arraySizes.set(variableId, promptArraySize(variable.name));
-  }
-
-  function attachArraySizeValidator(block) {
-    const field = block.getField('VAR');
-    field.setValidator(function (newVariableId) {
-      ensureArraySize(block.workspace, newVariableId);
-      return newVariableId;
-    });
-    // Il valore iniziale del campo (creato da Blockly stesso a partire da
-    // 'variable'/'defaultType' nel JSON) non esiste ancora subito dopo
-    // jsonInit: il campo risolve/crea la variabile vera e propria solo in
-    // initModel() (verificato: leggerla prima restituisce un id senza
-    // variabile corrispondente). Il validator da solo non la vedrebbe mai,
-    // quindi va intercettato anche questo, sullo stesso modello di
-    // field.loadState per 'assign'.
-    const originalInitModel = field.initModel.bind(field);
-    field.initModel = function () {
-      originalInitModel();
-      ensureArraySize(block.workspace, field.getValue());
-    };
-  }
-
   // Ripetuta identica in ciascun blocco (non condivisa come oggetto: alcuni
   // percorsi interni di Blockly possono annotare l'oggetto args passato a
   // jsonInit, quindi condividere lo stesso riferimento tra piu' blocchi
@@ -441,10 +371,27 @@ export function registerBlocks(Blockly) {
   const arrayVarFieldSpec = () => ({
     type: 'field_variable',
     name: 'VAR',
-    variable: 'v',
+    variable: 'a',
     variableTypes: ['Array'],
     defaultType: 'Array',
   });
+
+  Blockly.Blocks['array_declare'] = {
+    init: function () {
+      this.jsonInit({
+        message0: 'DICHIARA ARRAY %1 DI %2 ELEMENTI',
+        args0: [
+          arrayVarFieldSpec(),
+          { type: 'field_number', name: 'SIZE', value: 10, min: 1, precision: 1 },
+        ],
+        inputsInline: true,
+        previousStatement: 'Declaration',
+        nextStatement: 'Declaration',
+        colour: COLOR_ARRAY,
+        tooltip: 'Crea un array di interi con un numero fisso di elementi, tutti inizializzati a zero',
+      });
+    },
+  };
 
   Blockly.Blocks['array_get'] = {
     init: function () {
@@ -454,9 +401,8 @@ export function registerBlocks(Blockly) {
         inputsInline: true,
         output: 'Number',
         colour: COLOR_ARRAY,
-        tooltip: 'Elemento del vettore in posizione INDICE (indice da 0)',
+        tooltip: 'Elemento dell’array in posizione INDICE (indice da 0)',
       });
-      attachArraySizeValidator(this);
     },
   };
 
@@ -470,12 +416,11 @@ export function registerBlocks(Blockly) {
           { type: 'input_value', name: 'VALUE', check: 'Number' },
         ],
         inputsInline: true,
-        previousStatement: null,
-        nextStatement: null,
+        previousStatement: 'Statement',
+        nextStatement: 'Statement',
         colour: COLOR_STATEMENT,
-        tooltip: 'Assegna un valore a un elemento del vettore',
+        tooltip: 'Assegna un valore a un elemento dell’array',
       });
-      attachArraySizeValidator(this);
     },
   };
 
@@ -485,12 +430,11 @@ export function registerBlocks(Blockly) {
         message0: 'LEGGI %1[%2]',
         args0: [arrayVarFieldSpec(), { type: 'input_value', name: 'INDEX', check: 'Number' }],
         inputsInline: true,
-        previousStatement: null,
-        nextStatement: null,
+        previousStatement: 'Statement',
+        nextStatement: 'Statement',
         colour: COLOR_STATEMENT,
-        tooltip: 'Legge un valore in input e lo salva in un elemento del vettore',
+        tooltip: 'Legge un valore in input e lo salva in un elemento dell’array',
       });
-      attachArraySizeValidator(this);
     },
   };
 
@@ -501,9 +445,8 @@ export function registerBlocks(Blockly) {
         args0: [arrayVarFieldSpec()],
         output: 'Number',
         colour: COLOR_ARRAY,
-        tooltip: 'Numero di elementi del vettore',
+        tooltip: 'Numero di elementi dell’array',
       });
-      attachArraySizeValidator(this);
     },
   };
 }
