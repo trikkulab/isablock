@@ -363,6 +363,47 @@ l'infrastruttura ad hoc (validator/loadState/initModel/mappa a parte) che aveva
 causato le tre insidie sopra: il risultato finale è più semplice del primo
 tentativo, non solo più chiaro per lo studente.
 
+### Pannello Variabili ed esempio "Stampa al contrario" (2026-09-28)
+
+Durante l'esecuzione passo-passo, la striscia Esecuzione mostra accanto
+alla console il pannello **Variabili**. Un array è una griglia di celle
+tutte della stessa larghezza, con l'indice sopra; le celle vanno a capo
+invece di scorrere in orizzontale, e il nome resta visibile (sticky) finché
+la sua riga è in vista. Una variabile mai assegnata è mostrata come `?`,
+non come 0 (valore casuale in C, inesistente in Python), anche se
+l'interprete in lettura la tratta come 0. Lo scorrimento automatico, sia
+del pannello sia dell'area blocchi, avviene solo quando ciò che è
+cambiato non è già visibile: mai centrare a ogni passo (effetto "mal di
+mare").
+
+Il pannello ha fatto emergere una **divergenza C/Python già esistente**:
+il valore del contatore di un PER dopo il ciclo (C: primo valore che
+rende falsa la condizione; Python: ultimo valore di `range`, o quello di
+prima se zero ripetizioni). Decisione: l'interprete segue il C, con un
+passo in più sul blocco PER per il controllo che fallisce (così si vede
+il valore che fa uscire, come per MENTRE); se il programma legge il
+contatore prima di riassegnarlo, la console mostra un avviso che
+riporta i due valori. Scartato rendere uguale il Python (es. `i = n + 1`
+dopo il ciclo): codice innaturale, e ancora più contorto con zero
+ripetizioni. Nessuno degli esempi precaricati usa il contatore fuori dal
+ciclo.
+
+Il pannello ha fatto emergere anche un'**incoerenza nel significato del
+passo**: il blocco evidenziato era quello *da eseguire*, quindi il giallo
+mostrava l'effetto del blocco precedente, tranne per il PER che aggiorna il
+contatore prima di fermarsi. Risultato, in un solo passo: `numeri[1]`
+appena letto dal LEGGI *e* `i` già incrementato dal PER. Nuova regola,
+uniforme: **un passo esegue il blocco evidenziato e ne mostra subito
+l'effetto**. Le istruzioni semplici si fermano dopo aver agito (anche
+SCRIVI stampa nel passo in cui è illuminato); SE, MENTRE, PER si fermano
+sul controllo della condizione; LEGGI si ferma due volte, prima in attesa
+del valore e poi per mostrarlo. Caricare un programma (Nuovo, Apri,
+Esempio) svuota e richiude la striscia di esecuzione.
+
+Primo esempio precaricato con un array: "Stampa al contrario" (legge 5
+numeri, li stampa con `PER i DA 4 A 0 PASSO -1`), scelto perché mostra
+il motivo stesso per cui servono gli array.
+
 ## Array di caratteri (esercizi su singolo carattere) — proposta preliminare
 
 Discussione del 2026-09-22, riaperta dopo aver escluso il "char" come surrogato delle

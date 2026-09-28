@@ -203,6 +203,7 @@ document.getElementById('btnNew').addEventListener('click', () => {
   workspace.clear();
   enforceProgramBlock();
   updateOutputs();
+  resetRunStrip();
   showToast('Nuovo programma creato', 'success');
 });
 
@@ -243,6 +244,7 @@ fileInput.addEventListener('change', () => {
     .then(() => {
       enforceProgramBlock();
       updateOutputs();
+      resetRunStrip();
       showToast('Programma caricato', 'success');
     })
     .catch((err) => {
@@ -293,6 +295,7 @@ exampleSelect.addEventListener('change', () => {
   Blockly.serialization.workspaces.load(example.workspaceState, workspace);
   enforceProgramBlock();
   updateOutputs();
+  resetRunStrip();
   showToast(`Esempio "${example.title}" caricato`, 'success');
 });
 
@@ -314,6 +317,7 @@ const runConsole = document.getElementById('runConsole');
 const runInputForm = document.getElementById('runInputForm');
 const runInputField = document.getElementById('runInputField');
 const execSpeedSelect = document.getElementById('execSpeed');
+const runVars = document.getElementById('runVars');
 
 let runStepDelayMs = Number(execSpeedSelect.value);
 execSpeedSelect.addEventListener('change', () => {
@@ -321,6 +325,7 @@ execSpeedSelect.addEventListener('change', () => {
 });
 
 let execGenerator = null;
+let execIo = null; // l'oggetto io passato all'interprete (vedi runProgram): contiene io.vars
 let execRunning = false; // true = esecuzione continua ("Esegui"), false = passo singolo o in pausa
 let execTimer = null;
 let resumeRunningAfterInput = false; // execRunning da ripristinare dopo un LEGGI in attesa
@@ -379,6 +384,139 @@ function formatOutputValue(value) {
   return String(value);
 }
 
+// --- Pannello Variabili --------------------------------------------------
+// Mostra i valori della mappa io.vars dell'interprete dopo ogni passo. Il
+// blocco evidenziato e' quello appena eseguito (vedi l'intestazione di
+// src/runtime/interpreter.js), quindi in ambra c'e' proprio cio' che ha
+// cambiato il blocco illuminato: mai l'effetto di un blocco precedente.
+// Solo lettura: il pannello non scrive mai nella mappa dell'interprete.
+
+// Copia dei valori al passo precedente, per capire cosa e' cambiato. Gli
+// array vanno copiati, perche' l'interprete li modifica sul posto.
+let prevVarsSnapshot = new Map();
+
+function snapshotVars(vars) {
+  const snapshot = new Map();
+  for (const [id, value] of vars) {
+    snapshot.set(id, Array.isArray(value) ? value.slice() : value);
+  }
+  return snapshot;
+}
+
+// Le stesse variabili che il generatore C dichiara (quelle usate da almeno
+// un blocco), nell'ordine in cui compaiono, con gli array in fondo: sono le
+// righe piu' alte e disturbano meno lì. L'elenco e' completo fin dal primo
+// passo, cosi' le righe non si spostano durante l'esecuzione.
+function variablesForPanel() {
+  const seen = new Set();
+  const variables = Blockly.Variables.allUsedVarModels(workspace).filter((v) => {
+    if (seen.has(v.getId())) return false;
+    seen.add(v.getId());
+    return true;
+  });
+  return [
+    ...variables.filter((v) => v.type !== 'Array'),
+    ...variables.filter((v) => v.type === 'Array'),
+  ];
+}
+
+function renderVars() {
+  const vars = (execIo && execIo.vars) || new Map();
+  const variables = variablesForPanel();
+  runVars.innerHTML = '';
+  if (variables.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'run-vars-empty';
+    empty.textContent = 'Nessuna variabile';
+    runVars.appendChild(empty);
+  }
+
+  let firstChanged = null;
+  for (const variable of variables) {
+    const id = variable.getId();
+    const row = document.createElement('div');
+    row.className = 'var-row';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'var-name';
+    nameEl.textContent = variable.name;
+    row.appendChild(nameEl);
+    runVars.appendChild(row);
+
+    const hasValue = vars.has(id);
+    const value = vars.get(id);
+    const hadValue = prevVarsSnapshot.has(id);
+    const prevValue = prevVarsSnapshot.get(id);
+
+    if (variable.type === 'Array' && hasValue) {
+      const arrayEl = document.createElement('div');
+      arrayEl.className = 'var-array';
+      // Larghezza uguale per tutte le celle: il testo piu' lungo tra valori
+      // e indici, piu' un po' di margine.
+      const texts = value.map(formatOutputValue);
+      const longest = Math.max(String(value.length - 1).length + 2, ...texts.map((t) => t.length));
+      arrayEl.style.setProperty('--cell-w', `${longest + 1.5}ch`);
+      value.forEach((cellValue, index) => {
+        const cell = document.createElement('div');
+        cell.className = 'var-cell';
+        const indexEl = document.createElement('span');
+        indexEl.className = 'var-cell-index';
+        indexEl.textContent = `[${index}]`;
+        const valueEl = document.createElement('span');
+        valueEl.textContent = texts[index];
+        cell.append(indexEl, valueEl);
+        if (!hadValue || prevValue[index] !== cellValue) {
+          cell.classList.add('var-changed');
+          firstChanged = firstChanged || cell;
+        }
+        arrayEl.appendChild(cell);
+      });
+      row.appendChild(arrayEl);
+      continue;
+    }
+
+    // "?" e non 0: in C una variabile mai assegnata contiene un valore
+    // casuale e in Python non esiste ancora. L'interprete la legge come 0
+    // (vedi evalExpression), ma mostrarla come 0 nasconderebbe proprio
+    // l'errore di dimenticare l'inizializzazione.
+    const valueEl = document.createElement('div');
+    valueEl.className = 'var-value';
+    if (hasValue) {
+      valueEl.textContent = formatOutputValue(value);
+      if (!hadValue || prevValue !== value) {
+        valueEl.classList.add('var-changed');
+        firstChanged = firstChanged || valueEl;
+      }
+    } else {
+      valueEl.textContent = '?';
+      valueEl.classList.add('var-unset');
+      valueEl.title = variable.type === 'Array' ? 'Array non ancora dichiarato' : 'Variabile non ancora assegnata';
+    }
+    row.appendChild(valueEl);
+  }
+
+  prevVarsSnapshot = snapshotVars(vars);
+  // Scorre solo se quello che e' cambiato non si vede gia' ('nearest').
+  if (firstChanged) firstChanged.scrollIntoView({ block: 'nearest' });
+}
+
+// Porta in vista il blocco in esecuzione solo quando serve, senza
+// centrarlo a ogni passo (l'area dei blocchi resterebbe sempre in
+// movimento). Si considera solo la riga d'intestazione del blocco: un SE o
+// un ciclo con molte istruzioni dentro e' spesso piu' alto dell'area
+// visibile, e basta vederne l'inizio.
+function scrollBlockIntoViewIfNeeded(blockId) {
+  const block = workspace.getBlockById(blockId);
+  if (!block) return;
+  const xy = block.getRelativeToSurfaceXY();
+  const bounds = new Blockly.utils.Rect(
+    xy.y,
+    xy.y + Math.min(block.height, 48),
+    xy.x,
+    xy.x + Math.min(block.width, 320)
+  );
+  workspace.scrollBoundsIntoView(bounds);
+}
+
 function startExecution() {
   const programBlock = workspace.getTopBlocks(false).find((b) => b.type === 'program');
   if (!programBlock) return;
@@ -386,11 +524,13 @@ function startExecution() {
   runSplitter.hidden = false;
   runConsole.innerHTML = '';
   runInputForm.hidden = true;
-  const io = {
+  execIo = {
     stepCount: 0,
     onOutput: (value) => appendConsoleLine(formatOutputValue(value), 'run-output'),
+    onWarning: (message) => appendConsoleLine(message, 'run-warning'),
   };
-  execGenerator = runProgram(programBlock, io);
+  execGenerator = runProgram(programBlock, execIo);
+  prevVarsSnapshot = new Map();
   setWorkspaceLocked(true);
 }
 
@@ -402,11 +542,16 @@ function advance(inputValue) {
     result = execGenerator.next(inputValue);
   } catch (err) {
     if (!(err instanceof ExecutionError)) throw err;
+    renderVars();
     appendConsoleLine(err.message, 'run-error');
     showToast(err.message, 'error');
     stopExecution('Interrotto');
     return;
   }
+
+  // Anche a fine programma e dopo un LEGGI: i valori finali restano
+  // visibili a esecuzione terminata.
+  renderVars();
 
   if (result.done) {
     stopExecution('Esecuzione terminata');
@@ -416,6 +561,7 @@ function advance(inputValue) {
   const event = result.value;
   currentBlockId = event.blockId;
   workspace.highlightBlock(event.blockId);
+  scrollBlockIntoViewIfNeeded(event.blockId);
   renderAllPanels();
 
   if (event.awaitingInput) {
@@ -458,6 +604,20 @@ runStripClose.addEventListener('click', () => {
   runStrip.hidden = true;
   runSplitter.hidden = true;
 });
+
+// Con un programma nuovo (Nuovo, Apri, Esempio) console e variabili
+// dell'esecuzione precedente non hanno piu' senso: si svuotano e la
+// striscia si richiude, come prima di qualsiasi esecuzione. Quei tre
+// comandi sono disabilitati mentre si esegue, quindi qui l'esecuzione e'
+// sempre gia' ferma.
+function resetRunStrip() {
+  execIo = null;
+  prevVarsSnapshot = new Map();
+  runConsole.innerHTML = '';
+  runVars.innerHTML = '';
+  runStrip.hidden = true;
+  runSplitter.hidden = true;
+}
 
 runInputForm.addEventListener('submit', (event) => {
   event.preventDefault();

@@ -1,0 +1,15 @@
+#include <stdio.h>
+
+int main(void) {
+    int i;
+    int numeri[5] = {0};
+    // Ricorda tutti i numeri, uno per casella
+    for (i = 0; i <= 4; i++) {
+        scanf("%d", &numeri[i]);
+    }
+    // Stampa dall’ultima casella alla prima
+    for (i = 4; i >= 0; i--) {
+        printf("%d\n", numeri[i]);
+    }
+    return 0;
+}

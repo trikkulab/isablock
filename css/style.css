@@ -416,6 +416,137 @@ body {
   line-height: 1.6;
 }
 
+/* Console a sinistra, Variabili a destra: vicine, cosi' si vede subito
+   l'effetto di un LEGGI sulla variabile. Ogni colonna scorre per conto
+   suo, solo in verticale. */
+.run-strip-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.run-col {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.run-col-vars {
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.run-col-title {
+  flex: none;
+  padding: 0.45rem 1rem 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--code-fg);
+  opacity: 0.55;
+}
+
+.run-col .run-console {
+  padding-top: 0.2rem;
+}
+
+/* --- Pannello Variabili ----------------------------------------------
+   Due colonne: il nome (sempre visibile, allineato in alto) e il valore.
+   Gli array vanno a capo su piu' righe invece di scorrere in orizzontale:
+   le celle hanno tutte la stessa larghezza (--cell-w, calcolata in base al
+   valore piu' lungo) cosi' le colonne restano allineate tra una riga e
+   l'altra. */
+.run-vars {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0.2rem 1rem 0.9rem;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 1.1rem;
+  row-gap: 0.45rem;
+  align-content: start;
+  align-items: start;
+  color: var(--code-fg);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.run-vars-empty {
+  grid-column: 1 / -1;
+  opacity: 0.6;
+  font-style: italic;
+}
+
+/* Una riga per variabile, con le colonne del pannello (subgrid) cosi' i
+   valori restano incolonnati; dove subgrid manca, vale la larghezza fissa
+   dichiarata prima. La riga serve da limite allo sticky del nome. */
+.var-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 5.5em minmax(0, 1fr);
+  grid-template-columns: subgrid;
+  align-items: start;
+}
+
+/* sticky: con un array alto, scorrendo il nome resta in cima finche' la
+   sua riga e' visibile, senza finire sopra le altre variabili. */
+.var-name {
+  position: sticky;
+  top: 0;
+  font-weight: 600;
+  color: #8fd0ff;
+}
+
+.var-value {
+  justify-self: start;
+  padding: 0 0.3rem;
+  border-radius: 3px;
+}
+
+.var-unset {
+  opacity: 0.5;
+}
+
+.var-array {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.var-cell {
+  width: var(--cell-w);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  padding: 0.05rem 0.2rem 0.15rem;
+}
+
+.var-cell-index {
+  font-size: 0.7rem;
+  opacity: 0.55;
+}
+
+/* Stesso ambra dell'evidenziazione del blocco in esecuzione: "questo e'
+   appena cambiato". Resta fino al passo successivo, non lampeggia via,
+   cosi' con "Passo" si ha tutto il tempo di notarlo. */
+.var-value.var-changed,
+.var-cell.var-changed {
+  background: #f4c95d;
+  color: #12222f;
+  border-color: #f4c95d;
+}
+
+.var-cell.var-changed .var-cell-index {
+  opacity: 0.8;
+}
+
 .run-line {
   white-space: pre-wrap;
 }
@@ -427,6 +558,12 @@ body {
 
 .run-line.run-input {
   color: #8fd0ff;
+}
+
+/* Avviso, non errore: l'esecuzione prosegue (vedi warnIfExitedCounter in
+   src/runtime/interpreter.js). */
+.run-line.run-warning {
+  color: #f4c95d;
 }
 
 .run-line.run-error {
@@ -675,8 +812,18 @@ body {
     border-left: none;
     border-top: 1px solid var(--border);
   }
+  /* Colonne impilate: prima le Variabili, poi la Console (con il campo per
+     LEGGI in fondo alla striscia, dove il pollice arriva). */
   .run-strip {
-    height: 160px;
+    height: 320px;
+  }
+  .run-strip-body {
+    flex-direction: column;
+  }
+  .run-col-vars {
+    order: -1;
+    border-left: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   }
   /* Sotto i 900px i pannelli sono impilati con altezze fisse pensate per lo
      schermo piccolo: trascinare un separatore col dito e' piu' scomodo che

@@ -7,8 +7,8 @@ come esempi precaricati nello strumento, ora con commenti esplicativi nei punti
 chiave (oltre al costrutto minimo richiesto, è stato aggiunto "ripeti N volte" —
 vedi `SPEC.md`). Salvataggio/caricamento locale presente. Aggiunta anche
 un'esecuzione passo-passo del programma a blocchi (tasti Esegui/Passo, richiamabili
-anche da tastiera, a velocità regolabile, con la console di input/output in una
-striscia fissa sotto il codice), che evidenzia in tempo reale sia il blocco attivo
+anche da tastiera, a velocità regolabile, con la console di input/output e il pannello
+Variabili in una striscia fissa sotto il codice), che evidenzia in tempo reale sia il blocco attivo
 sia la riga corrispondente — colorata sintatticamente — in ciascuno dei tre output:
 esegue il modello a blocchi, non il testo generato — non è quindi in contraddizione
 con "Cosa NON deve fare" in `README.md`, che riguarda l'esecuzione reale di C/Python.

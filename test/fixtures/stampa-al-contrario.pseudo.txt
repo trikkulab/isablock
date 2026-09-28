@@ -1,0 +1,12 @@
+DICHIARAZIONI
+   DICHIARA ARRAY numeri DI 5 ELEMENTI
+INIZIO
+   // Ricorda tutti i numeri, uno per casella
+   PER i DA 0 A 4
+      LEGGI numeri[i]
+   FINE PER
+   // Stampa dall’ultima casella alla prima
+   PER i DA 4 A 0 PASSO -1
+      SCRIVI numeri[i]
+   FINE PER
+FINE
