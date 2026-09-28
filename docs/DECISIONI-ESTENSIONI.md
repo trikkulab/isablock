@@ -13,10 +13,10 @@ Le estensioni si introducono solo dopo la validazione in classe della Fase 1 (ve
 | Argomento | Stato |
 |---|---|
 | Float | **Escluso** (decisione presa) |
-| Ordine di lavoro: booleani, stringhe, vettori, funzioni | **Deciso** come ordine desiderato |
+| Ordine di lavoro: booleani, stringhe, array, funzioni | **Deciso** come ordine desiderato |
 | Booleani | **Fatto** (2026-09-22) |
 | Stringhe | Livello A **fatto** (2026-09-22); livello B rimandato |
-| Vettori | **Fatto** (2026-09-22) |
+| Array | **Fatto**, ridisegnato con blocco DICHIARA (2026-09-22, poi 2026-09-27/28) |
 | Array di caratteri (esercizi su singolo carattere) | Proposta preliminare, distinta dalle stringhe immutabili |
 | Funzioni/procedure | Solo analisi; scelte di progetto da fare |
 | Profili base/avanzato | Proposta: un solo codice con profili; da confermare |
@@ -36,7 +36,7 @@ Tutto il sistema assume che ogni variabile sia un intero:
 
 Nota preesistente: C dichiara `int a, b;` senza inizializzare (valore indefinito),
 mentre l'interprete assume `0` per le variabili non assegnate. È già oggi una piccola
-divergenza; con vettori e testi diventa più visibile. Proposta: inizializzare a 0 in C.
+divergenza; con array e testi diventa più visibile. Proposta: inizializzare a 0 in C.
 
 ## Lavoro comune a tutte le estensioni sui tipi
 
@@ -120,7 +120,7 @@ bit-per-bit identici) e verifica sia headless sia su browser reale (Playwright).
   aggiunto in **quattro** posti, non tre: i tre generatori **e**
   `evalExpression` in `src/runtime/interpreter.js`. `CLAUDE.md` ricorda di
   controllare i tre generatori ma non menziona esplicitamente l'interprete —
-  da tenere a mente per stringhe livello B, vettori e oltre.
+  da tenere a mente per stringhe livello B, array e oltre.
 - **Bug più serio, trovato dall'utente con l'uso reale (non dai test
   automatici): salvare e ricaricare un file con una variabile booleana
   usata in `ASSEGNA` falliva.** L'aggiornamento dinamico del check di
@@ -142,7 +142,7 @@ bit-per-bit identici) e verifica sia headless sia su browser reale (Playwright).
   composte (`NON`/`E`/`O`) ed esecuzione passo-passo del programma
   ricaricato. **Promemoria aggiuntivo:** un blocco con un check di
   connessione che dipende dal valore di un campo (come `assign` con i
-  booleani, e come sarà probabilmente `v[i]` per i vettori) deve
+  booleani) deve
   aggiornare quel check in un punto che giri sia su modifica interattiva
   **sia su caricamento da file** — i due percorsi in Blockly non
   coincidono, verificarlo esplicitamente con un test di salvataggio/
@@ -200,14 +200,14 @@ concatenazione come istruzione (in C non è un'espressione) e dell'aliasing; spa
 divergenza di `strlen` con le lettere accentate (byte vs caratteri); le stringhe si
 passano alle funzioni in sicurezza (`const char *` in C, `str` in Python).
 
-**Non riusare l'infrastruttura dei vettori.** Si era considerato di modellare la
+**Non riusare l'infrastruttura degli array.** Si era considerato di modellare la
 stringa come array di `char`, ma non regge: in Python la stringa è immutabile e non è
 una lista; l'elemento sarebbe un `char` in C e una stringa di un carattere in Python
 (un terzo tipo); la lunghezza è variabile. Con le stringhe immutabili la capacità è una
 costante uguale per tutte le variabili di testo (per es. 100), quindi non serve la
 finestra "nome + dimensione". Le stringhe dipendono solo da: tipo sulle variabili e
 inferenza del tipo delle espressioni. Questo è ciò che permette l'ordine deciso
-(booleani → stringhe → vettori).
+(booleani → stringhe → array).
 
 **Blocchi distinti** (livello B): `LEGGI testo`, variabile di testo,
 `testo ← "letterale"` / `testo ← testo`, `testo = testo`, separati dai blocchi
@@ -230,87 +230,138 @@ numerici.
 
 Costo stimato: livello A basso, livello B medio.
 
-## Vettori — fatto (2026-09-22)
+## Array — fatto (prima versione 2026-09-22, ridisegnato 2026-09-27/28)
 
-**Solo vettori di interi.** Niente vettori di stringhe (eviterebbero le matrici di
-`char`, la parte più pesante del C). Niente matrici.
+**Solo array di interi.** Niente array di stringhe (eviterebbero le matrici di
+`char`, la parte più pesante del C). Niente matrici. Chiamati "vettori" nella prima
+versione: rinominati "array" su richiesta dell'utente, per non confonderli con i
+vettori della fisica — nessun cambiamento tecnico, solo di terminologia (i nomi
+interni dei blocchi erano già in inglese, `array_get` ecc.).
 
-**Come è stato fatto**
-- **Dichiarazione:** la dimensione è una proprietà della variabile, scelta alla
-  creazione — ma **senza una finestra "crea vettore" dedicata**: si riusa lo stesso
-  meccanismo dei booleani (`variableTypes`/`defaultType` su `field_variable`), e la
-  dimensione viene chiesta con un secondo `window.prompt` subito dopo, dallo stesso
-  punto che gestisce la creazione. Un solo modo di creare variabili in tutta l'app,
-  indipendentemente dal tipo. C dichiara `int v[10] = {0};` in cima a `main`, Python
-  inizializza con `v = [0] * 10` prima del corpo del programma (`gen.forBlock['program']`
-  in Python non produceva prima nessuna riga extra: ora la produce anche lì, non solo
-  in C, perché Python non ha una sezione dichiarazioni dove appoggiarsi).
-- **Dimensione: numero fisso**, scelto una sola volta alla creazione della variabile,
-  non modificabile in seguito (si ricrea la variabile con un altro nome se serve una
-  dimensione diversa).
-- **Blocchi nuovi:** `array_get` (`v[i]`, espressione, `Number`), `array_set`
-  (`ASSEGNA A v[i] IL VALORE ...`, istruzione separata da `assign`), `array_read`
-  (`LEGGI v[i]`), `array_length` (`LUNGHEZZA DI v`, incluso da subito, non rimandato:
-  in C è la dimensione letterale, in Python `len(v)`).
-- **Filtro dei menu variabili per tipo:** i quattro blocchi vettore usano
-  `variableTypes: ['Array']`; i blocchi scalari (`assign`, `read`, `variable_get`,
-  `controls_for_simple`) elencavano già esplicitamente i propri tipi ammessi (fatto per
-  i booleani), quindi non potevano già comparirvi un vettore — nessuna modifica
-  necessaria lì.
-- **Indice base 0, inizializzazione a zero, indici fuori limiti**: implementati come da
-  proposta originale (sotto), verificati con test dedicati (vedi sotto).
+**Prima versione (2026-09-22): dimensione scelta con un prompt nascosto alla
+creazione della variabile, non più modificabile.** Funzionava (verificato a fondo,
+vedi sotto) ma l'utente l'ha trovata poco chiara: la dimensione viveva fuori dai
+blocchi (`workspace.arraySizes`, una mappa ad hoc) ed era invisibile nel workspace.
+**Sostituita interamente** (non solo rinominata) da un blocco di dichiarazione
+esplicito, più vicino a come C/Java obbligano comunque a dichiarare un array — la
+prima versione resta descritta qui sotto solo perché le insidie che ha rivelato
+restano istruttive per le prossime estensioni.
 
-**Dove vive la dimensione (il punto architetturale nuovo rispetto ai booleani):**
-Blockly non serializza dati extra sulle variabili. La dimensione vive in
-`workspace.arraySizes`, una `Map<variabileId, dimensione>` attaccata direttamente
-all'oggetto workspace (stesso stile ad-hoc già usato da `generator.repeatDepth` in
-`src/codegen/c.js` per i contatori anonimi di `repeat_times`): niente modulo a parte,
-c'è un solo workspace in tutta l'app. `src/persistence.js` la salva/ripristina accanto
-alle chiavi di Blockly, come già fa con `formatVersion`/`appVersion`.
+### Design attuale: blocco `array_declare`
 
-**Tre insidie trovate solo testando davvero (non nella proposta originale), stesso
-tema dei booleani — un blocco il cui comportamento dipende da uno stato esterno al
-singolo blocco va verificato su *tutti* i percorsi che possono valorizzare quello
-stato, non solo quello "ovvio" (l'interazione dello studente):**
-1. **Creare un blocco vettore per la prima volta (anche solo trascinandolo dalla
-   tavolozza, senza toccare il menu VAR) fa scattare una creazione automatica di
-   variabile da parte di Blockly stesso, che non passa né dal validator né da
-   `field.loadState()`.** Verificato: senza contromisura, il primissimo vettore di un
-   programma restava senza dimensione registrata. La variabile viene risolta per
-   davvero solo in `field.initModel()` (un terzo punto di ingresso, oltre a validator e
-   `loadState`, mai emerso con i booleani perché lì il valore di default JSON — la
-   variabile numerica "variabile" — già esisteva sempre). Risolto avvolgendo anche
-   `initModel()`.
-2. **Il caso "Annulla" sul prompt della dimensione non può cancellare la variabile
-   appena creata.** Prima idea (per analogia con "Annulla" su "Salva con nome"): se lo
-   studente annulla, cancellare la variabile appena creata e rifiutare il cambio.
-   Verificato che non funziona: un campo `field_variable` con un solo tipo ammesso non
-   può restare "vuoto", quindi Blockly ne crea subito un'altra di default — che a sua
-   volta non ha una dimensione, e richiederebbe un altro prompt, in un ciclo senza
-   una vera via d'uscita pulita. Cambiata la scelta: "Annulla" assegna una dimensione
-   predefinita (10), correggibile ricreando la variabile con un altro nome.
-3. **Su un workspace renderizzato (non nell'equivalente headless usato per i test),
-   `initModel()` può scattare un istante prima che Blockly registri davvero la
-   variabile nella propria variable map** (riprodotto solo chiamando `initSvg()`/
-   `render()` su un blocco appena creato, come fa l'editor reale — non riproducibile
-   nel workspace headless di `test/regression.mjs`, che non renderizza). Un
-   `getVariableById` in quel punto restituisce `null` e andrebbe in eccezione. Risolto
-   riprovando al giro successivo dell'event loop invece di fallire.
+- **Blocco `DICHIARA ARRAY a DI 10 ELEMENTI`** (`array_declare`): `field_variable`
+  VAR (`variableTypes: ['Array']`, creazione della variabile identica a
+  numeri/booleani, nessun validator) + `field_number` SIZE (`min: 1, precision: 1`,
+  default 10) — la dimensione è un campo normale del blocco, serializzato da
+  Blockly stesso, modificabile cliccandoci sopra in qualunque momento. **Nessuno
+  stato fuori dai blocchi**: sparita `workspace.arraySizes` e tutta l'infrastruttura
+  che la teneva sincronizzata (validator, `loadState`, `initModel` — vedi sotto).
+- **Il blocco non può fisicamente finire dentro un ciclo o una condizione.**
+  Discusso con l'utente: lasciarlo libero avrebbe richiesto scegliere tra C non
+  compilabile (se la dichiarazione resta scope-ata alle graffe del ciclo, fedele al
+  C vero, e l'array viene usato fuori) o C diverso da Python/interprete (se si
+  "solleva" sempre in cima a `main` a prescindere da dove sta il blocco) — entrambe
+  violano una garanzia di fondo dello strumento. Risolto con **connessioni
+  istruzione-istruzione tipizzate**, esattamente come già esistono per le
+  connessioni valore: `program` (vedi sotto) ha due zone, `DECLARATIONS` (check
+  `'Declaration'`) e `BODY` (check `'Statement'`); tutti i blocchi-istruzione
+  esistenti (assign, read, write, if/else, while, per, ripeti, array_set,
+  array_read, e ogni `THEN`/`ELSE`/`BODY` annidato) sono passati da
+  `previousStatement/nextStatement: null` a `'Statement'` esplicito — un `check`
+  specifico da un solo lato non basterebbe, perché `null` in Blockly funziona da
+  jolly e si connetterebbe comunque. `comment_line` accetta entrambi i tipi.
+  Verificato con `connectionChecker.doTypeChecks` che un `array_declare` viene
+  rifiutato sia dentro un `PER` sia nella zona `BODY` di `program`, e che
+  un'istruzione normale viene rifiutata nella zona `DECLARATIONS`.
+- **`program` ha ora due zone**, sul modello delle convenzioni dei libri di testo
+  italiani: `DICHIARAZIONI` (solo `array_declare`, e `comment_line`) prima di
+  `INIZIO...FINE`. Se non c'è nessun array dichiarato, la sezione non compare in
+  nessuno dei tre output (condizionale sul contenuto, non sul blocco): i 5 esempi
+  precaricati restano byte-per-byte identici, verificato con
+  `test/regression.mjs` prima e dopo l'intero ridisegno.
+- **Asimmetria voluta, discussa con l'utente**: solo gli array si dichiarano
+  esplicitamente, le variabili numeriche/booleane restano implicite
+  (`ASSEGNA`/`LEGGI`). Non è un'incoerenza: in C anche uno scalare si dichiara, ma
+  `int x;` non porta un'informazione interessante, mentre per un array la
+  dimensione conta davvero.
+- **Generatori**: C emette `int a[10] = {0};` per ogni `array_declare` nella catena
+  DECLARATIONS (`generator.statementToCode`, come per BODY), accodato dopo le
+  dichiarazioni di `int`/`bool` (quelle restano una scansione delle variabili
+  usate, invariata). Python cammina la catena a mano con `blockToCode` (come già
+  per BODY: il modulo non ha blocchi, `statementToCode` indenterebbe) ed emette
+  `a = [0] * 10`. `LUNGHEZZA DI` in Python resta `len(a)` (simbolico, nessuna
+  ricerca necessaria); in C, che ha bisogno della costante letterale, cerca nel
+  workspace il blocco `array_declare` con la stessa variabile
+  (`workspace.getAllBlocks(false).find(...)`) e ne legge il campo SIZE — se manca
+  (array usato senza mai dichiararlo), stesso segnaposto degli slot vuoti.
+- **Interprete**: `array_declare` è ora un'istruzione reale eseguita a runtime
+  (nuovo case in `runStatement`, con il proprio `yield`), quindi visibile ed
+  evidenziata durante "Passo"/"Esegui" come le altre — miglioramento non richiesto
+  esplicitamente ma naturale, lo studente vede l'array "nascere". `runProgram`
+  esegue prima l'intera catena `DECLARATIONS`, poi `BODY`. Un array mai dichiarato
+  dà un `ExecutionError` leggibile invece di un `TypeError` grezzo.
+- **Compatibilità:** `fileFormatVersion` da 4 a 5 (rappresentazione incompatibile).
+  Un file vecchio (formato ≤4) **con almeno un array si migra automaticamente**
+  (`migrateOldArrayFormat` in `src/persistence.js`): la vecchia mappa
+  `arraySizes` contiene già tutta l'informazione che serve (quale variabile,
+  quale dimensione), quindi per ciascuna voce si ricostruisce un blocco
+  `array_declare` (stesso `id` di variabile, stesso valore in `SIZE`) e lo si
+  inserisce in cima alla zona `DECLARATIONS` di `program` *prima* di passare lo
+  stato a `Blockly.serialization.workspaces.load()` — è una trasformazione sul
+  JSON, non serve toccare Blockly. **Ripensato dopo la pubblicazione**: la prima
+  stesura di questa sezione diceva "nessuna migrazione automatica possibile",
+  ma l'utente ha scoperto che alcuni studenti avevano già salvato lavori con il
+  vecchio sistema, e a un esame più attento la migrazione era in realtà
+  semplice — verificata rigenerando un file autentico con il codice della
+  versione precedente (non una ricostruzione a memoria del vecchio formato) e
+  controllando che si apra, esegua e produca lo stesso risultato tramite il
+  vero flusso "Apri..." dell'interfaccia. Un vecchio `array_set`/`array_read`
+  annidato dentro un ciclo (permesso nella versione precedente, impossibile da
+  ricreare in quella attuale) continua a funzionare: la nuova restrizione di
+  connessione riguarda solo la creazione di un nuovo `array_declare`, non i
+  blocchi già esistenti in un file caricato.
 
-**Verificato:** headless (Node, stesso approccio dei booleani) e su Chromium reale via
-Playwright — tavolozza "Vettori", creazione con il vero `window.prompt()` del browser,
-ciclo `PER` che riempie un vettore, `LUNGHEZZA DI`, indice fuori dai limiti durante
-l'esecuzione (messaggio chiaro, esecuzione interrotta in modo pulito, non un'eccezione
-JS grezza), e il flusso reale Salva → Nuovo → Apri... con output identico prima e dopo.
-I 5 esempi precaricati restano invariati (nessuno usa vettori). `fileFormatVersion`
-passato da 3 a 4.
+### Tre insidie della prima versione (superate, ma istruttive)
 
-Sblocca algoritmi da manuale: massimo e ricerca lineare su un vettore, inversione,
+Stesso tema dei booleani — un blocco il cui comportamento dipende da uno stato
+esterno al singolo blocco va verificato su *tutti* i percorsi che possono
+valorizzare quello stato, non solo quello "ovvio" (l'interazione dello studente).
+Con la dimensione ora dentro un campo normale del blocco, questi problemi non
+esistono più — restano qui come promemoria per la prossima volta che si penserà di
+tenere un dato "a lato" dei blocchi invece che dentro un campo:
+1. Creare il primo blocco array (anche solo trascinandolo dalla tavolozza, senza
+   toccare il menu VAR) faceva scattare una creazione automatica di variabile da
+   parte di Blockly, che non passava né dal validator né da `field.loadState()`
+   ma da un terzo punto, `field.initModel()`.
+2. "Annulla" sul prompt della dimensione non poteva cancellare la variabile appena
+   creata: un campo `field_variable` con un solo tipo ammesso non può restare
+   "vuoto", quindi Blockly ne ricreava subito un'altra di default, altrettanto
+   priva di dimensione, in un ciclo senza uscita pulita.
+3. Su un workspace renderizzato (non nell'equivalente headless dei test),
+   `initModel()` poteva scattare un istante prima che Blockly registrasse davvero
+   la variabile nella variable map.
+
+**Verificato (ridisegno):** headless (Node) e su Chromium reale via Playwright —
+tavolozza "Array" con 5 blocchi, campo SIZE modificabile direttamente (nessun
+prompt), le tre restrizioni di connessione (DICHIARA rifiutato dentro un `PER`,
+rifiutato nella zona `INIZIO` di `program`, un'istruzione normale rifiutata nella
+zona `DICHIARAZIONI`), ciclo `PER` che riempie un array, `LUNGHEZZA DI`, indice
+fuori dai limiti durante l'esecuzione, flusso reale Salva → Nuovo → Apri... con
+output identico prima e dopo, e l'apertura di un vecchio file con array
+(autentico, rigenerato con il codice della versione precedente) migrato
+automaticamente e verificato fino all'esecuzione tramite il vero flusso
+"Apri...". I 5 esempi precaricati restano invariati. `appConfig.version`
+1.1.0 → 1.2.0, `fileFormatVersion` 4 → 5.
+
+Sblocca algoritmi da manuale: massimo e ricerca lineare su un array, inversione,
 somma, media, bubble/selection sort (non ancora aggiunti come esempi precaricati:
 stessa scelta fatta per booleani e testo, funzionalità ed esempi in passi separati).
 
-Costo stimato: medio — confermato, con il giro in più imprevisto sulla dimensione
-(stesso tipo di sorpresa già visto con il salvataggio dei booleani).
+Costo stimato: medio per il design attuale — il ridisegno rispetto alla prima
+versione è stato un investimento in più, ma ha anche eliminato tutta
+l'infrastruttura ad hoc (validator/loadState/initModel/mappa a parte) che aveva
+causato le tre insidie sopra: il risultato finale è più semplice del primo
+tentativo, non solo più chiaro per lo studente.
 
 ## Array di caratteri (esercizi su singolo carattere) — proposta preliminare
 
@@ -321,7 +372,7 @@ lettura di parole intere); qui l'obiettivo è diverso e non coperto dalle string
 immutabili: esercizi che lavorano **carattere per carattere** (conta le vocali,
 verifica palindromo, cifrario di Cesare, inverti una parola). Va quindi trattata come
 un'**estensione a sé**, non come alternativa al tipo testo, e solo dopo aver fatto
-stringhe e vettori (di cui riusa l'infrastruttura di indicizzazione).
+stringhe e array (di cui riusa l'infrastruttura di indicizzazione).
 
 **Problemi da risolvere, distinti da quelli già chiusi per le stringhe immutabili:**
 
@@ -344,26 +395,26 @@ stringhe e vettori (di cui riusa l'infrastruttura di indicizzazione).
    (`LEGGI parola`), quindi la stessa complessità di lettura già identificata per il
    livello B delle stringhe (`scanf(" %99[^\n]", ...)` vs `input()`, gestione del
    troncamento). L'array di caratteri non la evita, la aggiunge sopra.
-4. **Lunghezza logica vs capacità.** Un vettore di interi ha dimensione fissa e tutte
+4. **Lunghezza logica vs capacità.** Un array di interi ha dimensione fissa e tutte
    le celle sono "vere" dall'inizializzazione a 0. Una parola in un array di capacità
    fissa (es. 100) di solito ne usa molte meno: serve un terminatore stile C (che
    riporta dentro una scansione tipo `strlen`) oppure una variabile di lunghezza
-   esplicita da tenere sincronizzata a ogni scrittura — problema che i vettori di
+   esplicita da tenere sincronizzata a ogni scrittura — problema che gli array di
    interi non hanno.
 5. **È un quarto tipo, non un riuso.** Si aggiungerebbe `char` come tipo a sé
    (letterale `'a'`, confronto, conversione a/da numero) accanto a intero/booleano/
    testo, con tutto il "lavoro comune a tutte le estensioni sui tipi" (vedi sopra) da
-   rifare anche per questo. Riguarda direttamente la scelta già presa per i vettori
-   ("niente vettori di stringhe, eviterebbero le matrici di char, la parte più pesante
+   rifare anche per questo. Riguarda direttamente la scelta già presa per gli array
+   ("niente array di stringhe, eviterebbero le matrici di char, la parte più pesante
    del C", vedi sopra): questa estensione la introdurrebbe di proposito, quindi va
    valutata con la stessa consapevolezza.
 
 **Vincoli minimi proposti se si procede:** solo ASCII; aritmetica sui caratteri
 ammessa esplicitamente con `ord`/`chr` visibili in Python; lunghezza tracciata come
 variabile esplicita invece che terminatore implicito. Nessuna decisione presa: da
-valutare in base agli esercizi reali, dopo stringhe e vettori.
+valutare in base agli esercizi reali, dopo stringhe e array.
 
-Costo stimato: medio-alto (si aggiunge a quello di vettori e stringhe, non lo
+Costo stimato: medio-alto (si aggiunge a quello di array e stringhe, non lo
 sostituisce).
 
 ## Funzioni e procedure
@@ -395,21 +446,21 @@ struttura del programma.
 - **Interazione con i tipi:** in C ogni funzione ha tipo di ritorno e tipi dei
   parametri; se si fanno prima le funzioni solo su interi, l'estensione ai tipi
   richiede di rivedere le firme.
-- **Interazione con i vettori:** un vettore passato a una funzione è per riferimento in
+- **Interazione con gli array:** un array passato a una funzione è per riferimento in
   C e in Python (coincidono), mentre gli scalari sono per valore; lo studente deve
-  capire la differenza; in C serve passare anche la lunghezza. È un motivo per fare i
-  vettori prima delle funzioni.
+  capire la differenza; in C serve passare anche la lunghezza. È un motivo per fare
+  gli array prima delle funzioni.
 - **Interazione con le stringhe immutabili:** passaggio sicuro (vedi sopra).
 
 Costo stimato: alto.
 
 ## Ordine di lavoro
 
-Ordine desiderato dall'utente: **booleani → stringhe → vettori → funzioni**, senza float.
+Ordine desiderato dall'utente: **booleani → stringhe → array → funzioni**, senza float.
 
-Si era proposto di invertire stringhe e vettori per riusare l'infrastruttura, ma la
+Si era proposto di invertire stringhe e array per riusare l'infrastruttura, ma la
 proposta è decaduta: con stringhe immutabili e capacità costante le stringhe non
-dipendono dai vettori (vedi sopra). Il passo iniziale comune è: tipo sulle variabili +
+dipendono dagli array (vedi sopra). Il passo iniziale comune è: tipo sulle variabili +
 inferenza del tipo delle espressioni, introdotto con i booleani.
 
 ## Profili base/avanzato (funzionalità attivabili)
@@ -421,10 +472,10 @@ significherebbero generatori, interprete ed editor duplicati e destinati a diver
   motore capisce**. Blocchi, generatori e interprete gestiscono sempre tutto; il
   profilo filtra la tavolozza (`src/blocks/toolbox.js` è già un dato), i tipi offerti
   alla creazione delle variabili e gli eventuali pulsanti.
-- In `src/app-config.js`: un elenco di funzionalità (booleani, testo, vettori,
+- In `src/app-config.js`: un elenco di funzionalità (booleani, testo, array,
   funzioni) e i profili come **insiemi con nome di funzionalità**, per poter definire
   anche livelli intermedi senza cambiare il codice. Le dipendenze vanno note al sistema
-  (i vettori richiedono l'infrastruttura dei tipi): si pensa a livelli progressivi più
+  (gli array richiedono l'infrastruttura dei tipi): si pensa a livelli progressivi più
   che a scelta libera di singole voci.
 - **Vincolo:** il profilo base deve produrre output identici a oggi. Le novità
   compaiono solo quando servono (sezione dichiarazioni e tipi in C solo se esistono
@@ -534,8 +585,8 @@ end-to-end su un browser reale, non è parte della suite automatica.
 1. ~~Stringhe: livello A o anche livello B?~~ **Deciso (2026-09-22): solo livello A
    per ora** (vedi sopra); si riapre dopo aver usato il livello A in classe.
 2. Spunta "senza a capo" su `SCRIVI`: sì/no, e come si comporta la console.
-3. ~~Vettori: conferma di indice base 0 e di dimensione letterale fissa.~~
-   **Fatto (2026-09-22)**, vedi sopra.
+3. ~~Array: conferma di indice base 0 e di dimensione letterale fissa.~~
+   **Fatto** (2026-09-22, ridisegnato 2026-09-27/28), vedi sopra.
 4. Funzioni: conferma di scope locale + passaggio per valore, e se partire dai soli
    interi.
 5. Profili: conferma del parametro nell'indirizzo come meccanismo iniziale; cosa fare
@@ -543,4 +594,4 @@ end-to-end su un browser reale, non è parte della suite automatica.
 6. Inizializzare a 0 anche le variabili scalari in C (divergenza preesistente).
 7. Numero di versione "vero" e tag, dopo la validazione in classe.
 8. Array di caratteri per esercizi su singolo carattere: se farli (dopo stringhe e
-   vettori), e se limitarli ad ASCII-only come proposto sopra.
+   array di interi), e se limitarli ad ASCII-only come proposto sopra.

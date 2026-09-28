@@ -12,12 +12,9 @@ function serializeWorkspace(Blockly, workspace) {
   // legge solo le chiavi dei propri serializzatori e ignora le altre.
   // appVersion è solo informativa (da quale app arriva il file): non si usa
   // mai per decidere se il file è leggibile, lo decide formatVersion.
-  // arraySizes (dimensione dei vettori, vedi src/blocks/blocks.js) è dati
-  // dell'app allo stesso modo: Blockly non lo conosce e non lo tocca.
   const state = {
     formatVersion: appConfig.fileFormatVersion,
     appVersion: appConfig.version,
-    arraySizes: Object.fromEntries(workspace.arraySizes || []),
     ...Blockly.serialization.workspaces.save(workspace),
   };
   return JSON.stringify(state, null, 2);
@@ -69,12 +66,42 @@ export function loadWorkspaceFromFile(Blockly, workspace, file) {
     if (formatVersion > appConfig.fileFormatVersion) {
       throw new FileFormatError('Il file è stato creato con una versione più recente di IsaBlock e non può essere aperto.');
     }
+    // Fino al formato 4 gli array (allora chiamati vettori) salvavano la
+    // dimensione in una mappa a parte (arraySizes), fuori dai blocchi: la
+    // rappresenta ora un blocco vero e proprio, DICHIARA ARRAY, con la
+    // dimensione come suo campo SIZE. Il file vecchio contiene comunque
+    // tutta l'informazione necessaria (quale variabile, quale dimensione):
+    // si ricostruisce il blocco mancante invece di rifiutare il file (visto
+    // che alcuni studenti avevano già lavori salvati con il vecchio
+    // sistema). Un file dello stesso formato ma senza array (es. solo
+    // booleani/testo) non ha niente da migrare: la funzione lo lascia
+    // invariato.
+    migrateOldArrayFormat(state);
     workspace.clear();
     Blockly.serialization.workspaces.load(state, workspace);
-    // Dopo, non prima: qui non c'è il problema visto con 'assign' e i
-    // booleani (Blockly che ricollega subito i figli durante load()) -
-    // arraySizes lo consultano solo generatori e interprete, chiamati da
-    // main.js dopo che questa funzione è tornata.
-    workspace.arraySizes = new Map(Object.entries(state.arraySizes ?? {}));
   });
+}
+
+// Ricostruisce, per ogni array del vecchio formato, un blocco array_declare
+// con la stessa variabile e la stessa dimensione, e lo inserisce in cima
+// alla zona DECLARATIONS del blocco program (introdotta insieme al blocco
+// DICHIARA: un file vecchio non l'ha mai avuta, quindi non c'è nulla da
+// sovrascrivere). Se il file non usa array (arraySizes assente o vuoto) non
+// fa nulla: la stessa funzione gestisce sia i file da migrare sia quelli
+// che non ne hanno bisogno.
+function migrateOldArrayFormat(state) {
+  const arraySizes = state.arraySizes;
+  if (!arraySizes || Object.keys(arraySizes).length === 0) return;
+  const declareBlocks = Object.entries(arraySizes).map(([variableId, size]) => ({
+    type: 'array_declare',
+    id: `migrato_${variableId}`,
+    fields: { VAR: { id: variableId }, SIZE: size },
+  }));
+  for (let i = 0; i < declareBlocks.length - 1; i++) {
+    declareBlocks[i].next = { block: declareBlocks[i + 1] };
+  }
+  const programBlockState = state.blocks?.blocks?.find((b) => b.type === 'program');
+  if (!programBlockState) return; // file corrotto/inatteso: niente su cui agganciarsi
+  programBlockState.inputs = programBlockState.inputs || {};
+  programBlockState.inputs.DECLARATIONS = { block: declareBlocks[0] };
 }
