@@ -11,14 +11,16 @@ const C_KEYWORDS = new Set([
 const LOGIC_SYMBOLS = { AND: '&&', OR: '||' };
 const ARITH_SYMBOLS = { ADD: '+', SUB: '-', MUL: '*', DIV: '/', MOD: '%' };
 
-// workspace.arraySizes (Map<variabileId, dimensione>) e' popolata dal
-// validator dei blocchi vettore (src/blocks/blocks.js) o ripristinata da un
-// file (src/persistence.js): qui la si legge soltanto, con lo stesso
-// ripiego "creala se manca" per restare robusti anche in un workspace
-// headless di test che non e' mai passato da main.js.
-function getArraySizes(workspace) {
-  if (!workspace.arraySizes) workspace.arraySizes = new Map();
-  return workspace.arraySizes;
+// La dimensione di un array vive nel campo SIZE del suo blocco
+// array_declare (vedi src/blocks/blocks.js), non altrove: per array_length,
+// che in C deve tradursi nella costante numerica, cerchiamo nel workspace il
+// blocco di dichiarazione con la stessa variabile. Se non c'e' (array usato
+// senza mai dichiararlo) restituisce null, gestito dal chiamante come uno
+// slot vuoto qualunque.
+function findArrayDeclareBlock(workspace, variableId) {
+  return workspace
+    .getAllBlocks(false)
+    .find((b) => b.type === 'array_declare' && b.getField('VAR').getVariable()?.getId() === variableId);
 }
 
 // Genera codice C compilabile (gcc, C99): #include/main/dichiarazioni
@@ -45,24 +47,21 @@ export function createCGenerator(Blockly, cfg) {
   };
 
   gen.forBlock['program'] = function (block, generator) {
+    const arrayDecl = generator.statementToCode(block, 'DECLARATIONS');
     const body = generator.statementToCode(block, 'BODY');
     // Solo le variabili davvero usate da almeno un blocco: evita di
     // dichiarare in C variabili "orfane" (es. il valore di default di un
     // campo variabile mai personalizzato, o rimasto tale dopo aver
-    // cambiato blocco/variabile). Raggruppate per tipo: una riga "int ...",
-    // una "bool ..." e una riga per vettore (dimensioni diverse, non
-    // raggruppabili in una dichiarazione sola restando leggibili).
+    // cambiato blocco/variabile). int/bool restano raccolte scansionando le
+    // variabili (restano implicite, nessun blocco le dichiara); gli array
+    // arrivano invece dal blocco array_declare stesso (arrayDecl sopra).
     const usedVars = Blockly.Variables.allUsedVarModels(generator.workspace);
     const numberVars = [...new Set(usedVars.filter((v) => v.type === '').map(name))];
     const boolVars = [...new Set(usedVars.filter((v) => v.type === 'Boolean').map(name))];
-    const arrayVars = usedVars.filter((v) => v.type === 'Array');
-    const arraySizes = getArraySizes(generator.workspace);
     let decl = '';
     if (numberVars.length) decl += `${generator.INDENT}int ${numberVars.join(', ')};\n`;
     if (boolVars.length) decl += `${generator.INDENT}bool ${boolVars.join(', ')};\n`;
-    for (const variable of arrayVars) {
-      decl += `${generator.INDENT}int ${name(variable)}[${arraySizes.get(variable.getId())}] = {0};\n`;
-    }
+    decl += arrayDecl;
     const stdbool = boolVars.length ? '#include <stdbool.h>\n' : '';
     return `#include <stdio.h>\n${stdbool}\nint main(void) {\n${decl}${body}${generator.INDENT}return 0;\n}\n`;
   };
@@ -193,6 +192,12 @@ export function createCGenerator(Blockly, cfg) {
     return [`"${escaped}"`, Order.ATOMIC];
   };
 
+  gen.forBlock['array_declare'] = function (block) {
+    const variable = block.getField('VAR').getVariable();
+    const size = block.getFieldValue('SIZE');
+    return `int ${name(variable)}[${size}] = {0};\n`;
+  };
+
   gen.forBlock['array_get'] = function (block, generator) {
     const variable = block.getField('VAR').getVariable();
     const index = generator.valueToCode(block, 'INDEX', Order.NONE) || cfg.MISSING_VALUE;
@@ -214,8 +219,9 @@ export function createCGenerator(Blockly, cfg) {
 
   gen.forBlock['array_length'] = function (block, generator) {
     const variable = block.getField('VAR').getVariable();
-    const size = getArraySizes(generator.workspace).get(variable.getId());
-    return [String(size ?? 0), Order.ATOMIC];
+    const declareBlock = findArrayDeclareBlock(generator.workspace, variable.getId());
+    const size = declareBlock ? declareBlock.getFieldValue('SIZE') : cfg.MISSING_VALUE;
+    return [String(size), Order.ATOMIC];
   };
 
   return gen;

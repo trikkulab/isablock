@@ -15,8 +15,13 @@ export function createPseudocodeGenerator(Blockly, cfg) {
   };
 
   gen.forBlock['program'] = function (block, generator) {
+    const declarations = generator.statementToCode(block, 'DECLARATIONS');
     const body = generator.statementToCode(block, 'BODY');
-    return `${cfg.PROGRAM_START}\n${body}${cfg.PROGRAM_END}\n`;
+    // La sezione dichiarazioni compare solo se il programma dichiara
+    // davvero almeno un array: un programma senza array resta identico allo
+    // stile INIZIO...FINE di sempre (verificato con test/regression.mjs).
+    const declSection = declarations ? `${cfg.DECLARATIONS}\n${declarations}` : '';
+    return `${declSection}${cfg.PROGRAM_START}\n${body}${cfg.PROGRAM_END}\n`;
   };
 
   gen.forBlock['assign'] = function (block, generator) {
@@ -120,6 +125,12 @@ export function createPseudocodeGenerator(Blockly, cfg) {
     // Nessun escaping: lo pseudocodice non viene ne' compilato ne' eseguito,
     // le virgolette servono solo a mostrare allo studente che e' testo.
     return [`"${block.getFieldValue('TEXT')}"`, Order.ATOMIC];
+  };
+
+  gen.forBlock['array_declare'] = function (block) {
+    const variable = block.getField('VAR').getVariable();
+    const size = block.getFieldValue('SIZE');
+    return `${cfg.DECLARE_ARRAY} ${varName(variable)} ${cfg.OF} ${size} ${cfg.ELEMENTS}\n`;
   };
 
   gen.forBlock['array_get'] = function (block, generator) {

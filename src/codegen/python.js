@@ -13,14 +13,6 @@ const PY_KEYWORDS = new Set([
 const LOGIC_SYMBOLS = { AND: 'and', OR: 'or' };
 const ARITH_SYMBOLS = { ADD: '+', SUB: '-', MUL: '*', MOD: '%' };
 
-// Vedi la stessa funzione in src/codegen/c.js: workspace.arraySizes e'
-// popolata dal validator dei blocchi vettore o ripristinata da un file, qui
-// la si legge soltanto.
-function getArraySizes(workspace) {
-  if (!workspace.arraySizes) workspace.arraySizes = new Map();
-  return workspace.arraySizes;
-}
-
 // Genera codice Python 3 idiomatico dallo stesso modello a blocchi usato
 // dagli altri due generatori. La divisione intera usa int(a / b) invece
 // del piu' idiomatico "//": int() tronca verso zero come la divisione
@@ -47,18 +39,15 @@ export function createPythonGenerator(Blockly, cfg) {
   };
 
   gen.forBlock['program'] = function (block, generator) {
-    // Il corpo del programma e' codice Python "di modulo": non va
-    // indentato, a differenza del corpo di se/mentre/per. Non si puo'
-    // usare statementToCode (indenta sempre di un livello), quindi si
-    // cammina l'albero a mano con blockToCode.
-    // I vettori vanno inizializzati a zero prima del corpo (Python non ha
-    // una sezione dichiarazioni: l'inizializzazione e' la prima "istruzione"
-    // reale, coerente con C che dichiara int v[10] = {0}; in cima a main).
-    const arrayVars = Blockly.Variables.allUsedVarModels(generator.workspace).filter((v) => v.type === 'Array');
-    const arraySizes = getArraySizes(generator.workspace);
-    const init = arrayVars.map((v) => `${name(v)} = [0] * ${arraySizes.get(v.getId())}\n`).join('');
+    // Il corpo del programma (e ora anche le dichiarazioni di array) e'
+    // codice Python "di modulo": non va indentato, a differenza del corpo
+    // di se/mentre/per. Non si puo' usare statementToCode (indenta sempre
+    // di un livello), quindi si cammina l'albero a mano con blockToCode,
+    // per entrambe le catene.
+    const firstDecl = block.getInputTargetBlock('DECLARATIONS');
+    const declarations = firstDecl ? generator.blockToCode(firstDecl) : '';
     const first = block.getInputTargetBlock('BODY');
-    return init + (first ? generator.blockToCode(first) : '');
+    return declarations + (first ? generator.blockToCode(first) : '');
   };
 
   gen.forBlock['assign'] = function (block, generator) {
@@ -170,6 +159,12 @@ export function createPythonGenerator(Blockly, cfg) {
     // formato da scegliere in base al tipo.
     const escaped = block.getFieldValue('TEXT').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
     return [`"${escaped}"`, Order.ATOMIC];
+  };
+
+  gen.forBlock['array_declare'] = function (block) {
+    const variable = block.getField('VAR').getVariable();
+    const size = block.getFieldValue('SIZE');
+    return `${name(variable)} = [0] * ${size}\n`;
   };
 
   gen.forBlock['array_get'] = function (block, generator) {
