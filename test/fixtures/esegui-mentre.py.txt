@@ -1,0 +1,11 @@
+while True:
+    # Richiede il numero finché non è valido
+    n = int(input())
+    if not (n < 1 or n > 100):
+        break
+i = 1
+while True:
+    print(i)
+    i = i + 1
+    if not (i <= n):
+        break

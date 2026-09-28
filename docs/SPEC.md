@@ -26,6 +26,17 @@ rappresentazioni non sarebbero garantite equivalenti.
 - **Selezione con alternativa**: `se condizione allora ... altrimenti ...`
 - **Iterazione a condizione iniziale** (mentre/while): ripete finché la condizione è
   vera, condizione valutata prima di ogni iterazione
+- **Iterazione a condizione finale** (esegui…mentre / do-while): esegue le
+  istruzioni almeno una volta, poi le ripete finché la condizione è vera,
+  condizione valutata dopo ogni iterazione. Aggiunta rispetto al set minimo
+  iniziale: è la forma naturale per "chiedi un valore finché non è valido".
+  Pseudocodice `ESEGUI … MENTRE condizione`, **non** `RIPETI … FINCHÉ
+  condizione`: la condizione ha lo stesso significato del `MENTRE` a condizione
+  iniziale e del `while` di C e Python (continua finché è vera), mentre con
+  FINCHÉ andrebbe negata nella traduzione, una fonte classica di confusione.
+  In C è il costrutto nativo `do { … } while (…);`. Python non ha un do-while:
+  si genera la forma standard `while True:` con `if not condizione: break` in
+  fondo al corpo, l'unico punto in cui compare `break` negli output.
 - **Iterazione a contatore** (per/for): variabile che va da un valore iniziale a un
   valore finale incluso, passo 1
 - **Iterazione a ripetizione fissa** (ripeti N volte): ripete un numero di volte

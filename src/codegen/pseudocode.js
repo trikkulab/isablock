@@ -59,6 +59,12 @@ export function createPseudocodeGenerator(Blockly, cfg) {
     return `${cfg.WHILE} ${cond} ${cfg.DO}\n${body}${cfg.END_WHILE}\n`;
   };
 
+  gen.forBlock['controls_do_while'] = function (block, generator) {
+    const body = generator.statementToCode(block, 'BODY');
+    const cond = generator.valueToCode(block, 'COND', Order.NONE) || cfg.MISSING_CONDITION;
+    return `${cfg.DO_WHILE_START}\n${body}${cfg.DO_WHILE_END} ${cond}\n`;
+  };
+
   gen.forBlock['controls_for_simple'] = function (block, generator) {
     const variable = block.getField('VAR').getVariable();
     const from = generator.valueToCode(block, 'FROM', Order.NONE) || cfg.MISSING_VALUE;

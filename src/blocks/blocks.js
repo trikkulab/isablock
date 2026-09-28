@@ -110,6 +110,24 @@ const blockDefinitions = [
     colour: COLOR_STATEMENT,
     tooltip: 'Iterazione a condizione iniziale (condizione valutata prima di ogni ripetizione)',
   },
+  // Condizione in fondo al blocco, non in cima: la forma stessa dice allo
+  // studente che il corpo viene eseguito prima di controllare la condizione,
+  // quindi almeno una volta. MENTRE e non FINCHE' (RIPETI...FINCHE' dei libri
+  // di testo): la condizione ha lo stesso significato del MENTRE qui sopra e
+  // del while di C, "continua finche' e' vera", senza negazioni nascoste
+  // nella traduzione (vedi docs/SPEC.md).
+  {
+    type: 'controls_do_while',
+    message0: 'ESEGUI',
+    message1: '%1',
+    args1: [{ type: 'input_statement', name: 'BODY', check: 'Statement' }],
+    message2: 'MENTRE %1',
+    args2: [{ type: 'input_value', name: 'COND', check: 'Boolean' }],
+    previousStatement: 'Statement',
+    nextStatement: 'Statement',
+    colour: COLOR_STATEMENT,
+    tooltip: 'Iterazione a condizione finale (istruzioni eseguite almeno una volta, poi ripetute mentre la condizione è vera)',
+  },
   {
     type: 'controls_for_simple',
     message0: 'PER %1 DA %2 A %3',

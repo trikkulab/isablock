@@ -88,6 +88,18 @@ export function createPythonGenerator(Blockly, cfg) {
     return `while ${cond}:\n${body}`;
   };
 
+  // Python non ha un do-while: la forma standard e' un ciclo infinito che
+  // esce con break quando la condizione diventa falsa, controllata in fondo
+  // al corpo. Stessa semantica di do...while del C (corpo eseguito almeno
+  // una volta, condizione "continua finche' e' vera"). Il corpo non e' mai
+  // vuoto (c'e' sempre l'if finale), quindi non serve bodyOrPass.
+  gen.forBlock['controls_do_while'] = function (block, generator) {
+    const body = generator.statementToCode(block, 'BODY');
+    const cond = generator.valueToCode(block, 'COND', Order.UNARY_NOT) || cfg.MISSING_CONDITION;
+    const exitCheck = `if not ${cond}:\n${generator.INDENT}break\n`;
+    return `while True:\n${body}${generator.prefixLines(exitCheck, generator.INDENT)}`;
+  };
+
   gen.forBlock['controls_for_simple'] = function (block, generator) {
     const variable = block.getField('VAR').getVariable();
     const v = name(variable);

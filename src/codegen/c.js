@@ -108,6 +108,12 @@ export function createCGenerator(Blockly, cfg) {
     return `while (${cond}) {\n${body}}\n`;
   };
 
+  gen.forBlock['controls_do_while'] = function (block, generator) {
+    const body = generator.statementToCode(block, 'BODY');
+    const cond = generator.valueToCode(block, 'COND', Order.NONE) || cfg.MISSING_CONDITION;
+    return `do {\n${body}} while (${cond});\n`;
+  };
+
   gen.forBlock['controls_for_simple'] = function (block, generator) {
     const variable = block.getField('VAR').getVariable();
     const v = name(variable);

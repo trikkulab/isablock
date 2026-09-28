@@ -221,6 +221,17 @@ function* runStatement(block, vars, io) {
       }
       return;
     }
+    case 'controls_do_while': {
+      // Il corpo prima, la condizione dopo: il passo evidenziato sul blocco
+      // stesso e' il controllo della condizione, come per MENTRE.
+      for (;;) {
+        yield* runStatements(block.getInputTargetBlock('BODY'), vars, io);
+        yield { blockId: block.id };
+        if (!evalExpression(block.getInputTargetBlock('COND'), vars)) break;
+        checkStepBudget(io);
+      }
+      return;
+    }
     case 'controls_for_simple': {
       const variable = block.getField('VAR').getVariable();
       const from = evalExpression(block.getInputTargetBlock('FROM'), vars);

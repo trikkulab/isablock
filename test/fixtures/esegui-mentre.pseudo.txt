@@ -1,0 +1,11 @@
+INIZIO
+   ESEGUI
+      // Richiede il numero finché non è valido
+      LEGGI n
+   MENTRE n < 1 O n > 100
+   ASSEGNA A i IL VALORE 1
+   ESEGUI
+      SCRIVI i
+      ASSEGNA A i IL VALORE i + 1
+   MENTRE i ≤ n
+FINE
