@@ -1,4 +1,4 @@
-import { Order, ARITH_OPS, COMPARE_SYMBOLS_ASCII, chainNextBlock, sanitizeIdentifier, isBooleanExpr } from './common.js';
+import { Order, ARITH_OPS, COMPARE_SYMBOLS_ASCII, chainNextBlock, sanitizeIdentifier, isBooleanExpr, getForStep } from './common.js';
 
 const PY_KEYWORDS = new Set([
   'false', 'none', 'true', 'and', 'as', 'assert', 'async', 'await', 'break',
@@ -106,7 +106,13 @@ export function createPythonGenerator(Blockly, cfg) {
     const from = generator.valueToCode(block, 'FROM', Order.NONE) || cfg.MISSING_VALUE;
     const to = generator.valueToCode(block, 'TO', Order.NONE) || cfg.MISSING_VALUE;
     const body = bodyOrPass(generator.statementToCode(block, 'BODY'), generator.INDENT);
-    return `for ${v} in range(${from}, ${to} + 1):\n${body}`;
+    // range() esclude il valore finale, il PER lo include: il limite va
+    // spostato di uno nella direzione del passo (fine + 1 in avanti,
+    // fine - 1 all'indietro). Con passo 1 resta la forma di sempre.
+    const step = getForStep(block);
+    const stop = step > 0 ? `${to} + 1` : `${to} - 1`;
+    const stepArg = step === 1 ? '' : `, ${step}`;
+    return `for ${v} in range(${from}, ${stop}${stepArg}):\n${body}`;
   };
 
   gen.forBlock['repeat_times'] = function (block, generator) {

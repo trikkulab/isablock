@@ -14,6 +14,8 @@
 // distinto e riprende con il valore fornito dallo studente tramite
 // generator.next(valore).
 
+import { getForStep } from '../codegen/common.js';
+
 const MAX_STEPS = 200000;
 
 export class ExecutionError extends Error {}
@@ -236,7 +238,8 @@ function* runStatement(block, vars, io) {
       const variable = block.getField('VAR').getVariable();
       const from = evalExpression(block.getInputTargetBlock('FROM'), vars);
       const to = evalExpression(block.getInputTargetBlock('TO'), vars);
-      for (let i = from; i <= to; i++) {
+      const step = getForStep(block);
+      for (let i = from; step > 0 ? i <= to : i >= to; i += step) {
         vars.set(variable.getId(), i);
         yield { blockId: block.id };
         yield* runStatements(block.getInputTargetBlock('BODY'), vars, io);

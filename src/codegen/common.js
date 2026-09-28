@@ -119,6 +119,16 @@ export function isTextExpr(block) {
   return !!block && block.type === 'text_literal';
 }
 
+// Passo del ciclo PER, letto in un solo posto per i tre generatori e
+// l'interprete. L'editor impedisce il passo 0 (validatore in
+// src/blocks/blocks.js), ma un file modificato a mano potrebbe contenerlo:
+// lo si tratta come 1 invece di generare un ciclo infinito in C e un
+// range() non valido in Python.
+export function getForStep(block) {
+  const step = Number(block.getFieldValue('STEP'));
+  return Number.isInteger(step) && step !== 0 ? step : 1;
+}
+
 const RESERVED_SUFFIX = '_var';
 
 // Evita di generare identificatori che collidono con parole chiave del

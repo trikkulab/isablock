@@ -33,6 +33,7 @@ export const pseudocodeConfig = {
   FOR: 'PER',
   FROM: 'DA',
   TO: 'A',
+  STEP: 'PASSO',
   END_FOR: 'FINE PER',
 
   REPEAT: 'RIPETI',

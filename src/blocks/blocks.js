@@ -128,23 +128,8 @@ const blockDefinitions = [
     colour: COLOR_STATEMENT,
     tooltip: 'Iterazione a condizione finale (istruzioni eseguite almeno una volta, poi ripetute mentre la condizione è vera)',
   },
-  {
-    type: 'controls_for_simple',
-    message0: 'PER %1 DA %2 A %3',
-    args0: [
-      { type: 'field_variable', name: 'VAR', variable: 'i', variableTypes: [''], defaultType: '' },
-      { type: 'input_value', name: 'FROM', check: 'Number' },
-      { type: 'input_value', name: 'TO', check: 'Number' },
-    ],
-    message1: '%1',
-    args1: [{ type: 'input_statement', name: 'BODY', check: 'Statement' }],
-    message2: 'FINE PER',
-    inputsInline: true,
-    previousStatement: 'Statement',
-    nextStatement: 'Statement',
-    colour: COLOR_STATEMENT,
-    tooltip: 'Iterazione a contatore, da un valore iniziale a un valore finale incluso, passo 1',
-  },
+  // 'controls_for_simple' non e' qui: il campo PASSO ha bisogno di un
+  // validatore (niente passo 0), definito subito sotto insieme a 'assign'.
   {
     type: 'repeat_times',
     message0: 'RIPETI %1 VOLTE',
@@ -371,6 +356,40 @@ export function registerBlocks(Blockly) {
         originalLoadState(state);
         updateValueCheck(field.getValue());
       };
+    },
+  };
+
+  // --- Iterazione a contatore ------------------------------------------
+  // Il passo e' un numero scritto nel blocco (field_number), non uno slot
+  // per un'espressione: il suo segno decide la traduzione (in C "<=" o
+  // ">=", in Python "fine + 1" o "fine - 1" nel range), quindi deve essere
+  // noto quando si genera il codice, non solo durante l'esecuzione. Passo 0
+  // rifiutato: sarebbe un ciclo infinito in C e un errore in Python
+  // (range() non accetta passo 0). Con passo 1 i tre output restano quelli
+  // di sempre (PASSO non compare, vedi src/codegen/*.js), e un file salvato
+  // prima dell'introduzione del campo si apre con il valore di default 1.
+  Blockly.Blocks['controls_for_simple'] = {
+    init: function () {
+      this.jsonInit({
+        message0: 'PER %1 DA %2 A %3 PASSO %4',
+        args0: [
+          { type: 'field_variable', name: 'VAR', variable: 'i', variableTypes: [''], defaultType: '' },
+          { type: 'input_value', name: 'FROM', check: 'Number' },
+          { type: 'input_value', name: 'TO', check: 'Number' },
+          { type: 'field_number', name: 'STEP', value: 1, precision: 1 },
+        ],
+        message1: '%1',
+        args1: [{ type: 'input_statement', name: 'BODY', check: 'Statement' }],
+        message2: 'FINE PER',
+        inputsInline: true,
+        previousStatement: 'Statement',
+        nextStatement: 'Statement',
+        colour: COLOR_STATEMENT,
+        tooltip:
+          'Iterazione a contatore, da un valore iniziale a un valore finale incluso. ' +
+          'Il passo (di solito 1) può essere negativo per contare all’indietro, ma non 0.',
+      });
+      this.getField('STEP').setValidator((value) => (value === 0 ? null : value));
     },
   };
 

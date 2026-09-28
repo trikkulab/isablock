@@ -1,4 +1,4 @@
-import { Order, ARITH_OPS, COMPARE_SYMBOLS_ASCII, chainNextBlock, sanitizeIdentifier, isBooleanExpr, isTextExpr } from './common.js';
+import { Order, ARITH_OPS, COMPARE_SYMBOLS_ASCII, chainNextBlock, sanitizeIdentifier, isBooleanExpr, isTextExpr, getForStep } from './common.js';
 
 const C_KEYWORDS = new Set([
   'auto', 'break', 'case', 'char', 'const', 'continue', 'default', 'do',
@@ -120,7 +120,16 @@ export function createCGenerator(Blockly, cfg) {
     const from = generator.valueToCode(block, 'FROM', Order.NONE) || cfg.MISSING_VALUE;
     const to = generator.valueToCode(block, 'TO', Order.NONE) || cfg.MISSING_VALUE;
     const body = generator.statementToCode(block, 'BODY');
-    return `for (${v} = ${from}; ${v} <= ${to}; ${v}++) {\n${body}}\n`;
+    // Il segno del passo decide la direzione: in avanti fino a "<= fine",
+    // all'indietro fino a ">= fine" (valore finale sempre incluso).
+    const step = getForStep(block);
+    const cmp = step > 0 ? '<=' : '>=';
+    let update;
+    if (step === 1) update = `${v}++`;
+    else if (step === -1) update = `${v}--`;
+    else if (step > 0) update = `${v} += ${step}`;
+    else update = `${v} -= ${-step}`;
+    return `for (${v} = ${from}; ${v} ${cmp} ${to}; ${update}) {\n${body}}\n`;
   };
 
   gen.forBlock['repeat_times'] = function (block, generator) {
