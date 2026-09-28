@@ -57,8 +57,8 @@ const NUMBER_SOURCE = '-?\\b\\d+\\b';
 const PSEUDOCODE_KEYWORD_KEYS = [
   'PROGRAM_START', 'PROGRAM_END', 'READ', 'WRITE', 'ASSIGN_TO', 'ASSIGN_VALUE',
   'IF', 'THEN', 'ELSE', 'END_IF',
-  'WHILE', 'DO', 'END_WHILE',
-  'FOR', 'FROM', 'TO', 'END_FOR',
+  'WHILE', 'DO', 'END_WHILE', 'DO_WHILE_START', 'DO_WHILE_END',
+  'FOR', 'FROM', 'TO', 'STEP', 'END_FOR',
   'REPEAT', 'TIMES', 'END_REPEAT',
   'AND', 'OR', 'NOT', 'TRUE', 'FALSE',
   'EQ', 'NEQ', 'LT', 'LTE', 'GT', 'GTE',
@@ -90,7 +90,7 @@ const tokenizeCImpl = buildTokenizer([
   { type: 'preprocessor', source: '#include\\s*<[^>]*>' },
   { type: 'string', source: '"(?:[^"\\\\]|\\\\.)*"' },
   { type: 'number', source: NUMBER_SOURCE },
-  { type: 'keyword', source: '\\b(?:int|void|if|else|while|for|return|bool)\\b' },
+  { type: 'keyword', source: '\\b(?:int|void|if|else|do|while|for|return|bool)\\b' },
   { type: 'builtin', source: '\\b(?:printf|scanf)\\b' },
 ]);
 export function tokenizeC(text) {
@@ -102,7 +102,7 @@ const tokenizePythonImpl = buildTokenizer([
   { type: 'comment', source: '#[^\\n]*' },
   { type: 'string', source: '"(?:[^"\\\\]|\\\\.)*"' },
   { type: 'number', source: NUMBER_SOURCE },
-  { type: 'keyword', source: '\\b(?:if|elif|else|while|for|in|and|or|not|True|False|pass)\\b' },
+  { type: 'keyword', source: '\\b(?:if|elif|else|while|for|in|and|or|not|True|False|pass|break)\\b' },
   { type: 'builtin', source: '\\b(?:print|input|int|range|len)\\b' },
 ]);
 export function tokenizePython(text) {

@@ -1,0 +1,17 @@
+INIZIO
+   LEGGI n
+   // Conto alla rovescia da 10 a 1
+   PER i DA 10 A 1 PASSO -1
+      SCRIVI i
+   FINE PER
+   // Numeri pari da 0 a n
+   PER i DA 0 A n PASSO 2
+      SCRIVI i
+   FINE PER
+   PER j DA n A 5 - 3 PASSO -3
+      SCRIVI j
+   FINE PER
+   PER i DA 1 A 3
+      SCRIVI i
+   FINE PER
+FINE

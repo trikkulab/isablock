@@ -1,0 +1,56 @@
+{
+  "blocks": {
+    "languageVersion": 0,
+    "blocks": [
+      {
+        "type": "program", "id": "program", "x": 0, "y": 0,
+        "inputs": { "BODY": { "block": {
+          "type": "controls_do_while", "id": "dw_input",
+          "inputs": {
+            "BODY": { "block": {
+              "type": "comment_line", "id": "c1", "fields": { "TEXT": "Richiede il numero finché non è valido" },
+              "next": { "block": { "type": "read", "id": "r_n", "fields": { "VAR": { "id": "var_n" } } } }
+            } },
+            "COND": { "block": {
+              "type": "logic_op", "id": "or", "fields": { "OP": "OR" },
+              "inputs": {
+                "A": { "block": { "type": "compare_op", "id": "lt", "fields": { "OP": "LT" }, "inputs": {
+                  "A": { "block": { "type": "variable_get", "id": "g1", "fields": { "VAR": { "id": "var_n" } } } },
+                  "B": { "block": { "type": "number_literal", "id": "n1", "fields": { "VALUE": 1 } } } } } },
+                "B": { "block": { "type": "compare_op", "id": "gt", "fields": { "OP": "GT" }, "inputs": {
+                  "A": { "block": { "type": "variable_get", "id": "g2", "fields": { "VAR": { "id": "var_n" } } } },
+                  "B": { "block": { "type": "number_literal", "id": "n100", "fields": { "VALUE": 100 } } } } } }
+              }
+            } }
+          },
+          "next": { "block": {
+            "type": "assign", "id": "a_i", "fields": { "VAR": { "id": "var_i" } },
+            "inputs": { "VALUE": { "block": { "type": "number_literal", "id": "n1b", "fields": { "VALUE": 1 } } } },
+            "next": { "block": {
+              "type": "controls_do_while", "id": "dw_count",
+              "inputs": {
+                "BODY": { "block": {
+                  "type": "write", "id": "w_i",
+                  "inputs": { "VALUE": { "block": { "type": "variable_get", "id": "g3", "fields": { "VAR": { "id": "var_i" } } } } },
+                  "next": { "block": {
+                    "type": "assign", "id": "a_inc", "fields": { "VAR": { "id": "var_i" } },
+                    "inputs": { "VALUE": { "block": { "type": "arith_op", "id": "add", "fields": { "OP": "ADD" }, "inputs": {
+                      "A": { "block": { "type": "variable_get", "id": "g4", "fields": { "VAR": { "id": "var_i" } } } },
+                      "B": { "block": { "type": "number_literal", "id": "n1c", "fields": { "VALUE": 1 } } } } } } }
+                  } }
+                } },
+                "COND": { "block": { "type": "compare_op", "id": "lte", "fields": { "OP": "LTE" }, "inputs": {
+                  "A": { "block": { "type": "variable_get", "id": "g5", "fields": { "VAR": { "id": "var_i" } } } },
+                  "B": { "block": { "type": "variable_get", "id": "g6", "fields": { "VAR": { "id": "var_n" } } } } } } }
+              }
+            } }
+          } }
+        } } }
+      }
+    ]
+  },
+  "variables": [
+    { "name": "n", "id": "var_n" },
+    { "name": "i", "id": "var_i" }
+  ]
+}

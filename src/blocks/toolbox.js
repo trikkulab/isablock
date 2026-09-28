@@ -76,6 +76,7 @@ export const toolbox = {
       colour: '#8659a8',
       contents: [
         { kind: 'block', type: 'controls_while' },
+        { kind: 'block', type: 'controls_do_while' },
         { kind: 'block', type: 'controls_for_simple' },
         { kind: 'block', type: 'repeat_times' },
       ],

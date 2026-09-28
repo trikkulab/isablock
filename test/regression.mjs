@@ -1,5 +1,6 @@
 // Test di regressione sul "profilo base": genera i tre output
-// (pseudocodice/C/Python) per i 5 esempi precaricati usando i generatori
+// (pseudocodice/C/Python) per i 5 esempi precaricati (più i programmi di
+// test in test/programs/) usando i generatori
 // veri (src/codegen/*.js), e li confronta con lo snapshot congelato in
 // test/fixtures/. Serve a intercettare subito un cambio involontario di
 // comportamento per i programmi che non usano nessuna estensione, mentre si
@@ -16,7 +17,7 @@
 
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 const require = createRequire(import.meta.url);
@@ -49,10 +50,23 @@ const pythonGen = createPythonGenerator(Blockly, pseudocodeConfig);
 const fixturesDir = path.join(root, 'test/fixtures');
 if (!existsSync(fixturesDir)) mkdirSync(fixturesDir, { recursive: true });
 
+// Oltre ai 5 esempi precaricati, programmi usati solo dai test
+// (test/programs/*.json, stesso formato di un file salvato): coprono i
+// costrutti che nessun esempio usa, come ESEGUI...MENTRE, senza dover
+// aggiungere esempi al menu dell'app.
+const programsDir = path.join(root, 'test/programs');
+const testPrograms = existsSync(programsDir)
+  ? readdirSync(programsDir)
+      .filter((f) => f.endsWith('.json'))
+      .sort()
+      .map((f) => ({ id: f.replace(/\.json$/, ''), workspaceState: JSON.parse(readFileSync(path.join(programsDir, f), 'utf8')) }))
+  : [];
+const programs = [...examples, ...testPrograms];
+
 const update = process.argv.includes('--update');
 let failed = false;
 
-for (const example of examples) {
+for (const example of programs) {
   // Workspace headless (senza SVG/inject): basta per caricare lo stato e
   // generare codice, come già verificato a mano prima di scrivere questo
   // script.
@@ -92,4 +106,4 @@ if (failed) {
   console.log('\nFALLITO: uno o più output sono cambiati rispetto allo snapshot.');
   process.exit(1);
 }
-console.log(`\n${examples.length}/${examples.length} esempi invariati.`);
+console.log(`\n${programs.length}/${programs.length} programmi invariati.`);

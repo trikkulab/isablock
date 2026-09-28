@@ -1,4 +1,4 @@
-import { Order, ARITH_OPS, COMPARE_SYMBOLS_ASCII, chainNextBlock, sanitizeIdentifier, isBooleanExpr } from './common.js';
+import { Order, ARITH_OPS, COMPARE_SYMBOLS_ASCII, chainNextBlock, sanitizeIdentifier, isBooleanExpr, getForStep } from './common.js';
 
 const PY_KEYWORDS = new Set([
   'false', 'none', 'true', 'and', 'as', 'assert', 'async', 'await', 'break',
@@ -88,13 +88,31 @@ export function createPythonGenerator(Blockly, cfg) {
     return `while ${cond}:\n${body}`;
   };
 
+  // Python non ha un do-while: la forma standard e' un ciclo infinito che
+  // esce con break quando la condizione diventa falsa, controllata in fondo
+  // al corpo. Stessa semantica di do...while del C (corpo eseguito almeno
+  // una volta, condizione "continua finche' e' vera"). Il corpo non e' mai
+  // vuoto (c'e' sempre l'if finale), quindi non serve bodyOrPass.
+  gen.forBlock['controls_do_while'] = function (block, generator) {
+    const body = generator.statementToCode(block, 'BODY');
+    const cond = generator.valueToCode(block, 'COND', Order.UNARY_NOT) || cfg.MISSING_CONDITION;
+    const exitCheck = `if not ${cond}:\n${generator.INDENT}break\n`;
+    return `while True:\n${body}${generator.prefixLines(exitCheck, generator.INDENT)}`;
+  };
+
   gen.forBlock['controls_for_simple'] = function (block, generator) {
     const variable = block.getField('VAR').getVariable();
     const v = name(variable);
     const from = generator.valueToCode(block, 'FROM', Order.NONE) || cfg.MISSING_VALUE;
     const to = generator.valueToCode(block, 'TO', Order.NONE) || cfg.MISSING_VALUE;
     const body = bodyOrPass(generator.statementToCode(block, 'BODY'), generator.INDENT);
-    return `for ${v} in range(${from}, ${to} + 1):\n${body}`;
+    // range() esclude il valore finale, il PER lo include: il limite va
+    // spostato di uno nella direzione del passo (fine + 1 in avanti,
+    // fine - 1 all'indietro). Con passo 1 resta la forma di sempre.
+    const step = getForStep(block);
+    const stop = step > 0 ? `${to} + 1` : `${to} - 1`;
+    const stepArg = step === 1 ? '' : `, ${step}`;
+    return `for ${v} in range(${from}, ${stop}${stepArg}):\n${body}`;
   };
 
   gen.forBlock['repeat_times'] = function (block, generator) {
