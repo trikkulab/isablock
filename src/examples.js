@@ -1081,4 +1081,75 @@ export const examples = [
       ]
     },
   },
+  {
+    id: 'stampa-al-contrario',
+    title: 'Stampa al contrario (array)',
+    description: 'Legge 5 numeri e li stampa dall’ultimo al primo: per farlo deve ricordarli tutti, e per questo serve un array.',
+    workspaceState: {
+      blocks: {
+        languageVersion: 0,
+        blocks: [
+          {
+            type: 'program',
+            id: 'sc_program',
+            x: 0,
+            y: 0,
+            inputs: {
+              DECLARATIONS: {
+                block: { type: 'array_declare', id: 'sc_declare', fields: { VAR: { id: 'var_numeri' }, SIZE: 5 } },
+              },
+              BODY: {
+                block: { type: 'comment_line', id: 'sc_comment_read', fields: { TEXT: 'Ricorda tutti i numeri, uno per casella' }, next: { block: {
+                  type: 'controls_for_simple',
+                  id: 'sc_for_read',
+                  fields: { VAR: { id: 'var_i' }, STEP: 1 },
+                  inputs: {
+                    FROM: { block: { type: 'number_literal', id: 'sc_from_read', fields: { VALUE: 0 } } },
+                    TO: { block: { type: 'number_literal', id: 'sc_to_read', fields: { VALUE: 4 } } },
+                    BODY: {
+                      block: {
+                        type: 'array_read',
+                        id: 'sc_read',
+                        fields: { VAR: { id: 'var_numeri' } },
+                        inputs: { INDEX: { block: { type: 'variable_get', id: 'sc_get_i1', fields: { VAR: { id: 'var_i' } } } } },
+                      },
+                    },
+                  },
+                  next: { block: { type: 'comment_line', id: 'sc_comment_write', fields: { TEXT: 'Stampa dall’ultima casella alla prima' }, next: { block: {
+                    type: 'controls_for_simple',
+                    id: 'sc_for_write',
+                    fields: { VAR: { id: 'var_i' }, STEP: -1 },
+                    inputs: {
+                      FROM: { block: { type: 'number_literal', id: 'sc_from_write', fields: { VALUE: 4 } } },
+                      TO: { block: { type: 'number_literal', id: 'sc_to_write', fields: { VALUE: 0 } } },
+                      BODY: {
+                        block: {
+                          type: 'write',
+                          id: 'sc_write',
+                          inputs: {
+                            VALUE: {
+                              block: {
+                                type: 'array_get',
+                                id: 'sc_get_numeri',
+                                fields: { VAR: { id: 'var_numeri' } },
+                                inputs: { INDEX: { block: { type: 'variable_get', id: 'sc_get_i2', fields: { VAR: { id: 'var_i' } } } } },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  } } } },
+                } } },
+              },
+            },
+          },
+        ],
+      },
+      variables: [
+        { name: 'numeri', id: 'var_numeri', type: 'Array' },
+        { name: 'i', id: 'var_i' },
+      ],
+    },
+  },
 ];

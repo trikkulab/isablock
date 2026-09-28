@@ -74,12 +74,21 @@
           <span>Esecuzione</span>
           <button id="runStripClose" class="run-strip-close" type="button" aria-label="Chiudi il pannello di esecuzione">✕</button>
         </div>
-        <div id="runConsole" class="run-console"></div>
-        <form id="runInputForm" class="run-input-form" hidden>
-          <label for="runInputField">Valore per LEGGI:</label>
-          <input id="runInputField" type="text" inputmode="numeric" autocomplete="off" />
-          <button type="submit">Invia</button>
-        </form>
+        <div class="run-strip-body">
+          <div class="run-col run-col-console">
+            <div class="run-col-title">Console</div>
+            <div id="runConsole" class="run-console"></div>
+            <form id="runInputForm" class="run-input-form" hidden>
+              <label for="runInputField">Valore per LEGGI:</label>
+              <input id="runInputField" type="text" inputmode="numeric" autocomplete="off" />
+              <button type="submit">Invia</button>
+            </form>
+          </div>
+          <div class="run-col run-col-vars">
+            <div class="run-col-title">Variabili</div>
+            <div id="runVars" class="run-vars"></div>
+          </div>
+        </div>
       </div>
     </div>
   </main>
@@ -138,12 +147,12 @@
 
       <section class="guide-section">
         <h3>5. Esegui il tuo algoritmo passo-passo</h3>
-        <p>La barra sopra l'area di lavoro fa scorrere davvero la logica del tuo algoritmo, blocco per blocco: <strong>▶ Esegui</strong> avanza da solo, <strong>⏭ Passo</strong> avanza un blocco alla volta, <strong>⏹ Interrompi</strong> ferma tutto. Ci sono anche le scorciatoie da tastiera <strong>Invio</strong>, <strong>Spazio</strong> ed <strong>Esc</strong> (non funzionano mentre stai scrivendo in un campo di testo), e un menu <strong>Velocità</strong> per rallentare o accelerare l'esecuzione automatica. Il blocco attivo si illumina insieme alla riga corrispondente nei tre output, per capire cosa fa l'algoritmo passo dopo passo (non esegue davvero il C o il Python generati). Se incontri un blocco <strong>LEGGI</strong>, l'esecuzione si ferma e sotto al codice compare un pannello che ti chiede un numero — resta lì anche se cambi scheda tra Pseudocodice/C/Python.</p>
+        <p>La barra sopra l'area di lavoro fa scorrere davvero la logica del tuo algoritmo, blocco per blocco: <strong>▶ Esegui</strong> avanza da solo, <strong>⏭ Passo</strong> avanza un blocco alla volta, <strong>⏹ Interrompi</strong> ferma tutto. Ci sono anche le scorciatoie da tastiera <strong>Invio</strong>, <strong>Spazio</strong> ed <strong>Esc</strong> (non funzionano mentre stai scrivendo in un campo di testo), e un menu <strong>Velocità</strong> per rallentare o accelerare l'esecuzione automatica. Il blocco attivo si illumina insieme alla riga corrispondente nei tre output, per capire cosa fa l'algoritmo passo dopo passo (non esegue davvero il C o il Python generati). Se incontri un blocco <strong>LEGGI</strong>, l'esecuzione si ferma e sotto al codice compare un pannello che ti chiede un numero — resta lì anche se cambi scheda tra Pseudocodice/C/Python. Accanto alla console, il riquadro <strong>Variabili</strong> mostra il valore di ogni variabile passo dopo passo: in giallo quella appena cambiata, con <strong>?</strong> quelle a cui non hai ancora dato un valore. Gli array compaiono come una fila di caselle numerate con il loro indice.</p>
       </section>
 
       <section class="guide-section">
         <h3>6. Salva il lavoro e riparti da un esempio</h3>
-        <p><strong>Salva</strong> scarica un file con il tuo programma; <strong>Apri&hellip;</strong> lo ricarica in una sessione successiva. Il menu <strong>Esempio</strong> in alto carica un algoritmo già pronto (massimo tra due numeri, somma, ricerca, fattoriale, primalità): utile per studiarne uno o partire da lì invece che da zero.</p>
+        <p><strong>Salva</strong> scarica un file con il tuo programma; <strong>Apri&hellip;</strong> lo ricarica in una sessione successiva. Il menu <strong>Esempio</strong> in alto carica un algoritmo già pronto (massimo tra due numeri, somma, ricerca, fattoriale, primalità, stampa al contrario con un array): utile per studiarne uno o partire da lì invece che da zero.</p>
       </section>
 
       <div class="modal-actions">

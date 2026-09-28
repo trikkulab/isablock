@@ -1,0 +1,7 @@
+numeri = [0] * 5
+# Ricorda tutti i numeri, uno per casella
+for i in range(0, 4 + 1):
+    numeri[i] = int(input())
+# Stampa dall’ultima casella alla prima
+for i in range(4, 0 - 1, -1):
+    print(numeri[i])

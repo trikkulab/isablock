@@ -46,6 +46,14 @@ rappresentazioni non sarebbero garantite equivalenti.
   il codice. Con passo 1 gli output restano nella forma più semplice:
   `PASSO` non compare nello pseudocodice, in C resta `i++` e in Python
   `range(inizio, fine + 1)`.
+  Dopo il ciclo il contatore non vale lo stesso nei due linguaggi: in C
+  è il primo valore che rende falsa la condizione (5 dopo `PER i DA 1 A
+  4`), in Python l'ultimo valore dato da `range` (4), oppure quello di
+  prima se non ci sono state ripetizioni. L'esecuzione passo-passo segue
+  il C, con un ultimo passo sul PER che mostra il valore che fa uscire;
+  se il programma legge il contatore dopo il ciclo senza riassegnarlo,
+  la console lo segnala con un avviso (non un errore): come in molti
+  libri di testo, il contatore fuori dal ciclo va considerato indefinito.
 - **Iterazione a ripetizione fissa** (ripeti N volte): ripete un numero di volte
   stabilito, senza esporre un contatore. Aggiunta rispetto al set minimo iniziale:
   utile per la corrispondenza diretta con esempi "vita reale" del tipo "mescola 3
