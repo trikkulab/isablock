@@ -301,13 +301,25 @@ restano istruttive per le prossime estensioni.
   esegue prima l'intera catena `DECLARATIONS`, poi `BODY`. Un array mai dichiarato
   dà un `ExecutionError` leggibile invece di un `TypeError` grezzo.
 - **Compatibilità:** `fileFormatVersion` da 4 a 5 (rappresentazione incompatibile).
-  Un file vecchio (formato ≤4) **con almeno un array** viene rifiutato con un
-  messaggio dedicato invece di caricarsi rotto (array senza dichiarazione, C non
-  compilabile) — il controllo guarda il contenuto (`arraySizes` non vuoto nel
-  file), non solo il numero di versione: un file vecchio senza array si apre
-  normalmente. Non c'è una migrazione automatica: la vecchia rappresentazione (una
-  mappa fuori dai blocchi) non ha un modo pulito di diventare un blocco DICHIARA
-  piazzato in un punto sensato del programma.
+  Un file vecchio (formato ≤4) **con almeno un array si migra automaticamente**
+  (`migrateOldArrayFormat` in `src/persistence.js`): la vecchia mappa
+  `arraySizes` contiene già tutta l'informazione che serve (quale variabile,
+  quale dimensione), quindi per ciascuna voce si ricostruisce un blocco
+  `array_declare` (stesso `id` di variabile, stesso valore in `SIZE`) e lo si
+  inserisce in cima alla zona `DECLARATIONS` di `program` *prima* di passare lo
+  stato a `Blockly.serialization.workspaces.load()` — è una trasformazione sul
+  JSON, non serve toccare Blockly. **Ripensato dopo la pubblicazione**: la prima
+  stesura di questa sezione diceva "nessuna migrazione automatica possibile",
+  ma l'utente ha scoperto che alcuni studenti avevano già salvato lavori con il
+  vecchio sistema, e a un esame più attento la migrazione era in realtà
+  semplice — verificata rigenerando un file autentico con il codice della
+  versione precedente (non una ricostruzione a memoria del vecchio formato) e
+  controllando che si apra, esegua e produca lo stesso risultato tramite il
+  vero flusso "Apri..." dell'interfaccia. Un vecchio `array_set`/`array_read`
+  annidato dentro un ciclo (permesso nella versione precedente, impossibile da
+  ricreare in quella attuale) continua a funzionare: la nuova restrizione di
+  connessione riguarda solo la creazione di un nuovo `array_declare`, non i
+  blocchi già esistenti in un file caricato.
 
 ### Tre insidie della prima versione (superate, ma istruttive)
 
@@ -335,8 +347,10 @@ prompt), le tre restrizioni di connessione (DICHIARA rifiutato dentro un `PER`,
 rifiutato nella zona `INIZIO` di `program`, un'istruzione normale rifiutata nella
 zona `DICHIARAZIONI`), ciclo `PER` che riempie un array, `LUNGHEZZA DI`, indice
 fuori dai limiti durante l'esecuzione, flusso reale Salva → Nuovo → Apri... con
-output identico prima e dopo, e il rifiuto di un file nel vecchio formato con un
-messaggio chiaro. I 5 esempi precaricati restano invariati. `appConfig.version`
+output identico prima e dopo, e l'apertura di un vecchio file con array
+(autentico, rigenerato con il codice della versione precedente) migrato
+automaticamente e verificato fino all'esecuzione tramite il vero flusso
+"Apri...". I 5 esempi precaricati restano invariati. `appConfig.version`
 1.1.0 → 1.2.0, `fileFormatVersion` 4 → 5.
 
 Sblocca algoritmi da manuale: massimo e ricerca lineare su un array, inversione,
