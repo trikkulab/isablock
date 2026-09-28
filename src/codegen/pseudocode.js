@@ -1,4 +1,4 @@
-import { Order, ARITH_OPS, chainNextBlock } from './common.js';
+import { Order, ARITH_OPS, chainNextBlock, getForStep } from './common.js';
 
 // Genera pseudocodice a partire dallo stesso modello (albero di blocchi
 // Blockly) usato dagli altri due generatori. Le parole chiave vengono
@@ -59,12 +59,22 @@ export function createPseudocodeGenerator(Blockly, cfg) {
     return `${cfg.WHILE} ${cond} ${cfg.DO}\n${body}${cfg.END_WHILE}\n`;
   };
 
+  gen.forBlock['controls_do_while'] = function (block, generator) {
+    const body = generator.statementToCode(block, 'BODY');
+    const cond = generator.valueToCode(block, 'COND', Order.NONE) || cfg.MISSING_CONDITION;
+    return `${cfg.DO_WHILE_START}\n${body}${cfg.DO_WHILE_END} ${cond}\n`;
+  };
+
   gen.forBlock['controls_for_simple'] = function (block, generator) {
     const variable = block.getField('VAR').getVariable();
     const from = generator.valueToCode(block, 'FROM', Order.NONE) || cfg.MISSING_VALUE;
     const to = generator.valueToCode(block, 'TO', Order.NONE) || cfg.MISSING_VALUE;
     const body = generator.statementToCode(block, 'BODY');
-    return `${cfg.FOR} ${varName(variable)} ${cfg.FROM} ${from} ${cfg.TO} ${to}\n${body}${cfg.END_FOR}\n`;
+    // PASSO compare solo se diverso da 1: il caso comune resta scritto come
+    // prima dell'introduzione del passo.
+    const step = getForStep(block);
+    const stepText = step === 1 ? '' : ` ${cfg.STEP} ${step}`;
+    return `${cfg.FOR} ${varName(variable)} ${cfg.FROM} ${from} ${cfg.TO} ${to}${stepText}\n${body}${cfg.END_FOR}\n`;
   };
 
   gen.forBlock['repeat_times'] = function (block, generator) {

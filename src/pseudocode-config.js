@@ -26,9 +26,14 @@ export const pseudocodeConfig = {
   DO: 'RIPETI',
   END_WHILE: 'FINE MENTRE',
 
+  // Iterazione a condizione finale: ESEGUI ... MENTRE condizione.
+  DO_WHILE_START: 'ESEGUI',
+  DO_WHILE_END: 'MENTRE',
+
   FOR: 'PER',
   FROM: 'DA',
   TO: 'A',
+  STEP: 'PASSO',
   END_FOR: 'FINE PER',
 
   REPEAT: 'RIPETI',

@@ -1,0 +1,21 @@
+#include <stdio.h>
+
+int main(void) {
+    int n, i, j;
+    scanf("%d", &n);
+    // Conto alla rovescia da 10 a 1
+    for (i = 10; i >= 1; i--) {
+        printf("%d\n", i);
+    }
+    // Numeri pari da 0 a n
+    for (i = 0; i <= n; i += 2) {
+        printf("%d\n", i);
+    }
+    for (j = n; j >= 5 - 3; j -= 3) {
+        printf("%d\n", j);
+    }
+    for (i = 1; i <= 3; i++) {
+        printf("%d\n", i);
+    }
+    return 0;
+}

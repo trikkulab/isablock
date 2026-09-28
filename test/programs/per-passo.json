@@ -1,0 +1,58 @@
+{
+  "blocks": {
+    "languageVersion": 0,
+    "blocks": [
+      {
+        "type": "program", "id": "program", "x": 0, "y": 0,
+        "inputs": { "BODY": { "block": {
+          "type": "read", "id": "r_n", "fields": { "VAR": { "id": "var_n" } },
+          "next": { "block": {
+            "type": "comment_line", "id": "c1", "fields": { "TEXT": "Conto alla rovescia da 10 a 1" },
+            "next": { "block": {
+              "type": "controls_for_simple", "id": "for_down", "fields": { "VAR": { "id": "var_i" }, "STEP": -1 },
+              "inputs": {
+                "FROM": { "block": { "type": "number_literal", "id": "n10", "fields": { "VALUE": 10 } } },
+                "TO": { "block": { "type": "number_literal", "id": "n1", "fields": { "VALUE": 1 } } },
+                "BODY": { "block": { "type": "write", "id": "w1", "inputs": { "VALUE": { "block": { "type": "variable_get", "id": "g1", "fields": { "VAR": { "id": "var_i" } } } } } } }
+              },
+              "next": { "block": {
+                "type": "comment_line", "id": "c2", "fields": { "TEXT": "Numeri pari da 0 a n" },
+                "next": { "block": {
+                  "type": "controls_for_simple", "id": "for_even", "fields": { "VAR": { "id": "var_i" }, "STEP": 2 },
+                  "inputs": {
+                    "FROM": { "block": { "type": "number_literal", "id": "n0", "fields": { "VALUE": 0 } } },
+                    "TO": { "block": { "type": "variable_get", "id": "g2", "fields": { "VAR": { "id": "var_n" } } } },
+                    "BODY": { "block": { "type": "write", "id": "w2", "inputs": { "VALUE": { "block": { "type": "variable_get", "id": "g3", "fields": { "VAR": { "id": "var_i" } } } } } } }
+                  },
+                  "next": { "block": {
+                    "type": "controls_for_simple", "id": "for_down3", "fields": { "VAR": { "id": "var_j" }, "STEP": -3 },
+                    "inputs": {
+                      "FROM": { "block": { "type": "variable_get", "id": "g4", "fields": { "VAR": { "id": "var_n" } } } },
+                      "TO": { "block": { "type": "arith_op", "id": "sub", "fields": { "OP": "SUB" }, "inputs": {
+                        "A": { "block": { "type": "number_literal", "id": "n5", "fields": { "VALUE": 5 } } },
+                        "B": { "block": { "type": "number_literal", "id": "n3", "fields": { "VALUE": 3 } } } } } },
+                      "BODY": { "block": { "type": "write", "id": "w3", "inputs": { "VALUE": { "block": { "type": "variable_get", "id": "g5", "fields": { "VAR": { "id": "var_j" } } } } } } }
+                    },
+                    "next": { "block": {
+                      "type": "controls_for_simple", "id": "for_one", "fields": { "VAR": { "id": "var_i" }, "STEP": 1 },
+                      "inputs": {
+                        "FROM": { "block": { "type": "number_literal", "id": "n1b", "fields": { "VALUE": 1 } } },
+                        "TO": { "block": { "type": "number_literal", "id": "n3b", "fields": { "VALUE": 3 } } },
+                        "BODY": { "block": { "type": "write", "id": "w4", "inputs": { "VALUE": { "block": { "type": "variable_get", "id": "g6", "fields": { "VAR": { "id": "var_i" } } } } } } }
+                      }
+                    } }
+                  } }
+                } }
+              } }
+            } }
+          } }
+        } } }
+      }
+    ]
+  },
+  "variables": [
+    { "name": "n", "id": "var_n" },
+    { "name": "i", "id": "var_i" },
+    { "name": "j", "id": "var_j" }
+  ]
+}

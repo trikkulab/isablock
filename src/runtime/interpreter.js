@@ -14,6 +14,8 @@
 // distinto e riprende con il valore fornito dallo studente tramite
 // generator.next(valore).
 
+import { getForStep } from '../codegen/common.js';
+
 const MAX_STEPS = 200000;
 
 export class ExecutionError extends Error {}
@@ -221,11 +223,23 @@ function* runStatement(block, vars, io) {
       }
       return;
     }
+    case 'controls_do_while': {
+      // Il corpo prima, la condizione dopo: il passo evidenziato sul blocco
+      // stesso e' il controllo della condizione, come per MENTRE.
+      for (;;) {
+        yield* runStatements(block.getInputTargetBlock('BODY'), vars, io);
+        yield { blockId: block.id };
+        if (!evalExpression(block.getInputTargetBlock('COND'), vars)) break;
+        checkStepBudget(io);
+      }
+      return;
+    }
     case 'controls_for_simple': {
       const variable = block.getField('VAR').getVariable();
       const from = evalExpression(block.getInputTargetBlock('FROM'), vars);
       const to = evalExpression(block.getInputTargetBlock('TO'), vars);
-      for (let i = from; i <= to; i++) {
+      const step = getForStep(block);
+      for (let i = from; step > 0 ? i <= to : i >= to; i += step) {
         vars.set(variable.getId(), i);
         yield { blockId: block.id };
         yield* runStatements(block.getInputTargetBlock('BODY'), vars, io);

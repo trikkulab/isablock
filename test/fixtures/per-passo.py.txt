@@ -1,0 +1,11 @@
+n = int(input())
+# Conto alla rovescia da 10 a 1
+for i in range(10, 1 - 1, -1):
+    print(i)
+# Numeri pari da 0 a n
+for i in range(0, n + 1, 2):
+    print(i)
+for j in range(n, 5 - 3 - 1, -3):
+    print(j)
+for i in range(1, 3 + 1):
+    print(i)
