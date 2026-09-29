@@ -20,7 +20,7 @@
 // yield, sempre su se stesso, per mostrare il valore letto.
 
 import { getForStep } from '../codegen/common.js';
-import { counterWriteMessage, nestedCounterMessage } from '../blocks/for-counter.js';
+import { counterWriteMessage, nestedCounterMessage } from '../blocks/editor-checks.js';
 
 const MAX_STEPS = 200000;
 
@@ -42,7 +42,7 @@ function tagError(err, block) {
 
 // Il contatore di un PER in corso non si puo' modificare dal corpo (ne'
 // riusare in un PER annidato): C e Python si comporterebbero in modo
-// diverso. Vedi src/blocks/for-counter.js, che segnala lo stesso caso
+// diverso. Vedi src/blocks/editor-checks.js, che segnala lo stesso caso
 // nell'editor prima ancora di eseguire. io.activeCounters: gli id delle
 // variabili contatore dei PER in esecuzione.
 function checkNotActiveCounter(block, variable, io, message) {

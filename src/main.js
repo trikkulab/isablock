@@ -10,7 +10,7 @@ import { appConfig } from './app-config.js';
 import { saveWorkspaceToFile, saveWorkspaceWithPicker, hasNativeSavePicker, loadWorkspaceFromFile, FileFormatError } from './persistence.js';
 import { examples } from './examples.js';
 import { runProgram, ExecutionError } from './runtime/interpreter.js';
-import { updateCounterWarnings } from './blocks/for-counter.js';
+import { updateEditorWarnings } from './blocks/editor-checks.js';
 
 const Blockly = window.Blockly;
 
@@ -137,7 +137,7 @@ function scheduleUpdate() {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     updateOutputs();
-    updateCounterWarnings(workspace);
+    updateEditorWarnings(workspace);
   }, 250);
 }
 
@@ -148,7 +148,7 @@ workspace.addChangeListener((event) => {
 
 enforceProgramBlock();
 updateOutputs();
-updateCounterWarnings(workspace);
+updateEditorWarnings(workspace);
 
 // --- Notifica toast ------------------------------------------------------
 const toast = document.getElementById('toast');

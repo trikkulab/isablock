@@ -397,7 +397,7 @@ ignorava la modifica, cioè non seguiva né il C né la regola "segue il
 C". Decisione: **vietato**, non solo sconsigliato. È cattiva pratica, e
 soprattutto è l'unico caso in cui lo stesso programma a blocchi
 significherebbe due cose diverse nei due output: invece di sceglierne
-una, lo strumento lo rifiuta. Due livelli (`src/blocks/for-counter.js`):
+una, lo strumento lo rifiuta. Due livelli (`src/blocks/editor-checks.js`):
 - nell'editor, icona di avviso standard di Blockly su ogni ASSEGNA,
   LEGGI o PER che scrive il contatore di un PER che lo contiene, a
   qualunque livello di annidamento: si vede mentre si compone, anche
@@ -420,6 +420,24 @@ preciso possibile: l'operazione per la divisione per zero, il blocco
 che usa l'array per indice fuori dai limiti o array non dichiarato, il
 blocco con lo slot vuoto per un'espressione mancante, il ciclo più
 interno in corso per "troppi passi".
+
+**Controlli nell'editor** (`src/blocks/editor-checks.js`): un unico
+modulo per tutti gli avvisi mostrati sui blocchi mentre si compone,
+ciascuno con un proprio id per `setWarningText()` (così un controllo non
+cancella l'avviso di un altro). Regola generale per dove segnalare un
+errore:
+- valore non valido in un **campo** (es. PASSO 0): lo rifiuta il
+  validatore del campo, non arriva mai nel programma;
+- **combinazione di blocchi** sicuramente sbagliata: triangolo di avviso
+  sul blocco, e comunque errore se si esegue;
+- errore che **dipende dai valori** (`x / n` con `n` che vale 0): solo
+  l'errore in esecuzione.
+
+Oltre al contatore del PER, il modulo segnala la **divisione per zero
+scritta nel blocco**: `÷` o `mod` con il blocco numero 0 come divisore
+(errore certo; anche gcc lo segnala in compilazione). Niente calcolo di
+espressioni costanti come `(2 - 2)`: casi rari, e l'avviso diventerebbe
+meno prevedibile per lo studente.
 
 Il pannello ha fatto emergere anche un'**incoerenza nel significato del
 passo**: il blocco evidenziato era quello *da eseguire*, quindi il giallo
