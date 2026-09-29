@@ -20,16 +20,46 @@
 // yield, sempre su se stesso, per mostrare il valore letto.
 
 import { getForStep } from '../codegen/common.js';
+import { counterWriteMessage, nestedCounterMessage } from '../blocks/editor-checks.js';
 
 const MAX_STEPS = 200000;
 
-export class ExecutionError extends Error {}
+// blockId: il blocco che ha causato l'errore, che l'app seleziona e porta
+// in vista quando l'esecuzione si ferma. Chi lancia l'errore indica il
+// blocco piu' preciso che conosce (es. la divisione, non l'ASSEGNA che la
+// contiene); se non lo indica, lo aggiunge tagError() risalendo: prima
+// l'espressione piu' interna, poi l'istruzione che la contiene.
+export class ExecutionError extends Error {
+  constructor(message, blockId) {
+    super(message);
+    this.blockId = blockId;
+  }
+}
 
+function tagError(err, block) {
+  if (err instanceof ExecutionError && !err.blockId) err.blockId = block.id;
+}
+
+// Il contatore di un PER in corso non si puo' modificare dal corpo (ne'
+// riusare in un PER annidato): C e Python si comporterebbero in modo
+// diverso. Vedi src/blocks/editor-checks.js, che segnala lo stesso caso
+// nell'editor prima ancora di eseguire. io.activeCounters: gli id delle
+// variabili contatore dei PER in esecuzione.
+function checkNotActiveCounter(block, variable, io, message) {
+  if (io.activeCounters.has(variable.getId())) {
+    throw new ExecutionError(message(variable.name), block.id);
+  }
+}
+
+// Il blocco indicato e' il ciclo piu' interno in corso (io.loopStack), non
+// l'istruzione su cui capita di finire i passi: e' il ciclo che
+// probabilmente non termina.
 function checkStepBudget(io) {
   io.stepCount += 1;
   if (io.stepCount > MAX_STEPS) {
     throw new ExecutionError(
-      'Esecuzione interrotta: troppi passi (probabile ciclo infinito).'
+      'Esecuzione interrotta: troppi passi (probabile ciclo infinito).',
+      io.loopStack.at(-1)
     );
   }
 }
@@ -44,7 +74,10 @@ function getArray(block, vars) {
   const variable = block.getField('VAR').getVariable();
   const array = vars.get(variable.getId());
   if (!array) {
-    throw new ExecutionError(`L'array "${variable.name}" non è stato dichiarato (manca un blocco DICHIARA ARRAY).`);
+    throw new ExecutionError(
+      `L'array "${variable.name}" non è stato dichiarato (manca un blocco DICHIARA ARRAY).`,
+      block.id
+    );
   }
   return array;
 }
@@ -54,10 +87,12 @@ function getArray(block, vars) {
 // (vedi docs/DECISIONI-ESTENSIONI.md, sezione Array): qui lo trattiamo
 // allo stesso modo per entrambe le direzioni (troppo piccolo o troppo
 // grande), a differenza di Python dove v[-1] sarebbe valido.
-function checkIndex(variableName, index, array) {
+function checkIndex(block, index, array) {
   if (!Number.isInteger(index) || index < 0 || index >= array.length) {
+    const variableName = block.getField('VAR').getVariable().name;
     throw new ExecutionError(
-      `Indice fuori dai limiti: ${variableName}[${index}] (dimensione ${array.length}).`
+      `Indice fuori dai limiti: ${variableName}[${index}] (dimensione ${array.length}).`,
+      block.id
     );
   }
 }
@@ -87,10 +122,21 @@ function exitedCounterMessage(name, cValue, pythonValue) {
 // Stessa identica semantica di divisione/modulo gia' scelta e documentata
 // nei tre generatori (vedi src/codegen/c.js e src/codegen/python.js): non e'
 // una nuova convenzione, e' quella che i tre output dichiarano di produrre.
+// Uno slot vuoto (block null) non ha un blocco proprio: l'errore viene
+// attribuito da tagError() al blocco che contiene lo slot.
 function evalExpression(block, vars, io) {
   if (!block) {
     throw new ExecutionError('Espressione mancante in un blocco.');
   }
+  try {
+    return evalExpressionBlock(block, vars, io);
+  } catch (err) {
+    tagError(err, block);
+    throw err;
+  }
+}
+
+function evalExpressionBlock(block, vars, io) {
   switch (block.type) {
     case 'number_literal':
       return block.getFieldValue('VALUE');
@@ -110,7 +156,7 @@ function evalExpression(block, vars, io) {
     case 'array_get': {
       const array = getArray(block, vars);
       const index = evalExpression(block.getInputTargetBlock('INDEX'), vars, io);
-      checkIndex(block.getField('VAR').getVariable().name, index, array);
+      checkIndex(block, index, array);
       return array[index];
     }
     case 'array_length':
@@ -180,10 +226,20 @@ function* runStatements(firstBlock, vars, io) {
 }
 
 function* runStatement(block, vars, io) {
+  try {
+    yield* runStatementBlock(block, vars, io);
+  } catch (err) {
+    tagError(err, block);
+    throw err;
+  }
+}
+
+function* runStatementBlock(block, vars, io) {
   checkStepBudget(io);
   switch (block.type) {
     case 'assign': {
       const variable = block.getField('VAR').getVariable();
+      checkNotActiveCounter(block, variable, io, counterWriteMessage);
       vars.set(variable.getId(), evalExpression(block.getInputTargetBlock('VALUE'), vars, io));
       io.exitedCounters.delete(variable.getId());
       yield { blockId: block.id };
@@ -191,6 +247,7 @@ function* runStatement(block, vars, io) {
     }
     case 'read': {
       const variable = block.getField('VAR').getVariable();
+      checkNotActiveCounter(block, variable, io, counterWriteMessage);
       const value = yield { blockId: block.id, awaitingInput: true };
       vars.set(variable.getId(), value);
       io.exitedCounters.delete(variable.getId());
@@ -212,7 +269,7 @@ function* runStatement(block, vars, io) {
     case 'array_set': {
       const array = getArray(block, vars);
       const index = evalExpression(block.getInputTargetBlock('INDEX'), vars, io);
-      checkIndex(block.getField('VAR').getVariable().name, index, array);
+      checkIndex(block, index, array);
       array[index] = evalExpression(block.getInputTargetBlock('VALUE'), vars, io);
       yield { blockId: block.id };
       return;
@@ -220,7 +277,7 @@ function* runStatement(block, vars, io) {
     case 'array_read': {
       const array = getArray(block, vars);
       const index = evalExpression(block.getInputTargetBlock('INDEX'), vars, io);
-      checkIndex(block.getField('VAR').getVariable().name, index, array);
+      checkIndex(block, index, array);
       const value = yield { blockId: block.id, awaitingInput: true };
       array[index] = value;
       yield { blockId: block.id };
@@ -247,23 +304,27 @@ function* runStatement(block, vars, io) {
       return;
     }
     case 'controls_while': {
+      io.loopStack.push(block.id);
       for (;;) {
         yield { blockId: block.id };
         if (!evalExpression(block.getInputTargetBlock('COND'), vars, io)) break;
         yield* runStatements(block.getInputTargetBlock('BODY'), vars, io);
         checkStepBudget(io);
       }
+      io.loopStack.pop();
       return;
     }
     case 'controls_do_while': {
       // Il corpo prima, la condizione dopo: il passo evidenziato sul blocco
       // stesso e' il controllo della condizione, come per MENTRE.
+      io.loopStack.push(block.id);
       for (;;) {
         yield* runStatements(block.getInputTargetBlock('BODY'), vars, io);
         yield { blockId: block.id };
         if (!evalExpression(block.getInputTargetBlock('COND'), vars, io)) break;
         checkStepBudget(io);
       }
+      io.loopStack.pop();
       return;
     }
     case 'controls_for_simple': {
@@ -272,6 +333,7 @@ function* runStatement(block, vars, io) {
       // controllo che fallisce e' un passo visibile (come per MENTRE): il
       // contatore ha gia' il valore che fa uscire dal ciclo.
       const variable = block.getField('VAR').getVariable();
+      checkNotActiveCounter(block, variable, io, nestedCounterMessage);
       const id = variable.getId();
       const from = evalExpression(block.getInputTargetBlock('FROM'), vars, io);
       const to = evalExpression(block.getInputTargetBlock('TO'), vars, io);
@@ -280,6 +342,8 @@ function* runStatement(block, vars, io) {
       // lo tocca se non ci sono ripetizioni.
       let pythonValue = vars.get(id);
       io.exitedCounters.delete(id);
+      io.activeCounters.add(id);
+      io.loopStack.push(block.id);
       for (let i = from; ; i += step) {
         vars.set(id, i);
         yield { blockId: block.id };
@@ -288,6 +352,8 @@ function* runStatement(block, vars, io) {
         yield* runStatements(block.getInputTargetBlock('BODY'), vars, io);
         checkStepBudget(io);
       }
+      io.loopStack.pop();
+      io.activeCounters.delete(id);
       if (pythonValue !== vars.get(id)) {
         io.exitedCounters.set(id, exitedCounterMessage(variable.name, vars.get(id), pythonValue));
       }
@@ -295,11 +361,13 @@ function* runStatement(block, vars, io) {
     }
     case 'repeat_times': {
       const times = evalExpression(block.getInputTargetBlock('TIMES'), vars, io);
+      io.loopStack.push(block.id);
       for (let i = 0; i < times; i++) {
         yield { blockId: block.id };
         yield* runStatements(block.getInputTargetBlock('BODY'), vars, io);
         checkStepBudget(io);
       }
+      io.loopStack.pop();
       return;
     }
     default:
@@ -317,6 +385,8 @@ export function* runProgram(programBlock, io) {
   const vars = new Map();
   io.vars = vars;
   io.exitedCounters = new Map();
+  io.activeCounters = new Set();
+  io.loopStack = [];
   // Le dichiarazioni (blocchi array_declare) vengono eseguite per prime,
   // come istruzioni vere e proprie (yield compreso: visibili durante
   // "Passo"), esattamente come C dichiara/azzera gli array in cima a main

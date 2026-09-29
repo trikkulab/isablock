@@ -54,6 +54,14 @@ rappresentazioni non sarebbero garantite equivalenti.
   se il programma legge il contatore dopo il ciclo senza riassegnarlo,
   la console lo segnala con un avviso (non un errore): come in molti
   libri di testo, il contatore fuori dal ciclo va considerato indefinito.
+  Il contatore invece **non si può modificare dentro il ciclo** (con
+  ASSEGNA o LEGGI, né riusandolo come contatore di un PER annidato):
+  in C il ciclo proseguirebbe dal nuovo valore, in Python `range` lo
+  sovrascriverebbe al giro successivo, e i due output darebbero
+  risultati diversi. L'editor mostra un'icona di avviso sul blocco
+  mentre lo si compone, e l'esecuzione passo-passo si ferma con un
+  errore su quel blocco. Se il contatore deve cambiare in modo
+  irregolare, si usa un MENTRE.
 - **Iterazione a ripetizione fissa** (ripeti N volte): ripete un numero di volte
   stabilito, senza esporre un contatore. Aggiunta rispetto al set minimo iniziale:
   utile per la corrispondenza diretta con esempi "vita reale" del tipo "mescola 3

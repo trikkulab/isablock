@@ -388,6 +388,57 @@ dopo il ciclo): codice innaturale, e ancora più contorto con zero
 ripetizioni. Nessuno degli esempi precaricati usa il contatore fuori dal
 ciclo.
 
+Divergenza gemella: il **contatore modificato dentro il corpo** del PER.
+In C l'incremento parte dal valore attuale (la modifica conta), in
+Python `range` riassegna il contatore a ogni giro (la modifica si
+perde); lo stesso per un PER annidato che riusa lo stesso contatore.
+In origine l'interprete teneva il contatore in una variabile interna e
+ignorava la modifica, cioè non seguiva né il C né la regola "segue il
+C". Decisione: **vietato**, non solo sconsigliato. È cattiva pratica, e
+soprattutto è l'unico caso in cui lo stesso programma a blocchi
+significherebbe due cose diverse nei due output: invece di sceglierne
+una, lo strumento lo rifiuta. Due livelli (`src/blocks/editor-checks.js`):
+- nell'editor, icona di avviso standard di Blockly su ogni ASSEGNA,
+  LEGGI o PER che scrive il contatore di un PER che lo contiene, a
+  qualunque livello di annidamento: si vede mentre si compone, anche
+  se quel ramo non verrà mai eseguito;
+- in esecuzione, errore (come la divisione per zero) nel momento
+  esatto della scrittura, con il blocco colpevole selezionato e
+  portato in vista.
+
+Scartati: un avviso giallo in console che lasciava proseguire alla C
+(provato brevemente, troppo poco evidente per una cattiva pratica), e
+una finestra modale (si chiude senza leggerla, interrompe, e sarebbe
+un modo diverso di segnalare lo stesso tipo di evento rispetto agli
+altri errori di esecuzione). I tre output generati non cambiano: restano
+compilabili anche con il blocco segnalato, come per la divisione per
+zero (lo strumento traduce, non valida).
+
+Da qui, **ogni errore di esecuzione indica il blocco che l'ha causato**
+(selezionato e portato in vista quando l'esecuzione si ferma), il più
+preciso possibile: l'operazione per la divisione per zero, il blocco
+che usa l'array per indice fuori dai limiti o array non dichiarato, il
+blocco con lo slot vuoto per un'espressione mancante, il ciclo più
+interno in corso per "troppi passi".
+
+**Controlli nell'editor** (`src/blocks/editor-checks.js`): un unico
+modulo per tutti gli avvisi mostrati sui blocchi mentre si compone,
+ciascuno con un proprio id per `setWarningText()` (così un controllo non
+cancella l'avviso di un altro). Regola generale per dove segnalare un
+errore:
+- valore non valido in un **campo** (es. PASSO 0): lo rifiuta il
+  validatore del campo, non arriva mai nel programma;
+- **combinazione di blocchi** sicuramente sbagliata: triangolo di avviso
+  sul blocco, e comunque errore se si esegue;
+- errore che **dipende dai valori** (`x / n` con `n` che vale 0): solo
+  l'errore in esecuzione.
+
+Oltre al contatore del PER, il modulo segnala la **divisione per zero
+scritta nel blocco**: `÷` o `mod` con il blocco numero 0 come divisore
+(errore certo; anche gcc lo segnala in compilazione). Niente calcolo di
+espressioni costanti come `(2 - 2)`: casi rari, e l'avviso diventerebbe
+meno prevedibile per lo studente.
+
 Il pannello ha fatto emergere anche un'**incoerenza nel significato del
 passo**: il blocco evidenziato era quello *da eseguire*, quindi il giallo
 mostrava l'effetto del blocco precedente, tranne per il PER che aggiorna il

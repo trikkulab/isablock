@@ -10,6 +10,7 @@ import { appConfig } from './app-config.js';
 import { saveWorkspaceToFile, saveWorkspaceWithPicker, hasNativeSavePicker, loadWorkspaceFromFile, FileFormatError } from './persistence.js';
 import { examples } from './examples.js';
 import { runProgram, ExecutionError } from './runtime/interpreter.js';
+import { updateEditorWarnings } from './blocks/editor-checks.js';
 
 const Blockly = window.Blockly;
 
@@ -134,7 +135,10 @@ function enforceProgramBlock() {
 let debounceTimer = null;
 function scheduleUpdate() {
   clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(updateOutputs, 250);
+  debounceTimer = setTimeout(() => {
+    updateOutputs();
+    updateEditorWarnings(Blockly, workspace);
+  }, 250);
 }
 
 workspace.addChangeListener((event) => {
@@ -144,6 +148,7 @@ workspace.addChangeListener((event) => {
 
 enforceProgramBlock();
 updateOutputs();
+updateEditorWarnings(Blockly, workspace);
 
 // --- Notifica toast ------------------------------------------------------
 const toast = document.getElementById('toast');
@@ -546,6 +551,15 @@ function advance(inputValue) {
     appendConsoleLine(err.message, 'run-error');
     showToast(err.message, 'error');
     stopExecution('Interrotto');
+    // Selezionato (non evidenziato come passo): resta visibile mentre lo
+    // studente corregge, e sparisce da solo al primo clic altrove. In
+    // Blockly 13 la selezione segue il focus: block.select() da solo non
+    // basta (verificato), serve il FocusManager.
+    const culprit = err.blockId && workspace.getBlockById(err.blockId);
+    if (culprit) {
+      Blockly.getFocusManager().focusNode(culprit);
+      scrollBlockIntoViewIfNeeded(err.blockId);
+    }
     return;
   }
 
