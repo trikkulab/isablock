@@ -72,12 +72,20 @@ const CHECKS = [
   { id: 'division-by-zero', types: ['arith_op'], check: checkDivisionByZero },
 ];
 
+// Il fumetto di Blockly non manda a capo da solo: un messaggio lungo
+// diventerebbe un'unica riga che esce dall'area dei blocchi. I messaggi
+// restano scritti su una riga sola qui (e nell'interprete, dove la console
+// va gia' a capo), e vengono spezzati solo per il fumetto.
+const WARNING_LINE_LENGTH = 40;
+
 // Da chiamare dopo ogni modifica del workspace: ricalcola tutti gli avvisi,
 // cosi' un avviso sparisce appena la causa viene corretta.
-export function updateEditorWarnings(workspace) {
+export function updateEditorWarnings(Blockly, workspace) {
   for (const block of workspace.getAllBlocks(false)) {
     for (const { id, types, check } of CHECKS) {
-      if (types.includes(block.type)) block.setWarningText(check(block), id);
+      if (!types.includes(block.type)) continue;
+      const message = check(block);
+      block.setWarningText(message && Blockly.utils.string.wrap(message, WARNING_LINE_LENGTH), id);
     }
   }
 }

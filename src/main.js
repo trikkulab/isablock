@@ -137,7 +137,7 @@ function scheduleUpdate() {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     updateOutputs();
-    updateEditorWarnings(workspace);
+    updateEditorWarnings(Blockly, workspace);
   }, 250);
 }
 
@@ -148,7 +148,7 @@ workspace.addChangeListener((event) => {
 
 enforceProgramBlock();
 updateOutputs();
-updateEditorWarnings(workspace);
+updateEditorWarnings(Blockly, workspace);
 
 // --- Notifica toast ------------------------------------------------------
 const toast = document.getElementById('toast');
