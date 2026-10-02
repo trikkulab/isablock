@@ -100,7 +100,7 @@ const blockDefinitions = [
   },
   {
     type: 'controls_while',
-    message0: 'MENTRE %1 RIPETI',
+    message0: 'MENTRE %1 ESEGUI',
     args0: [{ type: 'input_value', name: 'COND', check: 'Boolean' }],
     message1: '%1',
     args1: [{ type: 'input_statement', name: 'BODY', check: 'Statement' }],
