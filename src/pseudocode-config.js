@@ -23,7 +23,7 @@ export const pseudocodeConfig = {
   END_IF: 'FINE SE',
 
   WHILE: 'MENTRE',
-  DO: 'RIPETI',
+  DO: 'ESEGUI',
   END_WHILE: 'FINE MENTRE',
 
   // Iterazione a condizione finale: ESEGUI ... MENTRE condizione.
