@@ -748,6 +748,77 @@ body {
   opacity: 0.9;
 }
 
+/* --- Novità (newsModal) ------------------------------------------------- */
+.modal-btn.secondary {
+  background: var(--panel-bg);
+  color: var(--accent);
+}
+
+.modal-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.news-badge {
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.news-badge[hidden] {
+  display: none;
+}
+
+.news-meta {
+  font-size: 0.8rem;
+  color: var(--muted, #5b6b78);
+}
+
+.news-title {
+  margin: 0.3rem 0 0.6rem;
+  font-size: 1.05rem;
+}
+
+.news-items {
+  min-height: 7rem;
+  margin: 0 0 1rem;
+  padding-left: 1.2rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.news-items li {
+  margin-bottom: 0.4rem;
+}
+
+.news-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.news-dots {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.news-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.news-dot.current {
+  background: var(--accent);
+}
+
 /* --- Guida rapida (helpModal) ------------------------------------------ */
 .help-btn {
   font-weight: 600;

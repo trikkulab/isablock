@@ -102,6 +102,14 @@ for (const example of programs) {
   workspace.dispose();
 }
 
+// Ogni rilascio deve avere la sua voce nelle "Novità" (src/changelog.js).
+const { appConfig } = await importFrom('src/app-config.js');
+const { changelog } = await importFrom('src/changelog.js');
+if (!changelog.some((e) => e.version === appConfig.version)) {
+  console.log(`\nFALLITO: manca la voce ${appConfig.version} in src/changelog.js.`);
+  process.exit(1);
+}
+
 if (failed) {
   console.log('\nFALLITO: uno o più output sono cambiati rispetto allo snapshot.');
   process.exit(1);
