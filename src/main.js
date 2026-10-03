@@ -7,6 +7,7 @@ import { extractSourceMap } from './codegen/common.js';
 import { tokenizePseudocode, tokenizeC, tokenizePython } from './codegen/highlight.js';
 import { pseudocodeConfig } from './pseudocode-config.js';
 import { appConfig } from './app-config.js';
+import { changelog, compareVersions } from './changelog.js';
 import { saveWorkspaceToFile, saveWorkspaceWithPicker, hasNativeSavePicker, loadWorkspaceFromFile, FileFormatError } from './persistence.js';
 import { examples } from './examples.js';
 import { runProgram, ExecutionError } from './runtime/interpreter.js';
@@ -322,6 +323,100 @@ helpModal.addEventListener('click', (event) => {
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !helpModal.hidden) closeHelp();
 });
+
+// --- Novità --------------------------------------------------------------
+// Finestra a pagine, una per versione, dalla piu' recente. Si apre da sola
+// una volta per ogni nuova versione (si ricorda in localStorage l'ultima
+// vista) e si puo' riaprire a mano dal pulsante "Novita'".
+const newsModal = document.getElementById('newsModal');
+const NEWS_SEEN_KEY = 'isablock-last-seen-version';
+const newsNewer = document.getElementById('newsNewer');
+const newsOlder = document.getElementById('newsOlder');
+let newsIndex = 0;
+let newsLastSeen = null; // versione vista l'ultima volta (null se mai/ignota)
+
+function renderNewsPage() {
+  const entry = changelog[newsIndex];
+  document.getElementById('newsVersion').textContent = `Versione ${entry.version} — ${entry.date}`;
+  document.getElementById('newsTitle').textContent = entry.title;
+  const list = document.getElementById('newsItems');
+  list.replaceChildren(...entry.items.map((text) => {
+    const li = document.createElement('li');
+    li.textContent = text;
+    return li;
+  }));
+  document.getElementById('newsBadge').hidden = !isUnseenNews(entry);
+  document.getElementById('newsDots').replaceChildren(...changelog.map((_, i) => {
+    const dot = document.createElement('span');
+    dot.className = i === newsIndex ? 'news-dot current' : 'news-dot';
+    return dot;
+  }));
+  newsNewer.disabled = newsIndex === 0;
+  newsOlder.disabled = newsIndex === changelog.length - 1;
+}
+
+// "Nuova" = piu' recente dell'ultima versione vista. Se non c'e' memoria
+// di una versione vista (utente che aveva gia' usato lo strumento prima
+// delle novita'), si considera nuova solo la piu' recente.
+function isUnseenNews(entry) {
+  if (newsLastSeen === null) return entry === changelog[0];
+  return compareVersions(entry.version, newsLastSeen) > 0;
+}
+
+function openNews() {
+  newsIndex = 0;
+  renderNewsPage();
+  newsModal.hidden = false;
+}
+function closeNews() {
+  newsModal.hidden = true;
+  try {
+    window.localStorage.setItem(NEWS_SEEN_KEY, appConfig.version);
+  } catch {
+    // Storage non disponibile: la finestra non si riapre da sola, resta
+    // il pulsante.
+  }
+  newsLastSeen = appConfig.version;
+}
+function showNewsPage(delta) {
+  const next = newsIndex + delta;
+  if (next < 0 || next >= changelog.length) return;
+  newsIndex = next;
+  renderNewsPage();
+}
+document.getElementById('btnNews').addEventListener('click', openNews);
+document.getElementById('newsCloseBtn').addEventListener('click', closeNews);
+document.getElementById('newsCloseBtn2').addEventListener('click', closeNews);
+newsNewer.addEventListener('click', () => showNewsPage(-1));
+newsOlder.addEventListener('click', () => showNewsPage(1));
+newsModal.addEventListener('click', (event) => {
+  if (event.target === newsModal) closeNews();
+});
+document.addEventListener('keydown', (event) => {
+  if (newsModal.hidden) return;
+  if (event.key === 'Escape') closeNews();
+  else if (event.key === 'ArrowLeft') showNewsPage(-1);
+  else if (event.key === 'ArrowRight') showNewsPage(1);
+});
+
+// All'avvio: chi usa lo strumento per la prima volta vede solo il benvenuto
+// (e parte gia' "aggiornato"); gli altri vedono le novita' se la versione e'
+// cambiata, a meno che la voce sia marcata silent. Con lo storage non
+// disponibile non si apre mai da sole: meglio niente che ad ogni visita.
+try {
+  const stored = window.localStorage.getItem(NEWS_SEEN_KEY);
+  newsLastSeen = stored;
+  if (!welcomeModal.hidden) {
+    window.localStorage.setItem(NEWS_SEEN_KEY, appConfig.version);
+    newsLastSeen = appConfig.version;
+  } else if (stored !== appConfig.version) {
+    const hasLoudNews = changelog.some((e) => !e.silent && isUnseenNews(e));
+    if (hasLoudNews) openNews();
+    else window.localStorage.setItem(NEWS_SEEN_KEY, appConfig.version);
+  }
+} catch {
+  // vedi sopra
+}
 
 // La versione ha una sola fonte (app-config.js): il piè di pagina la legge da lì.
 document.getElementById('appVersion').textContent = appConfig.version;
@@ -795,7 +890,7 @@ function shouldIgnoreShortcut(target) {
 }
 
 document.addEventListener('keydown', (event) => {
-  if (!welcomeModal.hidden || !helpModal.hidden) return;
+  if (!welcomeModal.hidden || !helpModal.hidden || !newsModal.hidden) return;
   if (event.key === 'Escape') {
     btnStop.click();
     return;
