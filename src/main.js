@@ -56,6 +56,11 @@ let tokenMaps = { pseudocode: [], c: [], python: [] };
 // aperta in un dato momento.
 let currentBlockId = null;
 
+// blockId del blocco selezionato nell'editor (null se nessuno): evidenzia
+// nei pannelli il costrutto corrispondente, con uno stile piu' tenue di
+// quello dell'esecuzione, che ha comunque la precedenza.
+let selectedBlockId = null;
+
 function escapeHtml(text) {
   return text.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 }
@@ -79,22 +84,132 @@ function renderSegment(text, tokens, from, to) {
   return html;
 }
 
-function renderCodePanel(el, text, tokens, range) {
+function renderCodePanel(el, text, tokens, range, className = 'exec-highlight') {
   if (!range) {
     el.innerHTML = renderSegment(text, tokens, 0, text.length);
     return;
   }
   el.innerHTML =
     renderSegment(text, tokens, 0, range.start) +
-    `<mark class="exec-highlight">${renderSegment(text, tokens, range.start, range.end)}</mark>` +
+    `<mark class="${className}">${renderSegment(text, tokens, range.start, range.end)}</mark>` +
     renderSegment(text, tokens, range.end, text.length);
-  el.querySelector('.exec-highlight').scrollIntoView({ block: 'nearest' });
+  // Solo per l'esecuzione: con la selezione il codice non deve "saltare"
+  // sotto il dito di chi sta cliccando proprio su quel codice.
+  if (className === 'exec-highlight') {
+    el.querySelector('.exec-highlight').scrollIntoView({ block: 'nearest' });
+  }
 }
 
 function renderAllPanels() {
-  renderCodePanel(outputPseudocode, outputTexts.pseudocode, tokenMaps.pseudocode, currentBlockId && sourceMaps.pseudocode.get(currentBlockId));
-  renderCodePanel(outputC, outputTexts.c, tokenMaps.c, currentBlockId && sourceMaps.c.get(currentBlockId));
-  renderCodePanel(outputPython, outputTexts.python, tokenMaps.python, currentBlockId && sourceMaps.python.get(currentBlockId));
+  // L'esecuzione ha la precedenza sulla selezione.
+  const blockId = currentBlockId || selectedBlockId;
+  const className = currentBlockId ? 'exec-highlight' : 'select-highlight';
+  renderCodePanel(outputPseudocode, outputTexts.pseudocode, tokenMaps.pseudocode, blockId && sourceMaps.pseudocode.get(blockId), className);
+  renderCodePanel(outputC, outputTexts.c, tokenMaps.c, blockId && sourceMaps.c.get(blockId), className);
+  renderCodePanel(outputPython, outputTexts.python, tokenMaps.python, blockId && sourceMaps.python.get(blockId), className);
+}
+
+// --- Selezione blocco <-> codice -----------------------------------------
+// Blocco -> codice: la selezione nell'editor evidenzia nei tre pannelli
+// l'intero costrutto (per un SE o un ciclo, anche il corpo).
+// Codice -> blocco: un clic seleziona il blocco piu' interno il cui
+// intervallo contiene il punto cliccato (per FINE SE o "}" e' il
+// contenitore stesso, perche' nessun figlio le contiene).
+function selectBlockFromCode(sourceMap, offset) {
+  let best = null;
+  let bestLength = Infinity;
+  for (const [id, range] of sourceMap) {
+    const length = range.end - range.start;
+    if (range.start <= offset && offset <= range.end && length < bestLength) {
+      const block = workspace.getBlockById(id);
+      // Il contenitore INIZIO/FINE non si seleziona dal codice: copre
+      // quasi tutto il testo e non aggiunge informazione (avrebbe senso
+      // solo con le funzioni).
+      if (block && block.type !== 'program') {
+        best = id;
+        bestLength = length;
+      }
+    }
+  }
+  if (!best) return false;
+  Blockly.getFocusManager().focusNode(workspace.getBlockById(best));
+  scrollBlockIntoViewIfNeeded(best);
+  return true;
+}
+
+// Clic "nel vuoto" (oltre la fine di una riga, sotto il codice, su INIZIO/
+// FINE): non seleziona nulla e toglie la selezione corrente.
+function clearBlockSelection() {
+  selectedBlockId = null;
+  Blockly.getFocusManager().focusNode(workspace);
+  renderAllPanels();
+}
+
+// Offset (nel testo del pannello) del punto cliccato, dalle coordinate del
+// mouse: non dipende dalla selezione di testo del browser, che con una
+// minima oscillazione o un doppio clic non e' piu' un semplice cursore.
+// Tolleranza verticale: l'interlinea (line-height) lascia qualche pixel
+// tra i rettangoli dei caratteri di due righe, che comunque appartengono
+// alla riga.
+const LINE_GAP_PX = 4;
+
+function textOffsetAtPoint(el, x, y) {
+  let node = null;
+  let offset = 0;
+  if (document.caretPositionFromPoint) {
+    const pos = document.caretPositionFromPoint(x, y);
+    if (pos) ({ offsetNode: node, offset } = pos);
+  } else if (document.caretRangeFromPoint) {
+    const r = document.caretRangeFromPoint(x, y);
+    if (r) ({ startContainer: node, startOffset: offset } = r);
+  }
+  if (!node || !el.contains(node)) return null;
+  // Il browser porta il cursore al carattere piu' vicino anche cliccando
+  // lontano dal testo: vale come clic sul codice solo se il punto cade
+  // davvero sopra uno dei due caratteri accanto al cursore.
+  if (node.nodeType !== Node.TEXT_NODE) return null;
+  const len = node.length;
+  const spans = [[offset, offset + 1], [offset - 1, offset]];
+  const hit = spans.some(([from, to]) => {
+    if (from < 0 || to > len) return false;
+    const charRange = document.createRange();
+    charRange.setStart(node, from);
+    charRange.setEnd(node, to);
+    return [...charRange.getClientRects()].some(
+      (r) => r.width > 0 && x >= r.left && x <= r.right && y >= r.top - LINE_GAP_PX && y <= r.bottom + LINE_GAP_PX
+    );
+  });
+  if (!hit) return null;
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.setEnd(node, offset);
+  return range.toString().length;
+}
+
+// Vero mentre il mouse e' premuto su un pannello di codice: premere li'
+// toglie il focus a Blockly, che deseleziona il blocco; ridisegnare i
+// pannelli in quel momento cancellerebbe la selezione di testo in corso
+// (impossibile copiare a mano), quindi la deselezione si ignora.
+let codePointerDown = false;
+window.addEventListener('mouseup', () => {
+  setTimeout(() => { codePointerDown = false; }, 0);
+});
+
+function wireCodeClick(el, mapKey) {
+  let downX = 0;
+  let downY = 0;
+  el.addEventListener('mousedown', (event) => {
+    downX = event.clientX;
+    downY = event.clientY;
+    codePointerDown = true;
+  });
+  el.addEventListener('click', (event) => {
+    if (execGenerator !== null) return; // durante l'esecuzione l'editor e' bloccato
+    // Un trascinamento serve a copiare il testo, non a selezionare blocchi.
+    if (Math.hypot(event.clientX - downX, event.clientY - downY) > 5) return;
+    const offset = textOffsetAtPoint(el, event.clientX, event.clientY);
+    if (offset === null || !selectBlockFromCode(sourceMaps[mapKey], offset)) clearBlockSelection();
+  });
 }
 
 function updateOutputs() {
@@ -142,6 +257,12 @@ function scheduleUpdate() {
 }
 
 workspace.addChangeListener((event) => {
+  if (event.type === Blockly.Events.SELECTED && !(codePointerDown && !event.newElementId)) {
+    const selected = event.newElementId && workspace.getBlockById(event.newElementId);
+    // Il blocco program (INIZIO/FINE) non si evidenzia: vedi selectBlockFromCode.
+    selectedBlockId = selected && selected.type !== 'program' ? event.newElementId : null;
+    renderAllPanels();
+  }
   if (event.isUiEvent) return;
   scheduleUpdate();
 });
@@ -149,6 +270,9 @@ workspace.addChangeListener((event) => {
 enforceProgramBlock();
 updateOutputs();
 updateEditorWarnings(Blockly, workspace);
+wireCodeClick(outputPseudocode, 'pseudocode');
+wireCodeClick(outputC, 'c');
+wireCodeClick(outputPython, 'python');
 
 // --- Notifica toast ------------------------------------------------------
 const toast = document.getElementById('toast');
