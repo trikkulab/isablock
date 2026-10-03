@@ -346,6 +346,16 @@ body {
   margin: 0 -2px;
 }
 
+/* Costrutto del blocco selezionato nell'editor: stesso schema dell'esecuzione
+   ma azzurro e tenue, per non confonderlo con il passo in corso. */
+.select-highlight {
+  background: #2b5f86;
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 2px;
+  margin: 0 -2px;
+}
+
 /* Dentro l'evidenziazione dell'esecuzione i colori sintattici tornerebbero
    poco leggibili sullo sfondo ambra: si torna al colore scuro del testo
    evidenziato, uniforme come prima di introdurre la colorazione. */
