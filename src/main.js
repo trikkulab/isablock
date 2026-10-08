@@ -264,12 +264,28 @@ function scheduleUpdate() {
 // ripristinare la copia vecchia: vedi startAutosave().
 const localBackup = createLocalBackup({
   key: 'isablock-autosave',
-  maxAgeMs: appConfig.autosaveMaxAgeHours * 60 * 60 * 1000,
+  maxAgeMs: appConfig.autosaveMaxAgeHours === null ? Infinity : appConfig.autosaveMaxAgeHours * 60 * 60 * 1000,
 });
 // Il JSON compatto è lo stesso del file (formatVersion inclusa).
 const compactJson = () => serializeWorkspace(Blockly, workspace, 0);
+
+// Riassunto per l'elenco delle copie: aiuta lo studente a riconoscere il
+// proprio lavoro (quando, quanti blocchi, le prime istruzioni, il nome del file).
+let currentFileName = null; // nome dell'ultimo file salvato/aperto, se c'è
+function copyInfo() {
+  const lines = outputTexts.pseudocode
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && l !== 'INIZIO' && l !== 'FINE' && !l.startsWith('//'));
+  return {
+    blocks: workspace.getAllBlocks(false).filter((b) => b.type !== 'program').length,
+    preview: lines.slice(0, 3),
+    fileName: currentFileName,
+  };
+}
+
 const autosaver = createDebouncedSaver(() => {
-  reportAutosave(localBackup.save(compactJson(), { isEmpty: isWorkspaceBlank(workspace) }));
+  reportAutosave(localBackup.save(compactJson(), { isEmpty: isWorkspaceBlank(workspace), info: copyInfo() }));
 }, 1000);
 
 workspace.addChangeListener((event) => {
@@ -444,9 +460,10 @@ document.getElementById('appVersion').textContent = appConfig.version;
 // --- Copia automatica: stato, ripristino, cancellazione -------------------
 const autosaveStatus = document.getElementById('autosaveStatus');
 const btnClearCopy = document.getElementById('btnClearCopy');
+const btnShowCopies = document.getElementById('btnShowCopies');
 const restoreModal = document.getElementById('restoreModal');
+const restoreList = document.getElementById('restoreList');
 let autosaveUnavailable = false;
-let pausedNoticeShown = false;
 
 function formatClock(ms) {
   const d = new Date(ms);
@@ -454,11 +471,15 @@ function formatClock(ms) {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// "oggi alle 10:42" / "il 7/10 alle 10:42"
+// "oggi alle 10:42" / "ieri alle 10:42" / "il 7/10 alle 10:42"
 function describeWhen(ms) {
   const d = new Date(ms);
-  const sameDay = d.toDateString() === new Date().toDateString();
-  return sameDay ? `oggi alle ${formatClock(ms)}` : `il ${d.getDate()}/${d.getMonth() + 1} alle ${formatClock(ms)}`;
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return `oggi alle ${formatClock(ms)}`;
+  if (d.toDateString() === yesterday.toDateString()) return `ieri alle ${formatClock(ms)}`;
+  return `il ${d.getDate()}/${d.getMonth() + 1} alle ${formatClock(ms)}`;
 }
 
 // Aggiorna la riga nel piè di pagina in base all'esito dell'ultimo salvataggio.
@@ -466,28 +487,22 @@ function reportAutosave(result) {
   if (autosaveUnavailable) {
     autosaveStatus.textContent = 'Salvataggio automatico non disponibile in questo browser: ricordati di usare Salva.';
     btnClearCopy.hidden = true;
+    btnShowCopies.hidden = true;
     return;
   }
-  if (result === 'other-tab') {
-    autosaveStatus.textContent = 'Salvataggio automatico in pausa: IsaBlock è aperto in un’altra scheda.';
-    btnClearCopy.hidden = true;
-    if (!pausedNoticeShown) {
-      pausedNoticeShown = true;
-      showToast('IsaBlock è aperto anche in un’altra scheda: qui il salvataggio automatico è in pausa', 'info');
-    }
-    return;
-  }
+  const others = localBackup.listCopies().length;
+  btnShowCopies.hidden = others === 0;
+  btnShowCopies.textContent = others === 1 ? '1 altro lavoro salvato' : `${others} altri lavori salvati`;
   if (result === 'error') {
     autosaveStatus.textContent = 'Non riesco a salvare la copia automatica: usa Salva.';
     return;
   }
-  const savedAt = localBackup.savedAt();
+  const savedAt = localBackup.ownSavedAt();
   if (result === 'cleared' || savedAt === null) {
     autosaveStatus.textContent = '';
     btnClearCopy.hidden = true;
     return;
   }
-  pausedNoticeShown = false;
   autosaveStatus.textContent = `Copia automatica salvata su questo computer alle ${formatClock(savedAt)}.`;
   btnClearCopy.hidden = false;
 }
@@ -496,71 +511,121 @@ function reportAutosave(result) {
 // con il file: all'apertura successiva non serve proporre il ripristino.
 function markSavedToFile() {
   autosaver.cancel();
-  localBackup.markFileSaved(compactJson());
+  localBackup.markFileSaved(compactJson(), copyInfo());
   reportAutosave('saved');
 }
 
 btnClearCopy.addEventListener('click', () => {
-  if (!window.confirm('Cancellare la copia automatica salvata su questo computer? Il programma che vedi resta aperto, ma se chiudi la pagina non potrai riprenderlo (a meno che tu l’abbia salvato in un file).')) return;
+  if (!window.confirm('Cancellare la copia automatica di questo lavoro? Il programma che vedi resta aperto, ma se chiudi la pagina non potrai riprenderlo (a meno che tu l’abbia salvato in un file).')) return;
   autosaver.cancel();
-  localBackup.clear();
+  localBackup.remove();
   reportAutosave('cleared');
   showToast('Copia automatica cancellata', 'success');
 });
 
+// Finestra con l'elenco delle copie riprendibili, dalla più recente. Le copie
+// restano finché non vengono riprese o scartate. Se non ce ne sono, si chiude.
+function openRestoreDialog() {
+  const copies = localBackup.listCopies();
+  if (copies.length === 0) {
+    restoreModal.hidden = true;
+    return;
+  }
+  restoreList.replaceChildren(...copies.map((copy) => {
+    const li = document.createElement('li');
+    li.className = 'restore-item';
+    const text = document.createElement('div');
+    text.className = 'restore-text';
+    const title = document.createElement('strong');
+    const info = copy.info || {};
+    const parts = [describeWhen(copy.savedAt)];
+    if (info.blocks !== undefined) parts.push(info.blocks === 1 ? '1 blocco' : `${info.blocks} blocchi`);
+    if (info.fileName) parts.push(info.fileName);
+    title.textContent = parts.join(' · ');
+    text.append(title);
+    if (info.preview && info.preview.length) {
+      const pre = document.createElement('pre');
+      pre.textContent = info.preview.join('\n');
+      text.append(pre);
+    }
+    const take = document.createElement('button');
+    take.type = 'button';
+    take.className = 'modal-btn';
+    take.textContent = 'Riprendi';
+    take.addEventListener('click', () => restoreCopy(copy));
+    const drop = document.createElement('button');
+    drop.type = 'button';
+    drop.className = 'modal-btn secondary';
+    drop.textContent = 'Elimina';
+    drop.addEventListener('click', () => {
+      if (!window.confirm('Eliminare questo lavoro? Non si potrà più riprendere.')) return;
+      localBackup.remove(copy);
+      reportAutosave('saved');
+      openRestoreDialog();
+    });
+    const actions = document.createElement('div');
+    actions.className = 'restore-actions';
+    actions.append(take, drop);
+    li.append(text, actions);
+    return li;
+  }));
+  restoreModal.hidden = false;
+}
+
+function restoreCopy(copy) {
+  // Riprendere sostituisce il programma sullo schermo: se ha del lavoro, si chiede.
+  if (!isWorkspaceBlank(workspace) && !window.confirm('Il programma che vedi in questa scheda verrà sostituito. Continuare?')) return;
+  try {
+    // Stessa strada del caricamento da file: controllo versione e migrazioni.
+    loadWorkspaceState(Blockly, workspace, JSON.parse(copy.json));
+  } catch {
+    // Copia illeggibile: non si tiene, ma lo studente deve saperlo.
+    localBackup.remove(copy);
+    showToast('Non sono riuscito a riprendere questo lavoro', 'error');
+    openRestoreDialog();
+    return;
+  }
+  enforceProgramBlock();
+  updateOutputs();
+  currentFileName = copy.info?.fileName ?? null;
+  resetRunStrip();
+  localBackup.adopt(copy); // passa a questa scheda e sparisce dall'elenco
+  reportAutosave('saved');
+  restoreModal.hidden = true;
+  showToast('Lavoro ripreso', 'success');
+}
+
+document.getElementById('restoreCloseBtn').addEventListener('click', () => {
+  restoreModal.hidden = true;
+  if (!startupDone) finishAutosaveStartup();
+});
+btnShowCopies.addEventListener('click', openRestoreDialog);
+
+let startupDone = false;
 function finishAutosaveStartup() {
+  startupDone = true;
   localBackup.enable();
   reportAutosave('started');
   startupNews();
 }
 
-// All'apertura: se c'è una copia più recente dell'ultimo file salvato, si
-// CHIEDE se riprenderla (mai ripristino silenzioso). Fino alla risposta il
+// All'apertura: se ci sono copie di lavori non salvati in un file, si CHIEDE
+// cosa riprendere (mai ripristino silenzioso). Fino alla risposta il
 // salvataggio automatico resta spento, così la pagina appena aperta (vuota)
-// non può sovrascrivere la copia.
+// non può toccare le copie esistenti.
 function startAutosave() {
-  const found = localBackup.inspect();
-  if (found.status === 'unavailable') {
+  if (!localBackup.available()) {
     autosaveUnavailable = true;
     reportAutosave('unavailable');
+    startupDone = true;
     startupNews();
     return;
   }
-  if (found.status === 'other-tab') {
-    // Un'altra scheda sta lavorando: non si propone il suo lavoro come
-    // "perso" e questa scheda non salva finché quella resta aperta.
-    localBackup.enable();
-    reportAutosave('other-tab');
-    startupNews();
-    return;
-  }
-  if (found.status !== 'restorable') {
+  if (localBackup.listCopies().length === 0) {
     finishAutosaveStartup();
     return;
   }
-  document.getElementById('restoreWhen').textContent = describeWhen(found.record.savedAt);
-  restoreModal.hidden = false;
-  document.getElementById('restoreYesBtn').addEventListener('click', () => {
-    restoreModal.hidden = true;
-    try {
-      // Stessa strada del caricamento da file: controllo versione e migrazioni.
-      loadWorkspaceState(Blockly, workspace, JSON.parse(found.record.json));
-      enforceProgramBlock();
-      updateOutputs();
-      resetRunStrip();
-      showToast('Lavoro ripreso', 'success');
-    } catch {
-      // Copia illeggibile: non si tiene, ma lo studente deve saperlo.
-      localBackup.clear();
-      showToast('Non sono riuscito a riprendere la copia salvata', 'error');
-    }
-    finishAutosaveStartup();
-  }, { once: true });
-  document.getElementById('restoreNoBtn').addEventListener('click', () => {
-    restoreModal.hidden = true;
-    localBackup.clear();
-    finishAutosaveStartup();
-  }, { once: true });
+  openRestoreDialog();
 }
 
 // Chiusura della pagina: salva subito l'ultima modifica ancora in attesa del
@@ -580,7 +645,8 @@ startAutosave();
 document.getElementById('btnNew').addEventListener('click', () => {
   if (!window.confirm('Cancellare il programma corrente e ricominciare da zero?')) return;
   autosaver.cancel();
-  localBackup.clear();
+  localBackup.remove(); // la copia di questa scheda
+  currentFileName = null;
   workspace.clear();
   enforceProgramBlock();
   updateOutputs();
@@ -600,6 +666,7 @@ function saveWithPrompt() {
   // Via i caratteri non ammessi nei nomi di file e l'eventuale .json già digitato.
   const name = answer.trim().replace(/\.json$/i, '').replace(/[\\/:*?"<>|]/g, '-');
   saveWorkspaceToFile(Blockly, workspace, `${name || DEFAULT_FILE_NAME}.json`);
+  currentFileName = `${name || DEFAULT_FILE_NAME}.json`;
   markSavedToFile();
   showToast('Programma salvato', 'success');
 }
@@ -609,6 +676,7 @@ document.getElementById('btnSave').addEventListener('click', async () => {
     try {
       const saved = await saveWorkspaceWithPicker(Blockly, workspace, `${DEFAULT_FILE_NAME}.json`);
       if (saved) {
+        currentFileName = saved;
         markSavedToFile();
         showToast('Programma salvato', 'success');
       }
@@ -631,6 +699,7 @@ fileInput.addEventListener('change', () => {
       enforceProgramBlock();
       updateOutputs();
       resetRunStrip();
+      currentFileName = file.name;
       markSavedToFile();
       showToast('Programma caricato', 'success');
     })

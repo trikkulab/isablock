@@ -3,7 +3,7 @@
 export const appConfig = Object.freeze({
   // Versione dell'applicazione mostrata nel piè di pagina e scritta nei file
   // salvati come sola informazione di provenienza.
-  version: '1.7.0',
+  version: '1.8.0',
 
   // Versione del formato dei file salvati (vedi persistence.js). Va aumentata
   // solo quando un cambio di formato rende illeggibili i file vecchi per il
@@ -11,9 +11,10 @@ export const appConfig = Object.freeze({
   fileFormatVersion: 6,
 
   // Per quanto tempo si conserva la copia automatica locale (vedi
-  // local-backup.js). Oltre questo limite la copia viene cancellata all'apertura
-  // senza chiedere nulla: serve ai PC condivisi, dove il lavoro di ieri di un
-  // altro studente non deve riapparire. Scelta didattica/organizzativa: si può
-  // cambiare qui.
-  autosaveMaxAgeHours: 24,
+  // local-backup.js). Con un numero, oltre quel limite la copia viene
+  // cancellata all'apertura senza chiedere nulla (utile sui PC condivisi, dove
+  // il lavoro di ieri di un altro non deve riapparire). Con null la copia non
+  // scade mai: resta finché non si cancella ("Nuovo", "Cancella copia" o
+  // rifiuto del ripristino). Scelta organizzativa: si cambia qui.
+  autosaveMaxAgeHours: null,
 });
