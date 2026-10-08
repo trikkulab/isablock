@@ -7,6 +7,17 @@
 // finestra (per le correzioni che lo studente non nota).
 export const changelog = Object.freeze([
   {
+    version: '1.7.0',
+    date: '2026-10-08',
+    title: 'Il lavoro non si perde più',
+    items: [
+      'Mentre lavori, IsaBlock tiene una copia del programma su questo computer. Se chiudi la pagina per sbaglio, quando la riapri ti chiede se vuoi riprendere da lì.',
+      'La copia non sostituisce il pulsante Salva: per portare il lavoro su un altro computer o consegnarlo, salva sempre il file.',
+      'In basso trovi il pulsante Cancella copia: usalo se lavori su un computer che usano anche altri.',
+      'La copia si cancella da sola dopo 24 ore e quando premi Nuovo.',
+    ],
+  },
+  {
     version: '1.6.0',
     date: '2026-10-03',
     title: 'Dal blocco al codice, e viceversa',

@@ -1,0 +1,3 @@
+# Tutti i file di testo restano con a capo LF anche su Windows: i test di
+# regressione confrontano gli output generati (LF) con test/fixtures/ byte per byte.
+* text=auto eol=lf

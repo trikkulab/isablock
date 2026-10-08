@@ -7,7 +7,7 @@ export class FileFormatError extends Error {}
 // Salvataggio/caricamento locale (nessun account, nessun server): il
 // lavoro dello studente diventa un file .json scaricabile e ricaricabile,
 // come richiesto dalla sezione "Persistenza" di docs/SPEC.md.
-function serializeWorkspace(Blockly, workspace) {
+export function serializeWorkspace(Blockly, workspace, space = 2) {
   // formatVersion e appVersion stanno accanto alle chiavi di Blockly: load()
   // legge solo le chiavi dei propri serializzatori e ignora le altre.
   // appVersion è solo informativa (da quale app arriva il file): non si usa
@@ -17,7 +17,7 @@ function serializeWorkspace(Blockly, workspace) {
     appVersion: appConfig.version,
     ...Blockly.serialization.workspaces.save(workspace),
   };
-  return JSON.stringify(state, null, 2);
+  return JSON.stringify(state, null, space);
 }
 
 export function saveWorkspaceToFile(Blockly, workspace, filename = 'programma-a-blocchi.json') {
@@ -56,30 +56,39 @@ export async function saveWorkspaceWithPicker(Blockly, workspace, suggestedName)
 }
 
 export function loadWorkspaceFromFile(Blockly, workspace, file) {
-  return file.text().then((text) => {
-    const state = JSON.parse(text);
-    // I file salvati prima dell'introduzione della versione non hanno il campo:
-    // sono il formato 1.
-    const formatVersion = state.formatVersion ?? 1;
-    // Controllo prima di workspace.clear(): un file non leggibile non deve
-    // far perdere il lavoro in corso.
-    if (formatVersion > appConfig.fileFormatVersion) {
-      throw new FileFormatError('Il file è stato creato con una versione più recente di IsaBlock e non può essere aperto.');
-    }
-    // Fino al formato 4 gli array (allora chiamati vettori) salvavano la
-    // dimensione in una mappa a parte (arraySizes), fuori dai blocchi: la
-    // rappresenta ora un blocco vero e proprio, DICHIARA ARRAY, con la
-    // dimensione come suo campo SIZE. Il file vecchio contiene comunque
-    // tutta l'informazione necessaria (quale variabile, quale dimensione):
-    // si ricostruisce il blocco mancante invece di rifiutare il file (visto
-    // che alcuni studenti avevano già lavori salvati con il vecchio
-    // sistema). Un file dello stesso formato ma senza array (es. solo
-    // booleani/testo) non ha niente da migrare: la funzione lo lascia
-    // invariato.
-    migrateOldArrayFormat(state);
-    workspace.clear();
-    Blockly.serialization.workspaces.load(state, workspace);
-  });
+  return file.text().then((text) => loadWorkspaceState(Blockly, workspace, JSON.parse(text)));
+}
+
+// Un programma "vuoto" ha solo il blocco INIZIO/FINE, senza istruzioni.
+export function isWorkspaceBlank(workspace) {
+  return workspace.getAllBlocks(false).every((b) => b.type === 'program');
+}
+
+// Carica uno stato già letto da JSON nel workspace. È la strada unica per
+// file e copia automatica locale: i controlli di versione e le migrazioni
+// valgono quindi per entrambi.
+export function loadWorkspaceState(Blockly, workspace, state) {
+  // I file salvati prima dell'introduzione della versione non hanno il campo:
+  // sono il formato 1.
+  const formatVersion = state.formatVersion ?? 1;
+  // Controllo prima di workspace.clear(): un file non leggibile non deve
+  // far perdere il lavoro in corso.
+  if (formatVersion > appConfig.fileFormatVersion) {
+    throw new FileFormatError('Il file è stato creato con una versione più recente di IsaBlock e non può essere aperto.');
+  }
+  // Fino al formato 4 gli array (allora chiamati vettori) salvavano la
+  // dimensione in una mappa a parte (arraySizes), fuori dai blocchi: la
+  // rappresenta ora un blocco vero e proprio, DICHIARA ARRAY, con la
+  // dimensione come suo campo SIZE. Il file vecchio contiene comunque
+  // tutta l'informazione necessaria (quale variabile, quale dimensione):
+  // si ricostruisce il blocco mancante invece di rifiutare il file (visto
+  // che alcuni studenti avevano già lavori salvati con il vecchio
+  // sistema). Un file dello stesso formato ma senza array (es. solo
+  // booleani/testo) non ha niente da migrare: la funzione lo lascia
+  // invariato.
+  migrateOldArrayFormat(state);
+  workspace.clear();
+  Blockly.serialization.workspaces.load(state, workspace);
 }
 
 // Ricostruisce, per ogni array del vecchio formato, un blocco array_declare

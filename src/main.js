@@ -8,7 +8,8 @@ import { tokenizePseudocode, tokenizeC, tokenizePython } from './codegen/highlig
 import { pseudocodeConfig } from './pseudocode-config.js';
 import { appConfig } from './app-config.js';
 import { changelog, compareVersions } from './changelog.js';
-import { saveWorkspaceToFile, saveWorkspaceWithPicker, hasNativeSavePicker, loadWorkspaceFromFile, FileFormatError } from './persistence.js';
+import { saveWorkspaceToFile, saveWorkspaceWithPicker, hasNativeSavePicker, loadWorkspaceFromFile, loadWorkspaceState, serializeWorkspace, isWorkspaceBlank, FileFormatError } from './persistence.js';
+import { createLocalBackup, createDebouncedSaver } from './local-backup.js';
 import { examples } from './examples.js';
 import { runProgram, ExecutionError } from './runtime/interpreter.js';
 import { updateEditorWarnings } from './blocks/editor-checks.js';
@@ -257,6 +258,20 @@ function scheduleUpdate() {
   }, 250);
 }
 
+// --- Copia automatica locale ----------------------------------------------
+// Definita prima del listener: enforceProgramBlock() qui sotto genera eventi.
+// Resta spenta (save() non scrive) finché all'apertura non si è deciso se
+// ripristinare la copia vecchia: vedi startAutosave().
+const localBackup = createLocalBackup({
+  key: 'isablock-autosave',
+  maxAgeMs: appConfig.autosaveMaxAgeHours * 60 * 60 * 1000,
+});
+// Il JSON compatto è lo stesso del file (formatVersion inclusa).
+const compactJson = () => serializeWorkspace(Blockly, workspace, 0);
+const autosaver = createDebouncedSaver(() => {
+  reportAutosave(localBackup.save(compactJson(), { isEmpty: isWorkspaceBlank(workspace) }));
+}, 1000);
+
 workspace.addChangeListener((event) => {
   if (event.type === Blockly.Events.SELECTED && !(codePointerDown && !event.newElementId)) {
     const selected = event.newElementId && workspace.getBlockById(event.newElementId);
@@ -266,6 +281,7 @@ workspace.addChangeListener((event) => {
   }
   if (event.isUiEvent) return;
   scheduleUpdate();
+  autosaver.schedule();
 });
 
 enforceProgramBlock();
@@ -403,31 +419,173 @@ document.addEventListener('keydown', (event) => {
 // (e parte gia' "aggiornato"); gli altri vedono le novita' se la versione e'
 // cambiata, a meno che la voce sia marcata silent. Con lo storage non
 // disponibile non si apre mai da sole: meglio niente che ad ogni visita.
-try {
-  const stored = window.localStorage.getItem(NEWS_SEEN_KEY);
-  newsLastSeen = stored;
-  if (!welcomeModal.hidden) {
-    window.localStorage.setItem(NEWS_SEEN_KEY, appConfig.version);
-    newsLastSeen = appConfig.version;
-  } else if (stored !== appConfig.version) {
-    const hasLoudNews = changelog.some((e) => !e.silent && isUnseenNews(e));
-    if (hasLoudNews) openNews();
-    else window.localStorage.setItem(NEWS_SEEN_KEY, appConfig.version);
+// Viene chiamata da startAutosave, dopo la scelta sul ripristino: una sola
+// finestra alla volta.
+function startupNews() {
+  try {
+    const stored = window.localStorage.getItem(NEWS_SEEN_KEY);
+    newsLastSeen = stored;
+    if (!welcomeModal.hidden) {
+      window.localStorage.setItem(NEWS_SEEN_KEY, appConfig.version);
+      newsLastSeen = appConfig.version;
+    } else if (stored !== appConfig.version) {
+      const hasLoudNews = changelog.some((e) => !e.silent && isUnseenNews(e));
+      if (hasLoudNews) openNews();
+      else window.localStorage.setItem(NEWS_SEEN_KEY, appConfig.version);
+    }
+  } catch {
+    // vedi sopra
   }
-} catch {
-  // vedi sopra
 }
 
 // La versione ha una sola fonte (app-config.js): il piè di pagina la legge da lì.
 document.getElementById('appVersion').textContent = appConfig.version;
 
+// --- Copia automatica: stato, ripristino, cancellazione -------------------
+const autosaveStatus = document.getElementById('autosaveStatus');
+const btnClearCopy = document.getElementById('btnClearCopy');
+const restoreModal = document.getElementById('restoreModal');
+let autosaveUnavailable = false;
+let pausedNoticeShown = false;
+
+function formatClock(ms) {
+  const d = new Date(ms);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// "oggi alle 10:42" / "il 7/10 alle 10:42"
+function describeWhen(ms) {
+  const d = new Date(ms);
+  const sameDay = d.toDateString() === new Date().toDateString();
+  return sameDay ? `oggi alle ${formatClock(ms)}` : `il ${d.getDate()}/${d.getMonth() + 1} alle ${formatClock(ms)}`;
+}
+
+// Aggiorna la riga nel piè di pagina in base all'esito dell'ultimo salvataggio.
+function reportAutosave(result) {
+  if (autosaveUnavailable) {
+    autosaveStatus.textContent = 'Salvataggio automatico non disponibile in questo browser: ricordati di usare Salva.';
+    btnClearCopy.hidden = true;
+    return;
+  }
+  if (result === 'other-tab') {
+    autosaveStatus.textContent = 'Salvataggio automatico in pausa: IsaBlock è aperto in un’altra scheda.';
+    btnClearCopy.hidden = true;
+    if (!pausedNoticeShown) {
+      pausedNoticeShown = true;
+      showToast('IsaBlock è aperto anche in un’altra scheda: qui il salvataggio automatico è in pausa', 'info');
+    }
+    return;
+  }
+  if (result === 'error') {
+    autosaveStatus.textContent = 'Non riesco a salvare la copia automatica: usa Salva.';
+    return;
+  }
+  const savedAt = localBackup.savedAt();
+  if (result === 'cleared' || savedAt === null) {
+    autosaveStatus.textContent = '';
+    btnClearCopy.hidden = true;
+    return;
+  }
+  pausedNoticeShown = false;
+  autosaveStatus.textContent = `Copia automatica salvata su questo computer alle ${formatClock(savedAt)}.`;
+  btnClearCopy.hidden = false;
+}
+
+// Dopo un salvataggio su file (o l'apertura di un file) la copia coincide
+// con il file: all'apertura successiva non serve proporre il ripristino.
+function markSavedToFile() {
+  autosaver.cancel();
+  localBackup.markFileSaved(compactJson());
+  reportAutosave('saved');
+}
+
+btnClearCopy.addEventListener('click', () => {
+  if (!window.confirm('Cancellare la copia automatica salvata su questo computer? Il programma che vedi resta aperto, ma se chiudi la pagina non potrai riprenderlo (a meno che tu l’abbia salvato in un file).')) return;
+  autosaver.cancel();
+  localBackup.clear();
+  reportAutosave('cleared');
+  showToast('Copia automatica cancellata', 'success');
+});
+
+function finishAutosaveStartup() {
+  localBackup.enable();
+  reportAutosave('started');
+  startupNews();
+}
+
+// All'apertura: se c'è una copia più recente dell'ultimo file salvato, si
+// CHIEDE se riprenderla (mai ripristino silenzioso). Fino alla risposta il
+// salvataggio automatico resta spento, così la pagina appena aperta (vuota)
+// non può sovrascrivere la copia.
+function startAutosave() {
+  const found = localBackup.inspect();
+  if (found.status === 'unavailable') {
+    autosaveUnavailable = true;
+    reportAutosave('unavailable');
+    startupNews();
+    return;
+  }
+  if (found.status === 'other-tab') {
+    // Un'altra scheda sta lavorando: non si propone il suo lavoro come
+    // "perso" e questa scheda non salva finché quella resta aperta.
+    localBackup.enable();
+    reportAutosave('other-tab');
+    startupNews();
+    return;
+  }
+  if (found.status !== 'restorable') {
+    finishAutosaveStartup();
+    return;
+  }
+  document.getElementById('restoreWhen').textContent = describeWhen(found.record.savedAt);
+  restoreModal.hidden = false;
+  document.getElementById('restoreYesBtn').addEventListener('click', () => {
+    restoreModal.hidden = true;
+    try {
+      // Stessa strada del caricamento da file: controllo versione e migrazioni.
+      loadWorkspaceState(Blockly, workspace, JSON.parse(found.record.json));
+      enforceProgramBlock();
+      updateOutputs();
+      resetRunStrip();
+      showToast('Lavoro ripreso', 'success');
+    } catch {
+      // Copia illeggibile: non si tiene, ma lo studente deve saperlo.
+      localBackup.clear();
+      showToast('Non sono riuscito a riprendere la copia salvata', 'error');
+    }
+    finishAutosaveStartup();
+  }, { once: true });
+  document.getElementById('restoreNoBtn').addEventListener('click', () => {
+    restoreModal.hidden = true;
+    localBackup.clear();
+    finishAutosaveStartup();
+  }, { once: true });
+}
+
+// Chiusura della pagina: salva subito l'ultima modifica ancora in attesa del
+// debounce e libera il posto per altre schede. visibilitychange copre i
+// browser (soprattutto da mobile) che non sempre lanciano pagehide.
+window.addEventListener('pagehide', () => {
+  autosaver.flush();
+  localBackup.release();
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') autosaver.flush();
+});
+
+startAutosave();
+
 // --- Barra dei comandi ------------------------------------------------
 document.getElementById('btnNew').addEventListener('click', () => {
   if (!window.confirm('Cancellare il programma corrente e ricominciare da zero?')) return;
+  autosaver.cancel();
+  localBackup.clear();
   workspace.clear();
   enforceProgramBlock();
   updateOutputs();
   resetRunStrip();
+  reportAutosave('cleared');
   showToast('Nuovo programma creato', 'success');
 });
 
@@ -442,6 +600,7 @@ function saveWithPrompt() {
   // Via i caratteri non ammessi nei nomi di file e l'eventuale .json già digitato.
   const name = answer.trim().replace(/\.json$/i, '').replace(/[\\/:*?"<>|]/g, '-');
   saveWorkspaceToFile(Blockly, workspace, `${name || DEFAULT_FILE_NAME}.json`);
+  markSavedToFile();
   showToast('Programma salvato', 'success');
 }
 
@@ -449,7 +608,10 @@ document.getElementById('btnSave').addEventListener('click', async () => {
   if (hasNativeSavePicker) {
     try {
       const saved = await saveWorkspaceWithPicker(Blockly, workspace, `${DEFAULT_FILE_NAME}.json`);
-      if (saved) showToast('Programma salvato', 'success');
+      if (saved) {
+        markSavedToFile();
+        showToast('Programma salvato', 'success');
+      }
       return;
     } catch {
       // Selettore non utilizzabile (es. contesto non sicuro): ripiego sul nome.
@@ -469,6 +631,7 @@ fileInput.addEventListener('change', () => {
       enforceProgramBlock();
       updateOutputs();
       resetRunStrip();
+      markSavedToFile();
       showToast('Programma caricato', 'success');
     })
     .catch((err) => {
