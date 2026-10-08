@@ -16,6 +16,8 @@ const { createLocalBackup, createDebouncedSaver, hashText } = await importFrom('
 function fakeStorage() {
   const data = new Map();
   return {
+    get length() { return data.size; },
+    key: (i) => [...data.keys()][i] ?? null,
     getItem: (k) => (data.has(k) ? data.get(k) : null),
     setItem: (k, v) => void data.set(k, String(v)),
     removeItem: (k) => void data.delete(k),
@@ -25,34 +27,34 @@ function fakeStorage() {
 let clock = 1_000_000;
 const now = () => clock;
 const HOUR = 3600 * 1000;
-const make = (storage, tabId = 'A', key = 'k') =>
-  createLocalBackup({ key, maxAgeMs: 24 * HOUR, getStorage: () => storage, now, tabId });
+const make = (storage, tabId = 'A', opts = {}) =>
+  createLocalBackup({ key: 'k', maxAgeMs: Infinity, getStorage: () => storage, now, tabId, ...opts });
 
 const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
 
-test('niente copia: nulla da ripristinare', () => {
-  assert.equal(make(fakeStorage()).inspect().status, 'none');
+test('niente copie: nulla da ripristinare', () => {
+  assert.deepEqual(make(fakeStorage()).listCopies(), []);
 });
 
 test('prima di enable() save non scrive (workspace appena aperta)', () => {
   const s = fakeStorage();
-  const b = make(s);
-  assert.equal(b.save('{"x":1}'), 'disabled');
-  assert.equal(s.getItem('k'), null);
+  assert.equal(make(s).save('{"x":1}'), 'disabled');
+  assert.equal(s.length, 0);
 });
 
-test('salva e propone il ripristino alla riapertura', () => {
+test('salva e propone la copia a una scheda successiva', () => {
   const s = fakeStorage();
   const a = make(s);
   a.enable();
-  assert.equal(a.save('{"x":1}'), 'saved');
+  assert.equal(a.save('{"x":1}', { info: { blocks: 3 } }), 'saved');
   assert.equal(a.save('{"x":1}'), 'unchanged');
-  a.release(); // chiusura normale
-  const b = make(s, 'B');
-  const found = b.inspect();
-  assert.equal(found.status, 'restorable');
-  assert.equal(found.record.json, '{"x":1}');
+  assert.deepEqual(a.listCopies(), [], 'la propria copia non si propone a sé stessi');
+  a.release();
+  const copies = make(s, 'B').listCopies();
+  assert.equal(copies.length, 1);
+  assert.equal(copies[0].json, '{"x":1}');
+  assert.equal(copies[0].info.blocks, 3);
 });
 
 test('un programma vuoto non sovrascrive una copia buona', () => {
@@ -61,20 +63,52 @@ test('un programma vuoto non sovrascrive una copia buona', () => {
   a.enable();
   a.save('{"buono":1}');
   assert.equal(a.save('{"vuoto":1}', { isEmpty: true }), 'empty');
-  assert.equal(JSON.parse(s.getItem('k')).json, '{"buono":1}');
+  a.release();
+  assert.equal(make(s, 'B').listCopies()[0].json, '{"buono":1}');
 });
 
-test('rifiuto del ripristino: clear() cancella la copia', () => {
+test('più schede: ognuna ha la sua copia, nessuna sovrascrive le altre', () => {
   const s = fakeStorage();
-  const a = make(s);
-  a.enable();
-  a.save('{"x":1}');
-  a.release();
+  const a = make(s, 'A'); const b = make(s, 'B');
+  a.enable(); b.enable();
+  a.save('{"a":1}'); clock += 1000; b.save('{"b":1}');
+  a.release(); b.release();
+  const copies = make(s, 'C').listCopies();
+  assert.deepEqual(copies.map((c) => c.json), ['{"b":1}', '{"a":1}'], 'dalla più recente');
+});
+
+test('le copie di schede ancora vive non si propongono', () => {
+  const s = fakeStorage();
+  const a = make(s, 'A'); const b = make(s, 'B');
+  a.enable(); b.enable();
+  a.save('{"a":1}');
+  assert.deepEqual(b.listCopies(), []);
+  clock += 30_000; // A non dà più segni di vita (PC spento)
+  assert.equal(b.listCopies().length, 1);
+});
+
+test('riprendere una copia la sposta nella scheda corrente e la toglie dalla lista', () => {
+  const s = fakeStorage();
+  const a = make(s, 'A'); const b = make(s, 'B');
+  a.enable(); b.enable();
+  a.save('{"a":1}'); b.save('{"b":1}');
+  a.release(); b.release();
+  const c = make(s, 'C');
+  const [first, second] = c.listCopies();
+  c.enable();
+  c.adopt(first);
+  assert.deepEqual(c.listCopies().map((x) => x.json), [second.json], 'resta solo l\'altra');
+  c.release();
+  // la copia ripresa vive ora sotto la scheda C
+  assert.deepEqual(make(s, 'D').listCopies().map((x) => x.json).sort(), ['{"a":1}', '{"b":1}']);
+});
+
+test('scartare una copia la cancella', () => {
+  const s = fakeStorage();
+  const a = make(s); a.enable(); a.save('{"x":1}'); a.release();
   const b = make(s, 'B');
-  b.inspect();
-  b.clear();
-  assert.equal(s.getItem('k'), null);
-  assert.equal(make(s, 'C').inspect().status, 'none');
+  b.remove(b.listCopies()[0]);
+  assert.deepEqual(make(s, 'C').listCopies(), []);
 });
 
 test('dopo il salvataggio su file la copia non va ripristinata', () => {
@@ -84,71 +118,68 @@ test('dopo il salvataggio su file la copia non va ripristinata', () => {
   a.save('{"x":1}');
   a.markFileSaved('{"x":1}');
   a.release();
-  assert.equal(make(s, 'B').inspect().status, 'none');
-  // ...ma una modifica successiva sì
+  assert.deepEqual(make(s, 'B').listCopies(), []);
   const c = make(s, 'C');
-  c.enable();
-  c.save('{"x":2}');
-  c.release();
-  assert.equal(make(s, 'D').inspect().status, 'restorable');
+  c.enable(); c.save('{"x":2}'); c.release();
+  assert.equal(make(s, 'D').listCopies().length, 1);
 });
 
-test('la copia scade', () => {
+test('la copia scade, se è impostata una scadenza', () => {
   const s = fakeStorage();
-  const a = make(s);
-  a.enable();
-  a.save('{"x":1}');
-  a.release();
+  const a = make(s, 'A', { maxAgeMs: 24 * HOUR });
+  a.enable(); a.save('{"x":1}'); a.release();
   clock += 25 * HOUR;
-  assert.equal(make(s, 'B').inspect().status, 'none');
-  assert.equal(s.getItem('k'), null, 'la copia scaduta viene cancellata');
+  assert.deepEqual(make(s, 'B', { maxAgeMs: 24 * HOUR }).listCopies(), []);
+  assert.equal(s.length, 0, 'la copia scaduta viene cancellata');
   clock -= 25 * HOUR;
 });
 
-test('due schede: la seconda non salva e non propone ripristini', () => {
+test('senza scadenza (Infinity) la copia resta per sempre', () => {
   const s = fakeStorage();
-  const a = make(s, 'A');
-  a.enable();
-  a.save('{"x":1}');
-  const b = make(s, 'B');
-  assert.equal(b.inspect().status, 'other-tab');
-  b.enable();
-  assert.equal(b.save('{"y":2}'), 'other-tab');
-  assert.equal(JSON.parse(s.getItem('k')).json, '{"x":1}');
-  a.release(); // la prima scheda si chiude
-  assert.equal(b.save('{"y":2}'), 'saved');
+  const a = make(s); a.enable(); a.save('{"x":1}'); a.release();
+  clock += 1000 * 24 * HOUR;
+  assert.equal(make(s, 'B').listCopies().length, 1);
+  clock -= 1000 * 24 * HOUR;
 });
 
-test('scheda caduta senza release: dopo un po\' il posto si libera', () => {
+test('al massimo maxCopies copie: restano le più recenti', () => {
   const s = fakeStorage();
-  const a = make(s, 'A');
-  a.enable();
-  a.save('{"x":1}');
-  clock += 30_000;
-  assert.equal(make(s, 'B').inspect().status, 'restorable');
+  for (let i = 0; i < 7; i++) {
+    const t = make(s, `T${i}`);
+    t.enable(); t.save(`{"n":${i}}`); t.release();
+    clock += 1000;
+  }
+  const copies = make(s, 'Z', { maxCopies: 5 }).listCopies();
+  assert.deepEqual(copies.map((c) => c.json), ['{"n":6}', '{"n":5}', '{"n":4}', '{"n":3}', '{"n":2}']);
+  assert.equal(s.length, 5 + 0, 'le altre sono state cancellate');
+});
+
+test('copia della versione 1.7.0 (chiave senza scheda) ancora riprendibile', () => {
+  const s = fakeStorage();
+  s.setItem('k', JSON.stringify({ v: 1, savedAt: clock, hash: 'a', fileHash: null, json: '{"vecchia":1}' }));
+  assert.equal(make(s).listCopies()[0].json, '{"vecchia":1}');
 });
 
 test('storage assente o che lancia: nessuna eccezione', () => {
-  const broken = createLocalBackup({ key: 'k', maxAgeMs: HOUR, getStorage: () => { throw new Error('no'); }, now });
-  assert.equal(broken.inspect().status, 'unavailable');
+  const broken = createLocalBackup({ key: 'k', getStorage: () => { throw new Error('no'); }, now });
+  assert.equal(broken.available(), false);
+  assert.deepEqual(broken.listCopies(), []);
   broken.enable();
   assert.equal(broken.save('{}'), 'error');
-  broken.clear();
-  broken.release();
-  const full = { getItem: () => null, setItem: () => { throw new Error('quota'); }, removeItem() {} };
-  const b = createLocalBackup({ key: 'k', maxAgeMs: HOUR, getStorage: () => full, now });
+  broken.remove(); broken.release();
+  const full = { length: 0, key: () => null, getItem: () => null, setItem: () => { throw new Error('quota'); }, removeItem() {} };
+  const b = createLocalBackup({ key: 'k', getStorage: () => full, now });
   b.enable();
   assert.equal(b.save('{}'), 'error');
 });
 
 test('chiavi distinte non si toccano (riuso per la verifica)', () => {
   const s = fakeStorage();
-  const a = make(s, 'A', 'lavoro');
-  const v = make(s, 'A', 'verifica');
+  const a = make(s, 'A'); const v = createLocalBackup({ key: 'verifica', getStorage: () => s, now, tabId: 'A' });
   a.enable(); v.enable();
   a.save('{"a":1}'); v.save('{"v":1}');
-  a.clear();
-  assert.equal(JSON.parse(s.getItem('verifica')).json, '{"v":1}');
+  a.release(); v.release();
+  assert.deepEqual(make(s, 'B').listCopies().map((c) => c.json), ['{"a":1}']);
 });
 
 test('debounce: una sola esecuzione, flush solo se in attesa', async () => {

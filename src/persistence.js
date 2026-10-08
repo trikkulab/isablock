@@ -36,8 +36,8 @@ export function saveWorkspaceToFile(Blockly, workspace, filename = 'programma-a-
 // (Chrome/Edge): dove manca, il chiamante ripiega su saveWorkspaceToFile.
 export const hasNativeSavePicker = typeof window !== 'undefined' && 'showSaveFilePicker' in window;
 
-// Restituisce true se il file è stato scritto, false se lo studente ha
-// annullato la finestra (non è un errore).
+// Restituisce il nome del file scritto, false se lo studente ha annullato
+// la finestra (non è un errore).
 export async function saveWorkspaceWithPicker(Blockly, workspace, suggestedName) {
   let handle;
   try {
@@ -52,7 +52,7 @@ export async function saveWorkspaceWithPicker(Blockly, workspace, suggestedName)
   const writable = await handle.createWritable();
   await writable.write(serializeWorkspace(Blockly, workspace));
   await writable.close();
-  return true;
+  return handle.name || true;
 }
 
 export function loadWorkspaceFromFile(Blockly, workspace, file) {
