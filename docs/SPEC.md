@@ -121,18 +121,22 @@ Lo studente deve poter salvare il proprio lavoro e riprenderlo in una sessione
 successiva, senza account né server: va bene un file scaricabile che poi si può
 ricaricare (formato a scelta dell'implementazione).
 
-**Copia automatica locale (dalla v1.7.0).** Oltre al file, l'app tiene nel
+**Copia automatica locale (dalla v1.8.0).** Oltre al file, l'app tiene nel
 `localStorage` del browser una copia del programma (stesso JSON del file, con
 `formatVersion`), aggiornata dopo ogni modifica e alla chiusura della pagina,
-per non perdere il lavoro se la finestra si chiude per errore. Regole: all'apertura,
-se la copia differisce dall'ultimo file salvato, l'app **chiede** se riprenderla
-(mai ripristino silenzioso; rifiutare cancella la copia); un programma vuoto non
-sovrascrive mai una copia esistente; la copia scade dopo
-`appConfig.autosaveMaxAgeHours` (24 h) e si cancella con "Nuovo" o col pulsante
-"Cancella copia" (PC condivisi); con più schede aperte salva solo una (le altre
-sono in pausa e lo segnalano). Non sostituisce il salvataggio su file. Il modulo
-`src/local-backup.js` non dipende da Blockly e usa una chiave configurabile, per
-poter servire anche da backup di una futura modalità verifica.
+per non perdere il lavoro se la finestra si chiude per errore. Regole:
+- ogni scheda scrive la propria copia (nessuna sovrascrive le altre); all'apertura
+  l'app **chiede** quale riprendere, mostrando per ciascuna l'orario, il numero
+  di blocchi, le prime istruzioni e il nome del file (mai ripristino silenzioso);
+- le copie non riprese restano nell'elenco (riapribile dal piè di pagina) e spariscono
+  man mano che vengono riprese o eliminate; se ne tengono al massimo 5, le più recenti;
+- una copia uguale all'ultimo file salvato non si propone; un programma vuoto non
+  scrive mai sulla copia;
+- la copia non scade (`appConfig.autosaveMaxAgeHours` è `null`; con un numero di ore
+  scade) e si cancella con "Nuovo" o con "Cancella copia".
+Non sostituisce il salvataggio su file. Il modulo `src/local-backup.js` non dipende
+da Blockly e usa una chiave configurabile, per poter servire anche da backup di una
+futura modalità verifica.
 
 ## Fuori scope per la Fase 1
 
