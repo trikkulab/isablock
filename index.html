@@ -94,9 +94,27 @@
     </div>
   </main>
 
-  <footer class="app-footer">IsaBlock v<span id="appVersion"></span> &mdash; realizzato da Ivan Piasini con il supporto di Claude Code</footer>
+  <footer class="app-footer">
+    IsaBlock v<span id="appVersion"></span> &mdash; realizzato da Ivan Piasini con il supporto di Claude Code
+    <span class="autosave-info">
+      <span id="autosaveStatus"></span>
+      <button id="btnClearCopy" type="button" class="footer-link" hidden>Cancella copia</button>
+    </span>
+  </footer>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <div id="restoreModal" class="modal" hidden>
+    <div class="modal-box">
+      <h2>Riprendere il lavoro?</h2>
+      <p>Su questo computer c'è un programma che non hai salvato in un file, modificato <strong id="restoreWhen"></strong>.</p>
+      <p>Se è tuo, riprendilo. Se non lo riconosci, ricomincia da capo: la copia verrà cancellata.</p>
+      <div class="modal-actions">
+        <button id="restoreNoBtn" class="modal-btn secondary" type="button">Ricomincia da capo</button>
+        <button id="restoreYesBtn" class="modal-btn primary" type="button">Riprendi il lavoro</button>
+      </div>
+    </div>
+  </div>
 
   <div id="welcomeModal" class="modal" hidden>
     <div class="modal-box">
