@@ -975,3 +975,16 @@ body {
 .cloud-name { font-weight: 600; }
 .cloud-badge { padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.8rem; background: #e2e8f0; color: #1e293b; }
 .cloud-badge[data-ruolo="docente"] { background: #fde68a; color: #78350f; }
+.cloud-sketch { display: inline-flex; align-items: center; gap: 0.4rem; }
+.cloud-sketch[hidden] { display: none; }
+
+/* --- Sketch personali nel cloud --- */
+.sketch-nota { margin: 0 0 0.8rem; color: var(--text-muted, #475569); }
+.sketch-nome { width: 100%; box-sizing: border-box; padding: 0.5rem 0.7rem; font-size: 1rem; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.2rem; }
+.sketch-riga { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; padding: 0.6rem 0; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.sketch-info { display: flex; flex-direction: column; min-width: 0; }
+.sketch-info strong { overflow-wrap: anywhere; }
+.sketch-data { font-size: 0.8rem; color: var(--text-muted, #64748b); }
+.sketch-aperto { font-weight: 400; color: var(--accent); }
+.sketch-azioni { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.sketch-azioni .modal-btn { padding: 0.35rem 0.8rem; }

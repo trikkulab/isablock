@@ -458,11 +458,28 @@ function startupNews() {
 document.getElementById('appVersion').textContent = appConfig.version;
 
 // Strato cloud opzionale: con l'interruttore spento non si importa nulla.
+let cloudUi = null; // lo sketch cloud aperto va "scollegato" quando il programma viene sostituito
 if (appConfig.cloud.enabled) {
-  import('./cloud/ui.js').then((m) => m.montaCloud({
-    contenitore: document.getElementById('cloudBox'),
-    toast: showToast,
-  }));
+  import('./cloud/ui.js').then((m) => {
+    cloudUi = m.montaCloud({
+      contenitore: document.getElementById('cloudBox'),
+      toast: showToast,
+      // Il cloud vede il programma solo attraverso queste quattro funzioni.
+      programma: {
+        corrente: () => serializeWorkspace(Blockly, workspace),
+        isVuoto: () => isWorkspaceBlank(workspace),
+        occupato: () => execGenerator !== null,
+        carica: (json) => {
+          // Stessa strada del caricamento da file: controllo versione e migrazioni.
+          loadWorkspaceState(Blockly, workspace, JSON.parse(json));
+          enforceProgramBlock();
+          updateOutputs();
+          resetRunStrip();
+          currentFileName = null;
+        },
+      },
+    });
+  });
 }
 
 // --- Copia automatica: stato, ripristino, cancellazione -------------------
@@ -596,6 +613,7 @@ function restoreCopy(copy) {
   enforceProgramBlock();
   updateOutputs();
   currentFileName = copy.info?.fileName ?? null;
+  cloudUi?.scollega();
   resetRunStrip();
   localBackup.adopt(copy); // passa a questa scheda e sparisce dall'elenco
   reportAutosave('saved');
@@ -655,6 +673,7 @@ document.getElementById('btnNew').addEventListener('click', () => {
   autosaver.cancel();
   localBackup.remove(); // la copia di questa scheda
   currentFileName = null;
+  cloudUi?.scollega();
   workspace.clear();
   enforceProgramBlock();
   updateOutputs();
@@ -708,6 +727,7 @@ fileInput.addEventListener('change', () => {
       updateOutputs();
       resetRunStrip();
       currentFileName = file.name;
+      cloudUi?.scollega();
       markSavedToFile();
       showToast('Programma caricato', 'success');
     })
@@ -760,6 +780,7 @@ exampleSelect.addEventListener('change', () => {
   enforceProgramBlock();
   updateOutputs();
   resetRunStrip();
+  cloudUi?.scollega();
   showToast(`Esempio "${example.title}" caricato`, 'success');
 });
 

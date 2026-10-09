@@ -2,6 +2,8 @@
 // Firebase: carica il resto del cloud (src/cloud/index.js) solo al clic su
 // "Accedi", oppure al ricaricamento se l'utente era già entrato.
 
+import { montaSketch } from './sketch-ui.js';
+
 const SESSIONE_KEY = 'isablock.cloud.sessione';
 
 function memo(valore) {
@@ -14,7 +16,7 @@ function eraEntrato() {
   try { return window.localStorage.getItem(SESSIONE_KEY) === '1'; } catch { return false; }
 }
 
-export function montaCloud({ contenitore, toast }) {
+export function montaCloud({ contenitore, toast, programma }) {
   contenitore.hidden = false;
   contenitore.textContent = '';
 
@@ -34,7 +36,10 @@ export function montaCloud({ contenitore, toast }) {
   btnEsci.type = 'button';
   btnEsci.textContent = 'Esci';
   info.append(nome, badge, btnEsci);
-  contenitore.append(btnAccedi, info);
+  const sketchBox = document.createElement('span');
+  sketchBox.className = 'cloud-sketch';
+  contenitore.append(btnAccedi, info, sketchBox);
+  const sketchUi = montaSketch({ contenitore: sketchBox, toast, programma });
 
   let cloud = null;
   let caricamento = null;
@@ -49,8 +54,10 @@ export function montaCloud({ contenitore, toast }) {
       badge.textContent = utente.ruolo === 'docente' ? 'Docente' : 'Studente';
       badge.dataset.ruolo = utente.ruolo;
       memo(true);
+      sketchUi.entra(cloud.sketchPer(utente.uid));
     } else {
       memo(false);
+      sketchUi.esci();
     }
     if (errore) toast(errore.message, 'error');
   }
@@ -99,4 +106,6 @@ export function montaCloud({ contenitore, toast }) {
 
   // Ripristino della sessione: solo se l'utente era già entrato in passato.
   if (eraEntrato()) carica().catch(() => memo(false));
+
+  return { scollega: () => sketchUi.scollega() };
 }

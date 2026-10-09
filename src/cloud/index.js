@@ -5,6 +5,7 @@
 import { caricaConfig } from './env.js';
 import { avviaFirebase } from './firebase-client.js';
 import { creaAuth } from './auth.js';
+import { creaSketch } from './sketch.js';
 
 export async function avviaCloud() {
   const config = await caricaConfig();
@@ -21,5 +22,9 @@ export async function avviaCloud() {
   // getRedirectResult(), che qui non serve per il risultato ma per l'attesa.
   await client.auth.authStateReady();
   await client.sdk.getRedirectResult(client.auth).catch(() => {});
-  return { ambiente: config.ambiente, auth: creaAuth(client, config) };
+  return {
+    ambiente: config.ambiente,
+    auth: creaAuth(client, config),
+    sketchPer: (uid) => creaSketch(client, uid),
+  };
 }

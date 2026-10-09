@@ -1,7 +1,7 @@
 # Cloud (opzionale): autenticazione
 
-Stato: **solo accesso e ruolo** (studente/docente). Sketch in cloud, corsi e verifica
-non esistono ancora. Le decisioni di fondo sono nella nota di progetto
+Stato: **accesso, ruolo (studente/docente) e sketch personali**. Condivisione col
+docente, corsi e verifica non esistono ancora. Le decisioni di fondo sono nella nota di progetto
 "cloud e verifica live"; qui c'è ciò che serve per usare e mantenere il codice.
 
 ## Principi
@@ -88,6 +88,31 @@ git, **da ricreare su un'altra macchina**):
 
 Il file locale sovrascrive, per ambiente, i campi che contiene. Senza, `emailProva`
 è vuota: le regole dev ammettono solo il dominio.
+
+## Sketch personali
+
+Dopo il login compaiono «☁ Salva» e «☁ I miei sketch» nella toolbar.
+
+- **Salva**: propone un nome a caso (animale-aggettivo, es. `pangolino-ridente`,
+  `src/cloud/nomi.js`), modificabile. Se si sta lavorando su uno sketch aperto
+  dal cloud offre «Aggiorna» oppure «Salva come nuovo»; altrimenti crea un nuovo
+  sketch. Nomi uguali sono ammessi (si distinguono dalla data).
+- **I miei sketch**: elenco con data di modifica; Apri, Rinomina, Elimina. Aprire
+  chiede conferma se c'è un programma in corso. Nuovo / apri file / esempio
+  "scollegano" lo sketch aperto, così «Salva» non lo sovrascrive per errore.
+- **Nessun salvataggio automatico nel cloud**: solo su richiesta. L'autosave
+  resta quello locale (`src/local-backup.js`).
+- **Dati**: `sketch/<uid>_<n>`, n da 0 a 49, con `proprietarioUid`, `nome`
+  (max 60), `creato`, `modificato` (ora del server) e `programma` (testo JSON
+  uguale al file di «Salva», max 200000 caratteri). L'id deterministico è il tetto
+  di **50 sketch per persona**, imposto dalle regole senza Cloud Functions; una
+  scrittura su un id occupato viene rifiutata, quindi due schede non si
+  sovrascrivono.
+- **Regole**: solo il proprietario legge, scrive ed elimina; nessun altro,
+  docente compreso. Anche i docenti hanno sketch personali con le stesse regole.
+  La condivisione esplicita col docente della classe è un passo successivo.
+- Codice: `src/cloud/sketch.js` (dati), `src/cloud/sketch-ui.js` (interfaccia, non
+  conosce Blockly: riceve da `main.js` solo `corrente/isVuoto/occupato/carica`).
 
 ## Sviluppo e test
 
