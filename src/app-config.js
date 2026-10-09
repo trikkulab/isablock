@@ -17,4 +17,10 @@ export const appConfig = Object.freeze({
   // scade mai: resta finché non si cancella ("Nuovo", "Cancella copia" o
   // rifiuto del ripristino). Scelta organizzativa: si cambia qui.
   autosaveMaxAgeHours: null,
+
+  // Strato cloud OPZIONALE (accesso con l'account della scuola; vedi
+  // docs/CLOUD.md). Con enabled: false l'app è identica a prima: non compare
+  // il pulsante "Accedi" e non si carica nulla da src/cloud/ né da
+  // vendor/firebase/.
+  cloud: Object.freeze({ enabled: false }),
 });

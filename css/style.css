@@ -967,3 +967,11 @@ body {
     display: none;
   }
 }
+
+/* --- Cloud (opzionale: visibile solo con appConfig.cloud.enabled) --- */
+.cloud-box { display: inline-flex; align-items: center; gap: 0.5rem; }
+.cloud-box[hidden], .cloud-user[hidden] { display: none; }
+.cloud-user { display: inline-flex; align-items: center; gap: 0.4rem; }
+.cloud-name { font-weight: 600; }
+.cloud-badge { padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.8rem; background: #e2e8f0; color: #1e293b; }
+.cloud-badge[data-ruolo="docente"] { background: #fde68a; color: #78350f; }

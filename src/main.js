@@ -457,6 +457,14 @@ function startupNews() {
 // La versione ha una sola fonte (app-config.js): il piè di pagina la legge da lì.
 document.getElementById('appVersion').textContent = appConfig.version;
 
+// Strato cloud opzionale: con l'interruttore spento non si importa nulla.
+if (appConfig.cloud.enabled) {
+  import('./cloud/ui.js').then((m) => m.montaCloud({
+    contenitore: document.getElementById('cloudBox'),
+    toast: showToast,
+  }));
+}
+
 // --- Copia automatica: stato, ripristino, cancellazione -------------------
 const autosaveStatus = document.getElementById('autosaveStatus');
 const btnClearCopy = document.getElementById('btnClearCopy');
