@@ -6,6 +6,7 @@ import { caricaConfig } from './env.js';
 import { avviaFirebase } from './firebase-client.js';
 import { creaAuth } from './auth.js';
 import { creaSketch } from './sketch.js';
+import { creaCorsi } from './corsi.js';
 
 export async function avviaCloud() {
   const config = await caricaConfig();
@@ -26,5 +27,6 @@ export async function avviaCloud() {
     ambiente: config.ambiente,
     auth: creaAuth(client, config),
     sketchPer: (uid) => creaSketch(client, uid),
+    corsiPer: (email, ruolo) => creaCorsi(client, email, ruolo),
   };
 }

@@ -8,40 +8,11 @@
 //   programma.carica(json)-> sostituisce il programma (lancia se non leggibile)
 import { nomeCasuale } from './nomi.js';
 import { MAX_SKETCH } from './sketch.js';
+import { el, apriFinestra } from './dom.js';
 
 const formatoData = new Intl.DateTimeFormat('it-IT', {
   day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
 });
-
-function el(tag, attrs = {}, ...figli) {
-  const e = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (k === 'class') e.className = v;
-    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
-    else e.setAttribute(k, v);
-  }
-  e.append(...figli);
-  return e;
-}
-
-// Finestra modale semplice, costruita sulle classi .modal già usate dall'app.
-function apriFinestra(titolo, onChiudi) {
-  const corpo = el('div');
-  const box = el('div', { class: 'modal-box wide sketch-box' },
-    el('button', { class: 'modal-close', type: 'button', 'aria-label': 'Chiudi', onclick: () => chiudi() }, '✕'),
-    el('h2', {}, titolo),
-    corpo);
-  const modale = el('div', { class: 'modal', onmousedown: (ev) => { if (ev.target === modale) chiudi(); } }, box);
-  const tasti = (ev) => { if (ev.key === 'Escape') chiudi(); };
-  function chiudi() {
-    document.removeEventListener('keydown', tasti);
-    modale.remove();
-    onChiudi?.();
-  }
-  document.addEventListener('keydown', tasti);
-  document.body.append(modale);
-  return { corpo, chiudi };
-}
 
 export function montaSketch({ contenitore, toast, programma }) {
   let sketch = null;     // oggetto di sketch.js, valido solo da loggati

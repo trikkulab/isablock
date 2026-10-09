@@ -3,6 +3,7 @@
 // "Accedi", oppure al ricaricamento se l'utente era già entrato.
 
 import { montaSketch } from './sketch-ui.js';
+import { montaCorsi } from './corsi-ui.js';
 
 const SESSIONE_KEY = 'isablock.cloud.sessione';
 
@@ -38,7 +39,10 @@ export function montaCloud({ contenitore, toast, programma }) {
   info.append(nome, badge, btnEsci);
   const sketchBox = document.createElement('span');
   sketchBox.className = 'cloud-sketch';
-  contenitore.append(btnAccedi, info, sketchBox);
+  const corsiBox = document.createElement('span');
+  corsiBox.className = 'cloud-corsi';
+  contenitore.append(btnAccedi, info, sketchBox, corsiBox);
+  const corsiUi = montaCorsi({ contenitore: corsiBox, toast });
   const sketchUi = montaSketch({ contenitore: sketchBox, toast, programma });
 
   let cloud = null;
@@ -55,9 +59,11 @@ export function montaCloud({ contenitore, toast, programma }) {
       badge.dataset.ruolo = utente.ruolo;
       memo(true);
       sketchUi.entra(cloud.sketchPer(utente.uid));
+      corsiUi.entra(cloud.corsiPer(utente.email, utente.ruolo), utente.ruolo);
     } else {
       memo(false);
       sketchUi.esci();
+      corsiUi.esci();
     }
     if (errore) toast(errore.message, 'error');
   }

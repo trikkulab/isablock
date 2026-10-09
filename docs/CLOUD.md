@@ -1,7 +1,8 @@
 # Cloud (opzionale): autenticazione
 
-Stato: **accesso, ruolo (studente/docente) e sketch personali**. Condivisione col
-docente, corsi e verifica non esistono ancora. Le decisioni di fondo sono nella nota di progetto
+Stato: **accesso, ruolo (studente/docente), sketch personali, corsi con iscrizione
+con codice**. La condivisione degli sketch col docente e la verifica non esistono
+ancora. Le decisioni di fondo sono nella nota di progetto
 "cloud e verifica live"; qui c'è ciò che serve per usare e mantenere il codice.
 
 ## Principi
@@ -113,6 +114,51 @@ Dopo il login compaiono «☁ Salva» e «☁ I miei sketch» nella toolbar.
   La condivisione esplicita col docente della classe è un passo successivo.
 - Codice: `src/cloud/sketch.js` (dati), `src/cloud/sketch-ui.js` (interfaccia, non
   conosce Blockly: riceve da `main.js` solo `corrente/isVuoto/occupato/carica`).
+
+## Corsi e iscrizioni
+
+I corsi si creano e si gestiscono **da console Firestore** (nessun pannello docente
+per ora: con poche classi non serve). L'app permette solo di iscriversi con il codice
+e di leggere i propri corsi («🎓 Corsi» nella toolbar).
+
+**Creare un corso.** `npm run codice` stampa un codice casuale (Crockford Base32, 6
+caratteri: niente I L O U; `npm run codice -- 5` ne dà cinque da scegliere). In
+console: collezione `corsi` → documento con **ID = il codice** e i campi:
+
+| Campo | Esempio | Note |
+|---|---|---|
+| `materia` | `Informatica` | |
+| `classe` | `3AINF` | testo libero (come `classeId` in isaquiz) |
+| `annoScolastico` | `2026/27` | |
+| `docenti` | array di email (minuscole) | titolare e codocenti: per aggiungerne uno si aggiunge l'email |
+| `iscrizioniAperte` | boolean | `true`: gli studenti si iscrivono col codice; `false`: solo a mano |
+| `attivo` | boolean | `false` = archiviato (sparisce dagli elenchi); meglio che cancellare |
+| `nome` | `Laboratorio TPSIT` | facoltativo; se manca si mostra «materia – classe (anno)» |
+
+L'ID del corso è anche il suo codice, quindi **non si cambia**: per fermare nuovi
+ingressi si mette `iscrizioniAperte: false`.
+
+**Iscrizioni.** `iscrizioni/<CODICE>_<email minuscola>` con `corsoId` ed `email`.
+- *Con il codice*: lo studente lo digita e il documento lo crea l'app. Le regole lo
+  accettano solo se il corso esiste, è attivo e ha le iscrizioni aperte. Codice
+  sbagliato, corso chiuso o archiviato danno lo stesso messaggio (non si rivela quali
+  codici esistono). Il codice si scrive come capita: `ab-12 cd` vale `AB12CD`
+  (maiuscolo, I/L→1, O→0, il resto scartato).
+- *A mano (anche a corso chiuso)*: crea il documento con ID `<CODICE>_<email>`
+  (es. `AB12CD_nome.cognome@isarome.it`) e i campi `corsoId` (il codice) ed `email`.
+  Funziona anche per chi non ha mai fatto login.
+- *Togliere uno studente*: cancella il suo documento in `iscrizioni`. Perde subito
+  l'accesso al corso. Lo studente non può uscire da solo.
+- Uno studente può essere in più corsi. **Un docente** (chi ha un documento in
+  `docenti`) non si iscrive mai come studente, a nessun corso: le regole lo vietano e
+  l'app non gli mostra il campo del codice. Per provare l'app «da studente» serve un
+  account che non sia in `docenti`.
+
+**Chi vede cosa.** Il corso lo legge chi è tra i suoi `docenti` o ha l'iscrizione;
+ognuno vede solo le **proprie** iscrizioni. Nessuno scrive corsi dall'app.
+Il docente vede nell'elenco anche il codice e se le iscrizioni sono aperte.
+
+Codice: `src/cloud/corsi.js` (dati e codice), `src/cloud/corsi-ui.js` (interfaccia).
 
 ## Sviluppo e test
 
