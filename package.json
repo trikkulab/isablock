@@ -15,6 +15,6 @@
     "deploy:rules:scuola": "node scripts/deploy-rules.mjs scuola",
     "vendor:firebase": "node scripts/bundle-firebase.mjs",
     "emulators": "node scripts/emulators.mjs",
-    "test:cloud": "node scripts/build-rules.mjs test && firebase emulators:exec --only firestore --project demo-isablock \"node --test test/cloud/\""
+    "test:cloud": "node scripts/build-rules.mjs test && firebase emulators:exec --only firestore --project demo-isablock \"node --test --test-concurrency=1 test/cloud/\""
   }
 }

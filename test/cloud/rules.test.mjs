@@ -102,7 +102,7 @@ test('profilo: il client non può scrivere ruolo né altri campi', async () => {
 
 test('collezioni non previste sono negate', async () => {
   const d = utente('d', 'docente@isarome.it');
-  await assertFails(setDoc(doc(d, 'sketch/1'), { x: 1 }));
+  await assertFails(setDoc(doc(d, 'altro/1'), { x: 1 }));
   await assertFails(getDoc(doc(d, 'corsi/1')));
 });
 
@@ -110,4 +110,121 @@ test('ambiente test: la email di prova è ammessa, un\'altra fuori dominio no', 
   const p = utente('p', 'prova@example.com');
   await assertSucceeds(setDoc(doc(p, 'utenti/p'), { email: 'prova@example.com', nome: 'P', cognome: '' }));
   await assertFails(setDoc(doc(utente('q', 'altra@example.com'), 'utenti/q'), { email: 'altra@example.com', nome: 'Q', cognome: '' }));
+});
+
+// ── Sketch personali ──────────────────────────────────────────────────────
+import { serverTimestamp, updateDoc, query, where, Timestamp } from 'firebase/firestore';
+
+const sketch = (uid, extra = {}) => ({
+  proprietarioUid: uid,
+  nome: 'pangolino-ridente',
+  creato: serverTimestamp(),
+  modificato: serverTimestamp(),
+  programma: '{"formatVersion":6,"blocks":{}}',
+  ...extra,
+});
+const mio = (uid = 's', email = 'alunno@isarome.it') => utente(uid, email);
+
+test('sketch: creazione valida sul proprio id <uid>_<n>', async () => {
+  const db = mio();
+  await assertSucceeds(setDoc(doc(db, 'sketch/s_0'), sketch('s')));
+  await assertSucceeds(setDoc(doc(db, 'sketch/s_49'), sketch('s')));
+});
+
+test('sketch: tetto di 50 (id fuori da 0..49, o non del proprietario)', async () => {
+  const db = mio();
+  await assertFails(setDoc(doc(db, 'sketch/s_50'), sketch('s')));
+  await assertFails(setDoc(doc(db, 'sketch/s_100'), sketch('s')));
+  await assertFails(setDoc(doc(db, 'sketch/s_-1'), sketch('s')));
+  await assertFails(setDoc(doc(db, 'sketch/s_05'), sketch('s')));
+  await assertFails(setDoc(doc(db, 'sketch/qualsiasi'), sketch('s')));
+  await assertFails(setDoc(doc(db, 'sketch/altro_0'), sketch('s')));
+  await assertFails(setDoc(doc(db, 'sketch/s_0x'), sketch('s')));
+});
+
+test('sketch: proprietarioUid deve essere il proprio', async () => {
+  await assertFails(setDoc(doc(mio(), 'sketch/s_0'), sketch('altro')));
+  await assertFails(setDoc(doc(mio(), 'sketch/altro_0'), sketch('altro')));
+});
+
+test('sketch: forma e tetti (campi extra/mancanti, nome, programma)', async () => {
+  const db = mio();
+  await assertFails(setDoc(doc(db, 'sketch/s_0'), sketch('s', { extra: 1 })));
+  const { nome, ...senzaNome } = sketch('s');
+  await assertFails(setDoc(doc(db, 'sketch/s_0'), senzaNome));
+  await assertFails(setDoc(doc(db, 'sketch/s_0'), sketch('s', { nome: '' })));
+  await assertFails(setDoc(doc(db, 'sketch/s_0'), sketch('s', { nome: 'x'.repeat(61) })));
+  await assertSucceeds(setDoc(doc(db, 'sketch/s_0'), sketch('s', { nome: 'x'.repeat(60) })));
+  await assertFails(setDoc(doc(db, 'sketch/s_1'), sketch('s', { programma: '' })));
+  await assertFails(setDoc(doc(db, 'sketch/s_1'), sketch('s', { programma: 'a'.repeat(200001) })));
+  await assertFails(setDoc(doc(db, 'sketch/s_1'), sketch('s', { programma: { blocks: [] } })));
+  await assertSucceeds(setDoc(doc(db, 'sketch/s_1'), sketch('s', { programma: 'a'.repeat(200000) })));
+});
+
+test('sketch: creato e modificato devono essere l\'ora del server', async () => {
+  const db = mio();
+  const ieri = Timestamp.fromMillis(Date.now() - 86400000);
+  await assertFails(setDoc(doc(db, 'sketch/s_0'), sketch('s', { creato: ieri })));
+  await assertFails(setDoc(doc(db, 'sketch/s_0'), sketch('s', { modificato: ieri })));
+});
+
+test('sketch: solo il proprietario legge, anche un docente non vede quelli altrui', async () => {
+  await setDoc(doc(mio(), 'sketch/s_0'), sketch('s'));
+  await assertSucceeds(getDoc(doc(mio(), 'sketch/s_0')));
+  await assertFails(getDoc(doc(utente('t', 'altro@isarome.it'), 'sketch/s_0')));
+  await assertFails(getDoc(doc(utente('d', 'docente@isarome.it'), 'sketch/s_0')));
+  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'sketch/s_0')));
+});
+
+test('sketch: elenco dei propri sì, di tutti o di un altro no', async () => {
+  await setDoc(doc(mio(), 'sketch/s_0'), sketch('s'));
+  await setDoc(doc(utente('t', 'altro@isarome.it'), 'sketch/t_0'), sketch('t'));
+  const snap = await assertSucceeds(getDocs(query(collection(mio(), 'sketch'), where('proprietarioUid', '==', 's'))));
+  if (snap.size !== 1) throw new Error(`attesi 1 sketch, trovati ${snap.size}`);
+  await assertFails(getDocs(collection(mio(), 'sketch')));
+  await assertFails(getDocs(query(collection(mio(), 'sketch'), where('proprietarioUid', '==', 't'))));
+});
+
+test('sketch: modifica solo del proprietario, creato fisso, modificato = ora server', async () => {
+  const db = mio();
+  await setDoc(doc(db, 'sketch/s_0'), sketch('s'));
+  await assertSucceeds(updateDoc(doc(db, 'sketch/s_0'), { nome: 'nuovo nome', modificato: serverTimestamp() }));
+  await assertSucceeds(updateDoc(doc(db, 'sketch/s_0'), { programma: '{"a":1}', modificato: serverTimestamp() }));
+  // senza aggiornare modificato -> rifiutato
+  await assertFails(updateDoc(doc(db, 'sketch/s_0'), { nome: 'senza data' }));
+  await assertFails(updateDoc(doc(db, 'sketch/s_0'), { modificato: Timestamp.fromMillis(1) }));
+  await assertFails(updateDoc(doc(db, 'sketch/s_0'), { creato: serverTimestamp(), modificato: serverTimestamp() }));
+  await assertFails(updateDoc(doc(db, 'sketch/s_0'), { proprietarioUid: 'altro', modificato: serverTimestamp() }));
+  await assertFails(updateDoc(doc(db, 'sketch/s_0'), { extra: 1, modificato: serverTimestamp() }));
+  // altri: no
+  await assertFails(updateDoc(doc(utente('t', 'altro@isarome.it'), 'sketch/s_0'), { nome: 'rubato', modificato: serverTimestamp() }));
+  await assertFails(updateDoc(doc(utente('d', 'docente@isarome.it'), 'sketch/s_0'), { nome: 'rubato', modificato: serverTimestamp() }));
+});
+
+test('sketch: una "creazione" su un id occupato non sovrascrive (due schede)', async () => {
+  const db = mio();
+  await setDoc(doc(db, 'sketch/s_0'), sketch('s', { nome: 'originale' }));
+  await assertFails(setDoc(doc(db, 'sketch/s_0'), sketch('s', { nome: 'sovrascritto' })));
+  const snap = await getDoc(doc(db, 'sketch/s_0'));
+  if (snap.data().nome !== 'originale') throw new Error('sovrascritto');
+});
+
+test('sketch: eliminazione solo del proprietario; poi lo slot si riusa', async () => {
+  const db = mio();
+  await setDoc(doc(db, 'sketch/s_0'), sketch('s'));
+  await assertFails(deleteDoc(doc(utente('t', 'altro@isarome.it'), 'sketch/s_0')));
+  await assertFails(deleteDoc(doc(utente('d', 'docente@isarome.it'), 'sketch/s_0')));
+  await assertSucceeds(deleteDoc(doc(db, 'sketch/s_0')));
+  await assertSucceeds(setDoc(doc(db, 'sketch/s_0'), sketch('s')));
+});
+
+test('sketch: account non ammesso (dominio, email non verificata) rifiutato', async () => {
+  await assertFails(setDoc(doc(utente('f', 'x@gmail.com'), 'sketch/f_0'), sketch('f')));
+  await assertFails(setDoc(doc(utente('u', 'alunno@isarome.it', false), 'sketch/u_0'), sketch('u')));
+});
+
+test('sketch: anche un docente salva i propri con le stesse regole', async () => {
+  const d = utente('d', 'docente@isarome.it');
+  await assertSucceeds(setDoc(doc(d, 'sketch/d_0'), sketch('d')));
+  await assertSucceeds(getDoc(doc(d, 'sketch/d_0')));
 });

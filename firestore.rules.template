@@ -4,8 +4,9 @@ rules_version = '2';
 // `node scripts/build-rules.mjs <dev|scuola>` genera firestore.rules (ignorato
 // da git) sostituendo i segnaposto @@...@@. Vedi docs/CLOUD.md.
 //
-// Stato attuale: solo AUTENTICAZIONE e ruolo. Sketch, corsi e verifica non ci
-// sono ancora, quindi tutto il resto è negato.
+// Stato attuale: AUTENTICAZIONE, ruolo e SKETCH PERSONALI (solo il proprietario
+// li legge e li scrive; la condivisione col docente verrà dopo). Corsi e
+// verifica non ci sono ancora, quindi tutto il resto è negato.
 //
 // Ruoli: "docente" = esiste docenti/{email}, documento creato SOLO da console
 // (mai da client). Chiunque altro con un account ammesso è studente. Il ruolo
@@ -64,6 +65,43 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['email', 'nome', 'cognome'])
         && request.resource.data.email.lower() == request.auth.token.email.lower();
       allow delete: if false;
+    }
+
+    // Sketch personali. Un documento per sketch, con id `<uid>_<n>`, n da 0 a 49:
+    // l'id deterministico è il TETTO di 50 sketch per persona, fatto rispettare
+    // qui senza Cloud Functions (il client sceglie il primo numero libero).
+    // `programma` è il JSON del file salvato, come TESTO (evita i limiti di
+    // profondità dei documenti); tetto 200000 caratteri.
+    // `creato` non cambia mai; `modificato` è sempre l'ora del server.
+    // Una "creazione" su un id occupato è in realtà una modifica con `creato`
+    // diverso: viene rifiutata, così due schede non si sovrascrivono.
+    match /sketch/{id} {
+      function idSketchDi(uid) {
+        return id.matches('^' + uid + '_([0-9]|[1-4][0-9])$');
+      }
+      function sketchValido() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['proprietarioUid', 'nome', 'creato', 'modificato', 'programma'])
+          && d.keys().hasAll(['proprietarioUid', 'nome', 'creato', 'modificato', 'programma'])
+          && d.proprietarioUid == request.auth.uid
+          && d.nome is string && d.nome.size() > 0 && d.nome.size() <= 60
+          && d.programma is string && d.programma.size() > 0 && d.programma.size() <= 200000
+          && d.creato is timestamp
+          && d.modificato == request.time;
+      }
+      function mioSketch() {
+        return isAmmesso() && resource.data.proprietarioUid == request.auth.uid;
+      }
+
+      allow read: if mioSketch();
+      allow create: if isAmmesso()
+        && idSketchDi(request.auth.uid)
+        && sketchValido()
+        && request.resource.data.creato == request.time;
+      allow update: if mioSketch()
+        && sketchValido()
+        && request.resource.data.creato == resource.data.creato;
+      allow delete: if mioSketch();
     }
   }
 }
