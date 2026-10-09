@@ -2,6 +2,19 @@
   "private": true,
   "type": "module",
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "esbuild": "^0.28.2",
+    "firebase": "^12.19.0",
     "playwright": "^1.63.0"
+  },
+  "scripts": {
+    "use:dev": "node scripts/use_env.mjs dev",
+    "use:scuola": "node scripts/use_env.mjs scuola",
+    "rules:dev": "node scripts/build-rules.mjs dev",
+    "deploy:rules:dev": "node scripts/deploy-rules.mjs dev",
+    "deploy:rules:scuola": "node scripts/deploy-rules.mjs scuola",
+    "vendor:firebase": "node scripts/bundle-firebase.mjs",
+    "emulators": "node scripts/emulators.mjs",
+    "test:cloud": "node scripts/build-rules.mjs test && firebase emulators:exec --only firestore --project demo-isablock \"node --test test/cloud/\""
   }
 }

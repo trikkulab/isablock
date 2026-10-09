@@ -1,0 +1,22 @@
+{
+  "dev": {
+    "alias": "dev",
+    "account": null,
+    "dominio": "isarome.it",
+    "emailProva": [],
+    "docentiProva": []
+  },
+  "scuola": {
+    "alias": "scuola",
+    "account": null,
+    "dominio": "isarome.it",
+    "emailProva": []
+  },
+  "test": {
+    "alias": null,
+    "dominio": "isarome.it",
+    "emailProva": [
+      "prova@example.com"
+    ]
+  }
+}

@@ -1,2 +1,6 @@
 .DS_Store
 node_modules/
+firestore.rules
+scripts/environments.local.json
+*-debug.log
+.emulator-data/
