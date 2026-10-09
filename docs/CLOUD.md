@@ -63,7 +63,12 @@ da `scripts/environments.json`, completato da `scripts/environments.local.json` 
 - Tutto il resto è negato.
 
 Aggiungere un docente: console Firestore → collezione `docenti` → documento con
-ID = email in minuscolo (campo qualsiasi, es. `attivo: true`).
+ID = email in minuscolo. **Il contenuto del documento è ignorato: conta solo che
+esista** (regole e client controllano l'esistenza, non leggono campi). La console
+chiede almeno un campo: va bene uno qualsiasi, per convenzione `attivo: true`.
+Per togliere il ruolo si cancella il documento. Un eventuale ruolo admin, o un
+`attivo: false` che disattiva senza cancellare, si aggiungerà solo quando serviranno
+(le regole andranno aggiornate e testate).
 
 ## Dati personali: environments.local.json
 
