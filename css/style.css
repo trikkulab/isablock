@@ -1029,15 +1029,22 @@ body {
 .commenti-testa:hover { background: #eef2f7; }
 .commenti-titolo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .commenti-corpo { overflow-y: auto; padding: 0.4rem 0.7rem 0.7rem; }
-.commento { padding: 0.5rem 0; border-top: 1px solid var(--border); }
+.commento { padding: 0.6rem 0; border-top: 1px solid var(--border); }
 .commento:first-child { border-top: 0; }
-.commento-nuovo { background: #fef3c7; margin: 0 -0.4rem; padding: 0.5rem 0.4rem; border-radius: 6px; }
-.commento-testa { display: flex; align-items: baseline; gap: 0.3rem; flex-wrap: wrap; }
+.commento-nuovo { background: #fef3c7; margin: 0 -0.4rem; padding: 0.6rem 0.4rem; border-radius: 6px; }
 .commento-badge { background: #dc2626; color: #fff; }
-.commento-blocco { display: inline-block; margin: 0.15rem 0; padding: 0.1rem 0.5rem; border: 1px solid #f59e0b; border-radius: 6px; background: #fffbeb; font: inherit; font-size: 0.85rem; color: #78350f; text-align: left; }
+.commento-testo { margin: 0 0 0.25rem; font-size: 1.05rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.commento-meta { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; font-size: 0.8rem; color: var(--text-muted, #64748b); }
+/* Etichetta arancione sul blocco, come il contorno sul disegno */
+.commento-blocco { display: inline-block; padding: 0.05rem 0.5rem; border: 1px solid #f59e0b; border-radius: 6px; background: #fffbeb; font: inherit; font-size: 0.85rem; color: #78350f; text-align: left; }
 button.commento-blocco { cursor: pointer; }
-.commento-orfano { border-style: dashed; color: var(--text-muted, #64748b); background: transparent; border-color: var(--border); }
-.commento-generale { border-color: var(--border); background: transparent; color: var(--text-muted, #64748b); }
-.commento-testo { margin: 0.25rem 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.commenti-modulo { margin-top: 0.6rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
+.commento-orfano { display: inline-block; padding: 0.05rem 0.5rem; border: 1px dashed var(--border); border-radius: 6px; font-style: italic; }
+.commento-azioni { display: inline-flex; gap: 0.7rem; margin-left: auto; } /* sempre a destra, anche quando vanno a capo */
+.commento-azione { border: 0; background: transparent; padding: 0; font: inherit; color: var(--text-muted, #64748b); cursor: pointer; text-decoration: underline; }
+.commento-azione:hover { color: var(--text, #0f172a); }
+.commenti-modulo { margin-bottom: 0.6rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--border); }
+.commenti-area { font-size: 1rem; margin-bottom: 0.4rem; }
+.commenti-modulo-riga { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; font-size: 0.85rem; color: var(--text-muted, #64748b); }
+.commenti-modulo-riga .commento-selezione { flex: 1; margin: 0; min-width: 10rem; }
+.commenti-modulo-riga .modal-btn { padding: 0.35rem 0.9rem; }
 .commento-togli { border: 0; background: transparent; color: var(--accent, #2563eb); text-decoration: underline; cursor: pointer; font: inherit; padding: 0 0.2rem; }

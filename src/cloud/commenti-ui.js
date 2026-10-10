@@ -70,6 +70,7 @@ export function montaCommenti({ toast, programma, dopoCambioConteggio }) {
 
   function nascondi() {
     generazione++;
+    bersaglio = null; areaTesto = null; rigaBlocco = null;
     off?.(); off = null;
     contesto = null; mostrati = [];
     programma.marcaBlocchi([]);
@@ -118,67 +119,68 @@ export function montaCommenti({ toast, programma, dopoCambioConteggio }) {
   }
 
   // --- Disegno ----------------------------------------------------------------
+  // Il testo del commento è la cosa più grande della scheda; blocco, autore e data
+  // stanno in una riga piccola sotto (l'autore serve: i docenti del corso possono
+  // essere più d'uno).
   function disegna() {
     if (!corpoEl) return;
     const { sketch, docente } = contesto;
+    const bozza = areaTesto ? areaTesto.value : '';
     const n = mostrati.length;
-    titoloEl.textContent = docente
-      ? `Commenti su «${sketch.nome}» di ${sketch.autoreNome || 'uno studente'} (${n})`
-      : `Commenti del docente su «${sketch.nome}» (${n})`;
+    titoloEl.textContent = `Commenti su «${sketch.nome}»${docente && sketch.autoreNome ? ` di ${sketch.autoreNome}` : ''} (${n})`;
     programma.marcaBlocchi(mostrati.map((c) => c.bloccoId).filter(Boolean));
     corpoEl.textContent = '';
     corpoEl.hidden = !apertoCorpo;
     const lista = el('div', { class: 'commenti-lista' });
-    if (n === 0) lista.append(el('p', { class: 'sketch-nota' }, 'Nessun commento per ora. Seleziona un blocco per commentarlo, oppure scrivi un commento sull\'intero sketch.'));
+    if (n === 0) lista.append(el('p', { class: 'sketch-nota' }, 'Nessun commento per ora.'));
     for (const c of mostrati) lista.append(scheda(c));
+    // il modulo sta sopra l'elenco: chi scrive non deve scorrere fino in fondo
+    if (docente) corpoEl.append(modulo(bozza));
     corpoEl.append(lista);
-    if (docente) corpoEl.append(modulo());
   }
 
   function scheda(c) {
     const esiste = c.bloccoId && programma.esisteBlocco(c.bloccoId);
-    const dopo = sketchModificatoDopo(c);
-    const blocco = c.bloccoId
-      ? (esiste
-          ? el('button', { type: 'button', class: 'commento-blocco', title: 'Vai al blocco',
-              onclick: () => programma.selezionaBlocco(c.bloccoId) }, `Blocco: ${c.bloccoTesto || '(senza descrizione)'}`)
-          : el('span', { class: 'commento-blocco commento-orfano' }, `Su un blocco che non c'è più: ${c.bloccoTesto || '(senza descrizione)'}`))
-      : el('span', { class: 'commento-blocco commento-generale' }, 'Sull\'intero sketch');
+    const blocco = !c.bloccoId ? ''
+      : esiste
+        ? el('button', { type: 'button', class: 'commento-blocco', title: 'Vai al blocco',
+            onclick: () => programma.selezionaBlocco(c.bloccoId) }, c.bloccoTesto || 'blocco')
+        : el('span', { class: 'commento-orfano', title: 'Lo studente ha tolto o sostituito il blocco' },
+            `blocco non più presente: ${c.bloccoTesto || ''}`);
     const mio = contesto.docente && c.autoreEmail === mioEmail;
+    const nuovo = !contesto.docente && !c.letto;
+    const meta = [blocco, c.autoreNome || 'Docente', c.creato ? formatoData.format(c.creato) : '',
+      nuovo ? el('span', { class: 'cloud-badge commento-badge' }, 'nuovo') : '']
+      .filter(Boolean).flatMap((x, i) => (i ? [' · ', x] : [x]));
+    if (sketchModificatoDopo(c)) meta.push(' · scritto prima dell\'ultima modifica dello sketch');
     const azioni = contesto.docente
-      ? el('div', { class: 'sketch-azioni' },
-          mio ? el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => modifica(c) }, 'Modifica') : '',
-          el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => elimina(c) }, 'Elimina'))
+      ? el('span', { class: 'commento-azioni' },
+          mio ? el('button', { type: 'button', class: 'commento-azione', onclick: () => modifica(c) }, 'Modifica') : '',
+          el('button', { type: 'button', class: 'commento-azione', onclick: () => elimina(c) }, 'Elimina'))
       : '';
-    return el('article', { class: `commento${c.letto || contesto.docente ? '' : ' commento-nuovo'}` },
-      el('div', { class: 'commento-testa' },
-        el('strong', {}, c.autoreNome || 'Docente'),
-        el('span', { class: 'sketch-data' }, c.creato ? ` · ${formatoData.format(c.creato)}` : ''),
-        !contesto.docente && !c.letto ? el('span', { class: 'cloud-badge commento-badge' }, 'nuovo') : ''),
-      blocco,
+    return el('article', { class: `commento${nuovo ? ' commento-nuovo' : ''}` },
       el('p', { class: 'commento-testo' }, c.testo),
-      dopo ? el('span', { class: 'sketch-data' }, 'Scritto prima dell\'ultima modifica dello sketch.') : '',
-      azioni);
+      el('div', { class: 'commento-meta' }, el('span', {}, ...meta), azioni));
   }
 
   const sketchModificatoDopo = (c) =>
     !!(contesto.sketch.modificato && c.creato && contesto.sketch.modificato.getTime() - c.creato.getTime() > 2000);
 
-  // Modulo per scrivere (solo docente): segue il blocco selezionato.
-  // Il blocco a cui si riferisce il commento si ricorda anche se poi si clicca nel campo
-  // di testo (Blockly allora deseleziona il blocco): si toglie con «Sull'intero sketch».
+  // Modulo per scrivere (solo docente): segue il blocco selezionato. Il blocco a cui
+  // si riferisce il commento si ricorda anche se poi si clicca nel campo di testo
+  // (Blockly allora deseleziona il blocco): si toglie con «Sull'intero sketch».
   let bersaglio = null;
   let rigaBlocco = null; let areaTesto = null; let btnInvia = null; let conteggio = null;
-  function modulo() {
-    bersaglio = null;
-    rigaBlocco = el('p', { class: 'sketch-nota commento-selezione' });
-    areaTesto = el('textarea', { class: 'sketch-nome gestione-area', rows: '3', maxlength: String(MAX_TESTO),
+  function modulo(bozza = '') {
+    rigaBlocco = el('p', { class: 'commento-selezione' });
+    areaTesto = el('textarea', { class: 'sketch-nome gestione-area commenti-area', rows: '3', maxlength: String(MAX_TESTO),
       placeholder: 'Scrivi un commento…', 'aria-label': 'Testo del commento' });
-    conteggio = el('span', { class: 'sketch-data' });
+    areaTesto.value = bozza;
+    conteggio = el('span', { class: 'sketch-data' }, bozza ? `${bozza.length}/${MAX_TESTO}` : '');
     areaTesto.addEventListener('input', () => { conteggio.textContent = `${areaTesto.value.length}/${MAX_TESTO}`; });
     btnInvia = el('button', { type: 'button', class: 'modal-btn', onclick: invia }, 'Aggiungi commento');
-    const form = el('div', { class: 'commenti-modulo' }, rigaBlocco, areaTesto,
-      el('div', { class: 'sketch-azioni' }, btnInvia, conteggio));
+    const form = el('div', { class: 'commenti-modulo' }, areaTesto,
+      el('div', { class: 'commenti-modulo-riga' }, rigaBlocco, conteggio, btnInvia));
     aggiornaModulo();
     return form;
   }
@@ -189,10 +191,10 @@ export function montaCommenti({ toast, programma, dopoCambioConteggio }) {
     if (sel) bersaglio = sel;
     rigaBlocco.textContent = '';
     if (bersaglio) {
-      rigaBlocco.append(`Il commento sarà sul blocco: ${bersaglio.testo || '(senza descrizione)'} `,
+      rigaBlocco.append(`Sul blocco: ${bersaglio.testo || '(senza descrizione)'} · `,
         el('button', { type: 'button', class: 'commento-togli', onclick: () => { bersaglio = null; aggiornaModulo(); } }, 'Sull\'intero sketch'));
     } else {
-      rigaBlocco.append('Il commento sarà sull\'intero sketch. Per commentare un blocco, cliccalo.');
+      rigaBlocco.append('Sull\'intero sketch · clicca un blocco per commentare quello');
     }
   }
 
@@ -204,6 +206,8 @@ export function montaCommenti({ toast, programma, dopoCambioConteggio }) {
       await commenti.commenta({ sketch: contesto.sketch, bloccoId: sel ? sel.id : null,
         bloccoTesto: sel ? sel.testo : '', testo: areaTesto.value });
       if (mia !== generazione) return;
+      bersaglio = null;
+      areaTesto.value = '';
       await ricaricaDocente();
       toast('Commento aggiunto', 'success');
     } catch (err) {
