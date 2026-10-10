@@ -1,8 +1,8 @@
 # Cloud (opzionale): autenticazione
 
 Stato: **accesso, ruolo (studente/docente), sketch personali, corsi con iscrizione
-con codice**. La condivisione degli sketch col docente e la verifica non esistono
-ancora. Le decisioni di fondo sono nella nota di progetto
+con codice, condivisione degli sketch col docente del corso**. Commenti del docente e
+verifica non esistono ancora. Le decisioni di fondo sono nella nota di progetto
 "cloud e verifica live"; qui c'è ciò che serve per usare e mantenere il codice.
 
 ## Principi
@@ -109,9 +109,9 @@ Dopo il login compaiono «☁ Salva» e «☁ I miei sketch» nella toolbar.
   di **50 sketch per persona**, imposto dalle regole senza Cloud Functions; una
   scrittura su un id occupato viene rifiutata, quindi due schede non si
   sovrascrivono.
-- **Regole**: solo il proprietario legge, scrive ed elimina; nessun altro,
-  docente compreso. Anche i docenti hanno sketch personali con le stesse regole.
-  La condivisione esplicita col docente della classe è un passo successivo.
+- **Regole**: solo il proprietario scrive ed elimina. Anche i docenti hanno sketch
+  personali con le stesse regole. Un docente legge soltanto quelli che l'autore ha
+  **condiviso** con un suo corso (vedi sotto).
 - Codice: `src/cloud/sketch.js` (dati), `src/cloud/sketch-ui.js` (interfaccia, non
   conosce Blockly: riceve da `main.js` solo `corrente/isVuoto/occupato/carica`).
 
@@ -159,6 +159,43 @@ ognuno vede solo le **proprie** iscrizioni. Nessuno scrive corsi dall'app.
 Il docente vede nell'elenco anche il codice e se le iscrizioni sono aperte.
 
 Codice: `src/cloud/corsi.js` (dati e codice), `src/cloud/corsi-ui.js` (interfaccia).
+
+## Condivisione degli sketch col docente
+
+Lo studente condivide **esplicitamente** uno sketch con un corso in cui è iscritto
+(«I miei sketch» → «Condividi…»). Il docente di quel corso lo **legge**, mai lo scrive.
+
+- **È un collegamento, non una copia.** Lo sketch resta uno solo, dello studente: il
+  docente vede l'ultima versione che lo studente ha salvato nel cloud (non c'è
+  salvataggio automatico, quindi vede solo ciò che è stato salvato). Salvando uno
+  sketch condiviso, il «Salva» avvisa che il docente vedrà la nuova versione.
+- **Un corso per sketch**; per cambiarlo si ripete «Condividi…». «Smetti di
+  condividere» lo ritira in ogni momento.
+- **Dati**: sullo sketch, `condivisoCon` (codice del corso o `null`), `proprietarioEmail`
+  e `proprietarioNome` (servono al docente per riconoscere l'autore e alle regole per
+  controllare l'iscrizione; si riscrivono a ogni salvataggio, così anche gli sketch
+  vecchi si completano).
+- **Chi legge**: il docente del corso (anche un codocente) **finché il corso è attivo
+  e l'autore è ancora iscritto**. Se togli lo studente dal corso da console, o
+  archivi il corso (`attivo: false`), lo sketch sparisce subito dalla vista del
+  docente; lo studente continua a vederlo e a ritirare la condivisione (ma non a
+  ri-condividerlo con un corso da cui è stato tolto).
+- **Vista del docente** («🎓 Corsi» → «Sketch condivisi»): per ogni corso, autore,
+  nome e data degli sketch condivisi. «Apri» lo mostra nell'editor **senza
+  collegarlo al cloud**: è una copia, il «Salva» del docente ne crea uno suo e
+  l'originale non si tocca mai.
+- **Perché una query per iscritto.** Le regole di Firestore non sono filtri: devono
+  essere dimostrabili dai vincoli della query, e «tutti gli sketch condivisi col
+  corso X» non lo è (non dimostra che ogni autore sia ancora iscritto). Quindi il
+  docente legge prima l'elenco degli iscritti del suo corso (permesso ai docenti,
+  query con `corsoId == <codice>`) e poi, per ciascuno, i suoi sketch condivisi con
+  quel corso (`condivisoCon == X` e `proprietarioEmail == <email>`), in parallelo.
+  Per una classe di 25 sono circa 26 query a ogni apertura dell'elenco. Una query
+  per un autore non iscritto viene rifiutata, quindi il docente non può nemmeno
+  «sondare» email che non sono nel suo corso. Lo stesso motivo spiega perché non si
+  può usare `in` con più email.
+- Codice: `src/cloud/condivisi.js` (vista docente), `sketch.js` (`condividi`),
+  `sketch-ui.js` e `corsi-ui.js`.
 
 ## Sviluppo e test
 

@@ -42,7 +42,7 @@ export function montaCloud({ contenitore, toast, programma }) {
   const corsiBox = document.createElement('span');
   corsiBox.className = 'cloud-corsi';
   contenitore.append(btnAccedi, info, sketchBox, corsiBox);
-  const corsiUi = montaCorsi({ contenitore: corsiBox, toast });
+  const corsiUi = montaCorsi({ contenitore: corsiBox, toast, programma, dopoCaricamento: () => sketchUi.scollega() });
   const sketchUi = montaSketch({ contenitore: sketchBox, toast, programma });
 
   let cloud = null;
@@ -58,8 +58,9 @@ export function montaCloud({ contenitore, toast, programma }) {
       badge.textContent = utente.ruolo === 'docente' ? 'Docente' : 'Studente';
       badge.dataset.ruolo = utente.ruolo;
       memo(true);
-      sketchUi.entra(cloud.sketchPer(utente.uid));
-      corsiUi.entra(cloud.corsiPer(utente.email, utente.ruolo), utente.ruolo);
+      const corsi = cloud.corsiPer(utente.email, utente.ruolo);
+      sketchUi.entra(cloud.sketchPer(utente.uid, { email: utente.email, nome: utente.nome }), corsi);
+      corsiUi.entra(corsi, utente.ruolo, cloud.condivisi);
     } else {
       memo(false);
       sketchUi.esci();

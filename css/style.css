@@ -991,3 +991,10 @@ body {
 .corsi-iscrizione { display: flex; gap: 0.5rem; align-items: stretch; margin-bottom: 1.2rem; }
 .corsi-iscrizione .sketch-nome { margin-bottom: 0; text-transform: uppercase; letter-spacing: 0.08em; }
 .corsi-titolo { margin: 0 0 0.3rem; font-size: 1rem; }
+.sketch-condiviso { font-size: 0.8rem; color: var(--accent); }
+.sketch-avviso { color: #92400e; }
+.corso-scelta { display: block; width: 100%; margin: 0 0 0.5rem; text-align: left; }
+.corso-blocco { border-top: 1px solid var(--border); }
+.corso-blocco .corso-riga { border-top: 0; }
+.condivisi-sezione { padding: 0 0 0.4rem 0.8rem; }
+.condivisi-sezione .sketch-riga { padding: 0.4rem 0; }

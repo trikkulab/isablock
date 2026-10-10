@@ -44,7 +44,15 @@ function programmaValido(programma) {
   return programma;
 }
 
-export function creaSketch({ sdk, db }, uid) {
+// `profilo` = { email, nome } dell'autore: finiscono nello sketch (servono al
+// docente per riconoscere chi ha condiviso, e alle regole per controllare
+// l'iscrizione). Le regole accettano solo l'email del proprio account.
+export const MAX_NOME_AUTORE = 80;
+
+export function creaSketch({ sdk, db }, uid, profilo = {}) {
+  const email = String(profilo.email || '').toLowerCase();
+  const nomeAutore = String(profilo.nome || email).trim().slice(0, MAX_NOME_AUTORE) || email;
+  const autore = () => (email ? { proprietarioEmail: email, proprietarioNome: nomeAutore } : {});
   const raccolta = () => sdk.collection(db, 'sketch');
   const docDi = (id) => sdk.doc(db, 'sketch', id);
 
@@ -61,6 +69,7 @@ export function creaSketch({ sdk, db }, uid) {
             nome: v.nome,
             creato: v.creato?.toDate?.() ?? null,
             modificato: v.modificato?.toDate?.() ?? null,
+            condivisoCon: v.condivisoCon ?? null,
             programma: v.programma,
           };
         })
@@ -94,6 +103,8 @@ export function creaSketch({ sdk, db }, uid) {
             creato: sdk.serverTimestamp(),
             modificato: sdk.serverTimestamp(),
             programma: p,
+            condivisoCon: null,
+            ...autore(),
           });
           return { id, nome: n };
         } catch (err) {
@@ -109,7 +120,9 @@ export function creaSketch({ sdk, db }, uid) {
 
   // Aggiorna uno sketch già salvato (nome e/o programma).
   async function aggiorna(id, { nome, programma }) {
-    const campi = { modificato: sdk.serverTimestamp() };
+    // L'autore si riscrive a ogni salvataggio: completa anche gli sketch creati
+    // prima che esistesse la condivisione.
+    const campi = { modificato: sdk.serverTimestamp(), ...autore() };
     if (nome !== undefined) campi.nome = nomePulito(nome);
     if (programma !== undefined) campi.programma = programmaValido(programma);
     try {
@@ -121,6 +134,20 @@ export function creaSketch({ sdk, db }, uid) {
 
   const rinomina = (id, nome) => aggiorna(id, { nome });
 
+  // Condivide lo sketch con un corso (codice) in cui si è iscritti, o ritira la
+  // condivisione (null). Il docente vede l'ultima versione salvata.
+  async function condividi(id, corsoId) {
+    try {
+      await sdk.updateDoc(docDi(id), {
+        condivisoCon: corsoId ?? null,
+        modificato: sdk.serverTimestamp(),
+        ...autore(),
+      });
+    } catch (err) {
+      throw traduci(err);
+    }
+  }
+
   async function elimina(id) {
     try {
       await sdk.deleteDoc(docDi(id));
@@ -129,5 +156,5 @@ export function creaSketch({ sdk, db }, uid) {
     }
   }
 
-  return { elenca, nuovo, aggiorna, rinomina, elimina };
+  return { elenca, nuovo, aggiorna, rinomina, condividi, elimina };
 }

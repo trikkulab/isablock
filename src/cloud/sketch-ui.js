@@ -16,7 +16,9 @@ const formatoData = new Intl.DateTimeFormat('it-IT', {
 
 export function montaSketch({ contenitore, toast, programma }) {
   let sketch = null;     // oggetto di sketch.js, valido solo da loggati
-  let aperto = null;     // { id, nome } dello sketch cloud attualmente aperto
+  let corsi = null;      // oggetto di corsi.js: per scegliere con quale corso condividere
+  let nomiCorsi = new Map(); // codice -> nome del corso, per le etichette «condiviso con…»
+  let aperto = null;     // { id, nome, condivisoCon } dello sketch cloud attualmente aperto
   let finestra = null;   // finestra aperta (una alla volta)
 
   const btnSalva = el('button', { type: 'button', title: 'Salva il programma tra i tuoi sketch nel cloud' }, '☁ Salva');
@@ -47,6 +49,10 @@ export function montaSketch({ contenitore, toast, programma }) {
       aperto
         ? `Stai lavorando su «${aperto.nome}». Puoi aggiornarlo oppure salvare una copia nuova.`
         : 'Il nome è libero: ti ho proposto un nome a caso, cambialo se vuoi.');
+    const avvisoCondiviso = aperto && aperto.condivisoCon
+      ? el('p', { class: 'sketch-nota sketch-avviso' },
+          `Questo sketch è condiviso con ${nomeCorsoDi(aperto.condivisoCon)}: se lo aggiorni, il docente vedrà la nuova versione.`)
+      : null;
     const bottoni = el('div', { class: 'modal-actions' });
     const tutti = [];
 
@@ -72,19 +78,19 @@ export function montaSketch({ contenitore, toast, programma }) {
       aggiungi(`Aggiorna «${aperto.nome}»`, false, () => esegui(async () => {
         const nome = campo.value;
         await sketch.aggiorna(id, { nome, programma: testo });
-        aperto = { id, nome: nome.trim() };
+        aperto = { ...aperto, id, nome: nome.trim() };
       }, 'Sketch aggiornato'));
       aggiungi('Salva come nuovo', true, () => esegui(async () => {
-        aperto = await sketch.nuovo(campo.value, testo);
+        aperto = { ...(await sketch.nuovo(campo.value, testo)), condivisoCon: null };
       }, 'Sketch salvato nel cloud'));
     } else {
       aggiungi('Salva', false, () => esegui(async () => {
-        aperto = await sketch.nuovo(campo.value, testo);
+        aperto = { ...(await sketch.nuovo(campo.value, testo)), condivisoCon: null };
       }, 'Sketch salvato nel cloud'));
     }
     aggiungi('Annulla', true, chiudi);
     campo.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') tutti[0].click(); });
-    corpo.append(nota, campo, bottoni);
+    corpo.append(nota, ...(avvisoCondiviso ? [avvisoCondiviso] : []), campo, bottoni);
     campo.focus();
     campo.select();
   });
@@ -98,7 +104,7 @@ export function montaSketch({ contenitore, toast, programma }) {
     corpo.append(el('p', { class: 'sketch-nota' }, 'Carico…'));
     let sketchSalvati;
     try {
-      sketchSalvati = await sketch.elenca();
+      [sketchSalvati] = await Promise.all([sketch.elenca(), caricaNomiCorsi()]);
     } catch (err) {
       if (finestra === mia) { chiudiFinestra(); toast(messaggio(err), 'error'); }
       return;
@@ -112,13 +118,23 @@ export function montaSketch({ contenitore, toast, programma }) {
     for (const s of sketchSalvati) corpo.append(riga(s, mia));
   }
 
+  // Nomi dei corsi per le etichette; se non si riesce a leggerli non è grave.
+  async function caricaNomiCorsi() {
+    try {
+      nomiCorsi = new Map((await corsi.elenca()).map((c) => [c.id, c.nome]));
+    } catch { /* si usa il codice al posto del nome */ }
+  }
+  const nomeCorsoDi = (codice) => nomiCorsi.get(codice) || `il corso ${codice}`;
+
   function riga(s, mia) {
     const quando = s.modificato ? formatoData.format(s.modificato) : '';
     const info = el('div', { class: 'sketch-info' },
       el('strong', {}, s.nome, aperto && aperto.id === s.id ? el('span', { class: 'sketch-aperto' }, ' (aperto)') : ''),
-      el('span', { class: 'sketch-data' }, quando ? `modificato il ${quando}` : ''));
+      el('span', { class: 'sketch-data' }, quando ? `modificato il ${quando}` : ''),
+      s.condivisoCon ? el('span', { class: 'sketch-condiviso' }, `👁 condiviso con ${nomeCorsoDi(s.condivisoCon)}`) : '');
     const azioni = el('div', { class: 'sketch-azioni' },
       el('button', { type: 'button', class: 'modal-btn', onclick: () => apri(s) }, 'Apri'),
+      el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => condividi(s) }, 'Condividi…'),
       el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => rinomina(s) }, 'Rinomina'),
       el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => elimina(s) }, 'Elimina'));
     return el('div', { class: 'sketch-riga' }, info, azioni);
@@ -136,9 +152,59 @@ export function montaSketch({ contenitore, toast, programma }) {
       toast(err && err.message ? err.message : 'Questo sketch non si riesce ad aprire.', 'error');
       return;
     }
-    aperto = { id: s.id, nome: s.nome };
+    aperto = { id: s.id, nome: s.nome, condivisoCon: s.condivisoCon };
     chiudiFinestra();
     toast(`Aperto «${s.nome}»`, 'success');
+  }
+
+  // Condivisione con il docente di un corso in cui si è iscritti. Il docente vede
+  // l'ultima versione salvata nel cloud; si può ritirare in ogni momento.
+  async function condividi(s) {
+    let miei;
+    try {
+      miei = (await corsi.elenca()).filter((c) => c.ruolo === 'studente');
+    } catch (err) {
+      toast(messaggio(err), 'error');
+      return;
+    }
+    if (miei.length === 0) {
+      toast('Non sei iscritto a nessun corso: iscriviti con il codice dal pulsante «🎓 Corsi».', 'error');
+      return;
+    }
+    const mia = nuovaFinestra(`Condividi «${s.nome}»`);
+    const { corpo, chiudi } = mia;
+    corpo.append(el('p', { class: 'sketch-nota' },
+      'Scegli il corso: il docente vedrà l\'ultima versione di questo sketch che hai salvato nel cloud. Non può modificarla, e puoi smettere di condividere quando vuoi.'));
+    const tutti = [];
+    async function scegli(codice, nomeCorso) {
+      tutti.forEach((b) => { b.disabled = true; });
+      try {
+        await sketch.condividi(s.id, codice);
+        if (aperto && aperto.id === s.id) aperto = { ...aperto, condivisoCon: codice };
+        toast(codice ? `Sketch condiviso con ${nomeCorso}` : 'Condivisione ritirata', 'success');
+        mostraElenco();
+      } catch (err) {
+        toast(messaggio(err), 'error');
+        tutti.forEach((b) => { b.disabled = false; });
+      }
+    }
+    for (const c of miei) {
+      nomiCorsi.set(c.id, c.nome);
+      const attuale = s.condivisoCon === c.id;
+      const b = el('button', { type: 'button', class: 'modal-btn corso-scelta',
+        onclick: () => scegli(c.id, c.nome) }, attuale ? `${c.nome} (già condiviso)` : c.nome);
+      if (attuale) b.disabled = true; // quello attuale non si sceglie di nuovo
+      else tutti.push(b);
+      corpo.append(b);
+    }
+    const azioni = el('div', { class: 'modal-actions' });
+    if (s.condivisoCon) {
+      const b = el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => scegli(null) }, 'Smetti di condividere');
+      tutti.push(b);
+      azioni.append(b);
+    }
+    azioni.append(el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => mostraElenco() }, 'Indietro'));
+    corpo.append(azioni);
   }
 
   async function rinomina(s) {
@@ -146,7 +212,7 @@ export function montaSketch({ contenitore, toast, programma }) {
     if (nuovo === null) return;
     try {
       await sketch.rinomina(s.id, nuovo);
-      if (aperto && aperto.id === s.id) aperto = { id: s.id, nome: nuovo.trim() };
+      if (aperto && aperto.id === s.id) aperto = { ...aperto, nome: nuovo.trim() };
       toast('Sketch rinominato', 'success');
     } catch (err) {
       toast(messaggio(err), 'error');
@@ -170,13 +236,16 @@ export function montaSketch({ contenitore, toast, programma }) {
 
   return {
     // Dopo il login: abilita i pulsanti. `sketchDiUtente` è l'oggetto di sketch.js.
-    entra(sketchDiUtente) {
+    entra(sketchDiUtente, corsiDiUtente) {
       sketch = sketchDiUtente;
+      corsi = corsiDiUtente;
       contenitore.hidden = false;
     },
     // Dopo il logout: tutto sparisce e non resta nessun riferimento allo sketch aperto.
     esci() {
       sketch = null;
+      corsi = null;
+      nomiCorsi = new Map();
       aperto = null;
       chiudiFinestra();
       contenitore.hidden = true;
