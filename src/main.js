@@ -20,6 +20,11 @@ registerBlocks(Blockly);
 
 const workspace = Blockly.inject('blocklyDiv', {
   toolbox,
+  // Icone dell'editor in locale (vendor/blockly/media/): di default Blockly le
+  // prenderebbe da static.blockly.com, e offline mancherebbero. I suoni sono
+  // spenti: in un laboratorio con tanti PC sarebbero solo rumore.
+  media: 'vendor/blockly/media/',
+  sounds: false,
   trashcan: true,
   zoom: { controls: true, wheel: true, startScale: 1 },
   move: { scrollbars: true, drag: true, wheel: false },
