@@ -4,10 +4,11 @@ rules_version = '2';
 // `node scripts/build-rules.mjs <dev|scuola>` genera firestore.rules (ignorato
 // da git) sostituendo i segnaposto @@...@@. Vedi docs/CLOUD.md.
 //
-// Stato attuale: AUTENTICAZIONE, ruolo e SKETCH PERSONALI (solo il proprietario
-// li legge e li scrive; la condivisione col docente verrà dopo). Corsi e
-// verifica non ci sono ancora, quindi tutto il resto è negato.
-// CORSI e ISCRIZIONI: i corsi si gestiscono da console, l'iscrizione si fa con il codice.
+// Stato attuale: AUTENTICAZIONE, ruolo, SKETCH PERSONALI (li scrive solo il
+// proprietario; il docente di un corso legge solo quelli che l'autore ha
+// condiviso con quel corso), CORSI e ISCRIZIONI (i corsi si gestiscono da
+// console, l'iscrizione si fa con il codice). La verifica non c'è ancora,
+// quindi tutto il resto è negato.
 //
 // Ruoli: "docente" = esiste docenti/{email}, documento creato SOLO da console
 // (mai da client). Chiunque altro con un account ammesso è studente. Il ruolo
@@ -80,28 +81,66 @@ service cloud.firestore {
       function idSketchDi(uid) {
         return id.matches('^' + uid + '_([0-9]|[1-4][0-9])$');
       }
+      function emailMia() {
+        return request.auth.token.email.lower();
+      }
+      // Condivisione con un corso: `condivisoCon` è il codice del corso (o null =
+      // non condiviso). Si può impostare solo su un corso in cui si è iscritti, e
+      // lo sketch porta allora email e nome dell'autore (servono al docente per
+      // riconoscerlo e alla regola di lettura per controllare l'iscrizione).
+      function iscrittoA(corsoId) {
+        return exists(/databases/$(database)/documents/iscrizioni/$(corsoId + '_' + emailMia()));
+      }
+      function condivisioneValida(d) {
+        let c = d.get('condivisoCon', null);
+        return c == null
+          || (c is string && c.matches('^[0-9A-HJKMNP-TV-Z]{4,12}$') && iscrittoA(c));
+      }
       function sketchValido() {
         let d = request.resource.data;
-        return d.keys().hasOnly(['proprietarioUid', 'nome', 'creato', 'modificato', 'programma'])
+        return d.keys().hasOnly(['proprietarioUid', 'nome', 'creato', 'modificato', 'programma',
+                                 'condivisoCon', 'proprietarioEmail', 'proprietarioNome'])
           && d.keys().hasAll(['proprietarioUid', 'nome', 'creato', 'modificato', 'programma'])
           && d.proprietarioUid == request.auth.uid
           && d.nome is string && d.nome.size() > 0 && d.nome.size() <= 60
           && d.programma is string && d.programma.size() > 0 && d.programma.size() <= 200000
           && d.creato is timestamp
-          && d.modificato == request.time;
+          && d.modificato == request.time
+          && d.get('proprietarioEmail', emailMia()) == emailMia()
+          && d.get('proprietarioNome', 'x') is string
+          && d.get('proprietarioNome', 'x').size() <= 80
+          // condiviso => deve dichiarare chi è l'autore
+          && (d.get('condivisoCon', null) == null
+              || (d.get('proprietarioEmail', null) == emailMia()
+                  && d.get('proprietarioNome', '').size() > 0));
       }
       function mioSketch() {
         return isAmmesso() && resource.data.proprietarioUid == request.auth.uid;
       }
+      // Il docente del corso con cui lo sketch è condiviso lo LEGGE (mai lo scrive),
+      // finché il corso è attivo e l'autore è ancora iscritto: se il docente lo
+      // toglie da console, lo sketch sparisce dalla sua vista.
+      function condivisoAlDocente() {
+        return isAmmesso()
+          && resource.data.get('condivisoCon', null) != null
+          && emailMia() in get(/databases/$(database)/documents/corsi/$(resource.data.condivisoCon)).data.docenti
+          && get(/databases/$(database)/documents/corsi/$(resource.data.condivisoCon)).data.get('attivo', true) == true
+          && exists(/databases/$(database)/documents/iscrizioni/$(resource.data.condivisoCon + '_' + resource.data.get('proprietarioEmail', '')));
+      }
 
-      allow read: if mioSketch();
+      allow read: if mioSketch() || condivisoAlDocente();
       allow create: if isAmmesso()
         && idSketchDi(request.auth.uid)
         && sketchValido()
+        && condivisioneValida(request.resource.data)
         && request.resource.data.creato == request.time;
+      // La iscrizione si controlla solo se la condivisione CAMBIA: un autore tolto
+      // dal corso deve poter ancora rinominare o aggiornare il proprio sketch.
       allow update: if mioSketch()
         && sketchValido()
-        && request.resource.data.creato == resource.data.creato;
+        && request.resource.data.creato == resource.data.creato
+        && (request.resource.data.get('condivisoCon', null) == resource.data.get('condivisoCon', null)
+            || condivisioneValida(request.resource.data));
       allow delete: if mioSketch();
     }
 
@@ -144,7 +183,12 @@ service cloud.firestore {
           && id[id.size() - e.size():] == e;
       }
       allow get: if isAmmesso() && idMio();
-      allow list: if isAmmesso() && resource.data.email == request.auth.token.email.lower();
+      // L'elenco degli iscritti di un corso lo leggono i suoi docenti (query con
+      // `corsoId == <codice>`): serve a sapere chi si è iscritto e, di lì, a chiedere
+      // gli sketch che ognuno ha condiviso.
+      allow list: if isAmmesso()
+        && (resource.data.email == request.auth.token.email.lower()
+            || request.auth.token.email.lower() in get(/databases/$(database)/documents/corsi/$(resource.data.corsoId)).data.docenti);
       allow create: if isAmmesso()
         && !exists(/databases/$(database)/documents/docenti/$(request.auth.token.email.lower()))
         && request.resource.data.keys().hasOnly(['corsoId', 'email', 'creato'])

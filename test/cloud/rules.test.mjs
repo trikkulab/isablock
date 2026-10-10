@@ -372,3 +372,143 @@ test('corsi: nessuno scrive corsi dal client, nemmeno un docente del corso', asy
   await assertFails(deleteDoc(doc(d, 'corsi/AB12CD')));
   await assertFails(updateDoc(doc(alunno(), 'corsi/AB12CD'), { docenti: ['alunno@isarome.it'] }));
 });
+
+// ── Condivisione degli sketch col docente del corso ───────────────────────
+const ANNA = 'anna@isarome.it';
+const annaDb = () => utente('anna', ANNA);
+const docenteDb = () => utente('d', 'docente@isarome.it');
+const fisso = Timestamp.fromMillis(1_700_000_000_000);
+const sketchSalvato = (extra = {}) => ({
+  proprietarioUid: 'anna', nome: 'drago-saggio', creato: fisso, modificato: fisso,
+  programma: '{"formatVersion":6,"blocks":{}}', ...extra,
+});
+const condiviso = (corso = 'AB12CD', extra = {}) => sketchSalvato({ condivisoCon: corso, proprietarioEmail: ANNA, proprietarioNome: 'Anna Rossi', ...extra });
+async function scenario({ iscritta = true, sketchCondiviso = true, corsoExtra = {} } = {}) {
+  await creaCorsi();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    if (corsoExtra.attivo === false) await setDoc(doc(db, 'corsi/AB12CD'), { ...CORSO, attivo: false });
+    if (iscritta) await setDoc(doc(db, `iscrizioni/AB12CD_${ANNA}`), { corsoId: 'AB12CD', email: ANNA });
+    await setDoc(doc(db, 'sketch/anna_0'), sketchCondiviso ? condiviso() : sketchSalvato());
+    await setDoc(doc(db, 'sketch/anna_1'), sketchSalvato({ nome: 'privato' }));
+  });
+}
+const aggiorna = (db, id, campi) => updateDoc(doc(db, `sketch/${id}`), { ...campi, modificato: serverTimestamp() });
+
+test('condivisione: lo studente iscritto condivide con il proprio corso, con email e nome', async () => {
+  await scenario({ sketchCondiviso: false });
+  await assertSucceeds(aggiorna(annaDb(), 'anna_0', { condivisoCon: 'AB12CD', proprietarioEmail: ANNA, proprietarioNome: 'Anna Rossi' }));
+});
+
+test('condivisione: rifiutata se non sei iscritto, codice non valido, senza autore o con autore falso', async () => {
+  await scenario({ iscritta: false, sketchCondiviso: false });
+  const ok = { proprietarioEmail: ANNA, proprietarioNome: 'Anna Rossi' };
+  await assertFails(aggiorna(annaDb(), 'anna_0', { condivisoCon: 'AB12CD', ...ok })); // non iscritta
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), `iscrizioni/AB12CD_${ANNA}`), { corsoId: 'AB12CD', email: ANNA }));
+  await assertFails(aggiorna(annaDb(), 'anna_0', { condivisoCon: 'BASSA12', ...ok })); // corso a cui non è iscritta
+  await assertFails(aggiorna(annaDb(), 'anna_0', { condivisoCon: 'ab12cd', ...ok }));  // formato
+  await assertFails(aggiorna(annaDb(), 'anna_0', { condivisoCon: 'AB12CD' }));         // senza autore
+  await assertFails(aggiorna(annaDb(), 'anna_0', { condivisoCon: 'AB12CD', proprietarioEmail: 'altra@isarome.it', proprietarioNome: 'X' }));
+  await assertFails(aggiorna(annaDb(), 'anna_0', { condivisoCon: 'AB12CD', proprietarioEmail: ANNA, proprietarioNome: '' }));
+  await assertFails(aggiorna(annaDb(), 'anna_0', { condivisoCon: 'AB12CD', proprietarioEmail: ANNA, proprietarioNome: 'x'.repeat(81) }));
+  await assertFails(aggiorna(annaDb(), 'anna_0', { condivisoCon: 5, ...ok }));
+  await assertSucceeds(aggiorna(annaDb(), 'anna_0', { condivisoCon: 'AB12CD', ...ok })); // quella giusta passa
+});
+
+test('condivisione: anche alla creazione, ma solo con un corso proprio e senza falsare l\'email', async () => {
+  await scenario({ sketchCondiviso: false });
+  const nuovo = (extra) => ({ proprietarioUid: 'anna', nome: 'n', creato: serverTimestamp(), modificato: serverTimestamp(), programma: '{}', ...extra });
+  await assertSucceeds(setDoc(doc(annaDb(), 'sketch/anna_5'), nuovo({ condivisoCon: 'AB12CD', proprietarioEmail: ANNA, proprietarioNome: 'Anna' })));
+  await assertFails(setDoc(doc(annaDb(), 'sketch/anna_6'), nuovo({ condivisoCon: 'BASSA12', proprietarioEmail: ANNA, proprietarioNome: 'Anna' })));
+  await assertFails(setDoc(doc(annaDb(), 'sketch/anna_7'), nuovo({ proprietarioEmail: 'altra@isarome.it' }))); // email falsa anche se non condiviso
+  await assertSucceeds(setDoc(doc(annaDb(), 'sketch/anna_8'), nuovo({ condivisoCon: null, proprietarioEmail: ANNA, proprietarioNome: 'Anna' })));
+});
+
+test('condivisione: il docente del corso legge lo sketch condiviso e l\'elenco filtrato', async () => {
+  await scenario();
+  await assertSucceeds(getDoc(doc(docenteDb(), 'sketch/anna_0')));
+  // una query per iscritto (autore + corso fissati): le regole non accettano `in` con più valori
+  const perAutore = (email) => getDocs(query(collection(docenteDb(), 'sketch'),
+    where('condivisoCon', '==', 'AB12CD'), where('proprietarioEmail', '==', email)));
+  const snap = await assertSucceeds(perAutore(ANNA));
+  if (snap.size !== 1) throw new Error(`attesi 1 sketch condivisi, trovati ${snap.size}`);
+  // un autore che non è iscritto al corso non si può nemmeno interrogare
+  await assertFails(perAutore('altra@isarome.it'));
+  await assertFails(getDocs(query(collection(docenteDb(), 'sketch'),
+    where('condivisoCon', '==', 'AB12CD'), where('proprietarioEmail', 'in', [ANNA, 'altra@isarome.it']))));
+  await assertSucceeds(getDoc(doc(utente('c', 'Codocente@isarome.it'), 'sketch/anna_0'))); // anche un codocente
+});
+
+test('condivisione: il docente NON vede gli sketch non condivisi né elenca tutto', async () => {
+  await scenario();
+  await assertFails(getDoc(doc(docenteDb(), 'sketch/anna_1')));
+  await assertFails(getDocs(collection(docenteDb(), 'sketch')));
+  await assertFails(getDocs(query(collection(docenteDb(), 'sketch'), where('proprietarioUid', '==', 'anna'))));
+  await assertFails(getDocs(query(collection(docenteDb(), 'sketch'), where('condivisoCon', '==', 'BASSA12')))); // corso di un altro docente
+});
+
+test('condivisione: docente di un altro corso e altri studenti non leggono', async () => {
+  await scenario();
+  await assertFails(getDoc(doc(utente('x', 'qualcuno@isarome.it'), 'sketch/anna_0')));
+  await assertFails(getDoc(doc(utente('t', 'terzo@isarome.it'), 'sketch/anna_0')));
+  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'sketch/anna_0')));
+  await assertFails(getDoc(doc(utente('f', 'x@gmail.com'), 'sketch/anna_0')));
+});
+
+test('condivisione: il docente legge soltanto, non scrive né elimina mai', async () => {
+  await scenario();
+  await assertFails(aggiorna(docenteDb(), 'anna_0', { nome: 'cambiato' }));
+  await assertFails(deleteDoc(doc(docenteDb(), 'sketch/anna_0')));
+  await assertFails(setDoc(doc(docenteDb(), 'sketch/anna_9'), { ...condiviso(), proprietarioUid: 'd' }));
+  await assertFails(setDoc(doc(docenteDb(), 'sketch/anna_0'), condiviso()));
+});
+
+test('condivisione: tolta l\'iscrizione da console, il docente non vede più lo sketch; l\'autore sì', async () => {
+  await scenario();
+  await assertSucceeds(getDoc(doc(docenteDb(), 'sketch/anna_0')));
+  await env.withSecurityRulesDisabled((ctx) => deleteDoc(doc(ctx.firestore(), `iscrizioni/AB12CD_${ANNA}`)));
+  await assertFails(getDoc(doc(docenteDb(), 'sketch/anna_0')));
+  await assertSucceeds(getDoc(doc(annaDb(), 'sketch/anna_0')));
+  // e Anna può ancora rinominarlo o aggiornarlo (la condivisione non cambia), ma non ri-condividere
+  await assertSucceeds(aggiorna(annaDb(), 'anna_0', { nome: 'nuovo nome' }));
+  await assertFails(aggiorna(annaDb(), 'anna_1', { condivisoCon: 'AB12CD', proprietarioEmail: ANNA, proprietarioNome: 'Anna' }));
+  await assertSucceeds(aggiorna(annaDb(), 'anna_0', { condivisoCon: null })); // e può ritirarla
+});
+
+test('condivisione: ritirata dall\'autore, il docente non vede più lo sketch', async () => {
+  await scenario();
+  await assertSucceeds(aggiorna(annaDb(), 'anna_0', { condivisoCon: null }));
+  await assertFails(getDoc(doc(docenteDb(), 'sketch/anna_0')));
+  const snap = await assertSucceeds(getDocs(query(collection(docenteDb(), 'sketch'),
+    where('condivisoCon', '==', 'AB12CD'), where('proprietarioEmail', '==', ANNA))));
+  if (snap.size !== 0) throw new Error('doveva essere vuoto');
+});
+
+test('condivisione: corso archiviato (attivo: false), il docente non vede più gli sketch', async () => {
+  await scenario({ corsoExtra: { attivo: false } });
+  await assertFails(getDoc(doc(docenteDb(), 'sketch/anna_0')));
+  await assertSucceeds(getDoc(doc(annaDb(), 'sketch/anna_0'))); // l'autore sì
+});
+
+test('condivisione: un docente non può farsi passare per autore', async () => {
+  await scenario();
+  // email di un altro nel documento -> mai valido, anche per un docente
+  await assertFails(aggiorna(docenteDb(), 'anna_0', { proprietarioEmail: 'docente@isarome.it' }));
+  const d = docenteDb();
+  await assertFails(setDoc(doc(d, 'sketch/d_0'), { proprietarioUid: 'd', nome: 'n', creato: serverTimestamp(), modificato: serverTimestamp(), programma: '{}', proprietarioEmail: ANNA }));
+});
+
+test('iscritti: il docente del corso elenca gli iscritti (corsoId fissato); studenti e altri docenti no', async () => {
+  await scenario();
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'iscrizioni/AB12CD_bruno@isarome.it'), { corsoId: 'AB12CD', email: 'bruno@isarome.it' }));
+  const perCorso = (db, corso) => getDocs(query(collection(db, 'iscrizioni'), where('corsoId', '==', corso)));
+  const snap = await assertSucceeds(perCorso(docenteDb(), 'AB12CD'));
+  if (snap.size !== 2) throw new Error(`attesi 2 iscritti, trovati ${snap.size}`);
+  await assertSucceeds(perCorso(utente('c', 'codocente@isarome.it'), 'AB12CD'));
+  await assertFails(perCorso(docenteDb(), 'BASSA12'));                 // corso di un altro docente
+  await assertFails(perCorso(annaDb(), 'AB12CD'));                     // uno studente non elenca i compagni
+  await assertFails(getDocs(collection(docenteDb(), 'iscrizioni')));   // senza filtro
+  await assertFails(getDoc(doc(docenteDb(), `iscrizioni/AB12CD_${ANNA}`))); // la singola iscrizione resta privata
+  // il docente non scrive iscrizioni
+  await assertFails(setDoc(doc(docenteDb(), 'iscrizioni/AB12CD_nuovo@isarome.it'), { corsoId: 'AB12CD', email: 'nuovo@isarome.it', creato: serverTimestamp() }));
+});
