@@ -973,7 +973,7 @@ body {
 .cloud-box[hidden], .cloud-user[hidden] { display: none; }
 .cloud-user { display: inline-flex; align-items: center; gap: 0.4rem; }
 .cloud-name { font-weight: 600; }
-.cloud-badge { padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.8rem; background: #e2e8f0; color: #1e293b; }
+.cloud-badge { display: inline-flex; align-items: center; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.8rem; line-height: 1.4; background: #e2e8f0; color: #1e293b; }
 .cloud-badge[data-ruolo="docente"] { background: #fde68a; color: #78350f; }
 .cloud-sketch, .cloud-corsi { display: inline-flex; align-items: center; gap: 0.4rem; }
 .cloud-sketch[hidden], .cloud-corsi[hidden] { display: none; }
@@ -986,7 +986,7 @@ body {
 .sketch-info strong { overflow-wrap: anywhere; }
 .sketch-data { font-size: 0.8rem; color: var(--text-muted, #64748b); }
 .sketch-aperto { font-weight: 400; color: var(--accent); }
-.sketch-azioni { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.sketch-azioni { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
 .sketch-azioni .modal-btn { padding: 0.35rem 0.8rem; }
 .corsi-iscrizione { display: flex; gap: 0.5rem; align-items: stretch; margin-bottom: 1.2rem; }
 .corsi-iscrizione .sketch-nome { margin-bottom: 0; text-transform: uppercase; letter-spacing: 0.08em; }

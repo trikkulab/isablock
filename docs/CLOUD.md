@@ -197,6 +197,44 @@ Lo studente condivide **esplicitamente** uno sketch con un corso in cui è iscri
 - Codice: `src/cloud/condivisi.js` (vista docente), `sketch.js` (`condividi`),
   `sketch-ui.js` e `corsi-ui.js`.
 
+## Sito di prova (Firebase Hosting, progetto dev)
+
+Per far provare l'app a pochi colleghi c'è un sito sul progetto dev:
+`https://isablock-test.web.app` (sito Hosting `isablock-test`, definito in
+`firebase.json`). **Il sito di produzione resta quello di GitHub Pages**; questo è solo
+per le prove, con dati finti, e si può cancellare a fine prova.
+
+- Non serve niente nel codice: un indirizzo che non sia `localhost` né
+  `isablock.trikkulab.it` usa già la configurazione `dev`.
+- `npm run deploy:test` prepara una **copia** dell'app in `.deploy-test/` (ignorata da
+  git; senza `docs`, `test`, `scripts`, `node_modules`) e la pubblica. Nella copia
+  accende l'interruttore del cloud (nel repository resta `false`), mette in cima un
+  nastro «AMBIENTE DI PROVA» e il titolo «IsaBlock (prova)». `npm run deploy:test --
+  --stage-only` prepara la cartella senza pubblicare, per guardarla. Le intestazioni
+  `no-cache` su html/js/css fanno arrivare subito ai colleghi la versione nuova.
+- Le **regole** si pubblicano a parte (`npm run deploy:rules:dev`): vanno pubblicate
+  prima, e di nuovo ogni volta che cambiano.
+- Chi può entrare: le regole dev ammettono chi ha un account `@isarome.it` con email
+  verificata, oltre alle email di prova. **Quindi, tecnicamente, anche gli studenti**: il
+  sito non è segreto e va comunicato solo ai colleghi coinvolti.
+- Dati: nome ed email di chi accede finiscono in `utenti/` e negli sketch condivisi, su
+  un progetto personale. Vanno avvisati i colleghi (ambiente di prova, niente di
+  riservato, tutto cancellato a fine prova). Niente dati di alunni.
+
+**Prima volta** (con l'account del progetto dev):
+1. `npm run use:dev`
+2. `firebase hosting:sites:create isablock-test` (il nome è unico al mondo: se è
+   occupato se ne sceglie un altro e si aggiorna `site` in `firebase.json`)
+3. `npm run deploy:rules:dev`, poi `npm run deploy:test`
+4. Se il login Google dà errore di dominio: console → Authentication → Settings →
+   *Authorized domains* → aggiungere `isablock-test.web.app`.
+5. Per chi deve provare il ruolo docente: documento `docenti/<email>` da console; i corsi
+   di prova si creano da console come in «Corsi e iscrizioni».
+
+**Fine prova:** cancellare i dati dalla console (collezioni `utenti`, `sketch`,
+`iscrizioni`, `corsi`, `docenti`) e, se si vuole, il sito con
+`firebase hosting:sites:delete isablock-test`.
+
 ## Sviluppo e test
 
 ```

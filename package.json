@@ -16,6 +16,7 @@
     "vendor:firebase": "node scripts/bundle-firebase.mjs",
     "emulators": "node scripts/emulators.mjs",
     "test:cloud": "node scripts/build-rules.mjs test && firebase emulators:exec --only firestore --project demo-isablock \"node --test --test-concurrency=1 test/cloud/\"",
-    "codice": "node scripts/codice.mjs"
+    "codice": "node scripts/codice.mjs",
+    "deploy:test": "node scripts/deploy-test.mjs"
   }
 }

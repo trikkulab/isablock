@@ -2,10 +2,50 @@
   "firestore": {
     "rules": "firestore.rules"
   },
+  "hosting": {
+    "site": "isablock-test",
+    "public": ".deploy-test",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "key": "Referrer-Policy",
+            "value": "strict-origin-when-cross-origin"
+          }
+        ]
+      },
+      {
+        "source": "**/*.@(html|js|css)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      }
+    ]
+  },
   "emulators": {
-    "auth": { "port": 9199 },
-    "firestore": { "port": 8186 },
-    "ui": { "enabled": true, "port": 4100 },
+    "auth": {
+      "port": 9199
+    },
+    "firestore": {
+      "port": 8186
+    },
+    "ui": {
+      "enabled": true,
+      "port": 4100
+    },
     "singleProjectMode": true
   }
 }

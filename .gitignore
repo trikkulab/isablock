@@ -4,3 +4,5 @@ firestore.rules
 scripts/environments.local.json
 *-debug.log
 .emulator-data/
+.deploy-test/
+.firebase/
