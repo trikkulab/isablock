@@ -96,3 +96,22 @@ export function compareVersions(a, b) {
   }
   return 0;
 }
+
+// "Nuova" = più recente dell'ultima versione vista. Chi non ha memoria di una
+// versione vista (lo usava già prima delle Novità) ha come nuova solo la più
+// recente tra le voci da annunciare (non silent), non una correzione da poco.
+export function isUnseenNews(lista, voce, ultimaVista) {
+  if (ultimaVista === null || ultimaVista === undefined) {
+    return voce === (lista.find((e) => !e.silent) ?? lista[0]);
+  }
+  return compareVersions(voce.version, ultimaVista) > 0;
+}
+
+// Pagina con cui si apre la finestra da sola all'avvio: la voce da annunciare
+// (non silent) PIÙ RECENTE tra quelle non ancora viste, oppure -1 se non ce n'è.
+// Così chi salta alcuni rilasci vede la novità importante, non l'ultima
+// correzione da poco; le voci silent restano raggiungibili dalle frecce.
+export function indiceNovitaDaMostrare(lista, ultimaVista) {
+  return lista.findIndex((e) => !e.silent && isUnseenNews(lista, e, ultimaVista));
+}
+
