@@ -992,6 +992,13 @@ body {
 .corso-scelta { display: block; width: 100%; margin: 0 0 0.5rem; text-align: left; }
 .corso-blocco { border-top: 1px solid var(--border); }
 .corso-blocco .corso-riga { border-top: 0; }
+.corsi-docente-barra { border-top: 0; padding-top: 0; margin-bottom: 0.6rem; }
+.gestione-sezione { border-top: 1px solid var(--border); padding: 0.8rem 0 0.4rem; }
+.gestione-campo { display: block; margin-bottom: 0.5rem; }
+.gestione-area { font-family: inherit; resize: vertical; margin-bottom: 0.5rem; }
+.gestione-email { overflow-wrap: anywhere; min-width: 0; }
+.gestione-iscritti { max-height: 14rem; overflow-y: auto; margin-bottom: 0.6rem; }
+.codice-grande { font-size: 1.6rem; letter-spacing: 0.15em; font-family: ui-monospace, Menlo, Consolas, monospace; }
 .condivisi-sezione { padding: 0 0 0.4rem 0.8rem; }
 .condivisi-sezione .sketch-riga { padding: 0.4rem 0; }
 

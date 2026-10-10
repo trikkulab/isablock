@@ -116,7 +116,7 @@ export function montaCloud({ contenitore, toast, programma }) {
       dialogo?.chiudi();
       const corsi = cloud.corsiPer(utente.email, utente.ruolo);
       sketchUi.entra(cloud.sketchPer(utente.uid, { email: utente.email, nome: utente.nome }), corsi);
-      corsiUi.entra(corsi, utente.ruolo, cloud.condivisi);
+      corsiUi.entra(corsi, utente.ruolo, cloud.condivisi, utente.ruolo === 'docente' ? cloud.gestionePer(utente.email) : null);
     } else {
       memo(false);
       sketchUi.esci();

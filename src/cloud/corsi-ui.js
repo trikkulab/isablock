@@ -1,8 +1,9 @@
 // Interfaccia dei corsi: la finestra «Corsi» (aperta dal menu «Cloud», ui.js) con
-// l'elenco dei propri corsi e il campo per iscriversi con il codice. I corsi si creano da console: qui non c'è
-// niente per crearli. Non conosce Firebase: riceve l'oggetto `corsi` di corsi.js.
+// l'elenco dei propri corsi e il campo per iscriversi con il codice. Il docente ha in più «Nuovo corso» e
+// «Gestisci» (gestione-ui.js). Non conosce Firebase: riceve l'oggetto `corsi` di corsi.js.
 import { el, apriFinestra } from './dom.js';
 import { normalizzaCodice } from './corsi.js';
+import { montaGestione } from './gestione-ui.js';
 
 const formatoData = new Intl.DateTimeFormat('it-IT', {
   day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -13,13 +14,16 @@ export function montaCorsi({ toast, programma, dopoCaricamento }) {
   let condivisi = null; // vista docente (condivisi.js)
   let ruolo = 'studente';
   let finestra = null;
+  let ricarica = null;      // ridisegna l'elenco della finestra aperta
+  let mostraArchiviati = false;
+  const gestioneUi = montaGestione({ toast, dopoCambio: () => ricarica?.() });
 
   const messaggio = (err) => (err && err.message) || 'Qualcosa è andato storto. Riprova.';
   function chiudiFinestra() { finestra?.chiudi(); finestra = null; }
 
   function apri() {
     chiudiFinestra();
-    finestra = apriFinestra('I miei corsi', () => { finestra = null; });
+    finestra = apriFinestra('I miei corsi', () => { finestra = null; ricarica = null; });
     costruisci(finestra);
   }
 
@@ -94,7 +98,7 @@ export function montaCorsi({ toast, programma, dopoCaricamento }) {
     async function aggiorna() {
       let elenco;
       try {
-        elenco = await corsi.elenca();
+        elenco = await corsi.elenca({ archiviati: mostraArchiviati });
       } catch (err) {
         if (finestra === mia) toast(messaggio(err), 'error');
         return;
@@ -102,17 +106,20 @@ export function montaCorsi({ toast, programma, dopoCaricamento }) {
       if (finestra !== mia) return; // chiusa nel frattempo
       lista.textContent = '';
       if (elenco.length === 0) {
-        lista.append(el('p', { class: 'sketch-nota' }, 'Non sei ancora in nessun corso. Chiedi il codice al tuo docente.'));
+        lista.append(el('p', { class: 'sketch-nota' }, ruolo === 'docente'
+          ? 'Non hai ancora corsi. Creane uno con «Nuovo corso».'
+          : 'Non sei ancora in nessun corso. Chiedi il codice al tuo docente.'));
         return;
       }
       for (const c of elenco) {
         const docente = c.ruolo === 'docente';
         const dettaglio = docente
-          ? `Codice ${c.id} · iscrizioni ${c.iscrizioniAperte ? 'aperte' : 'chiuse'}`
+          ? `Codice ${c.id} · ${c.attivo ? `iscrizioni ${c.iscrizioniAperte ? 'aperte' : 'chiuse'}` : 'archiviato'}`
           : (c.docenti.length ? `Docente: ${c.docenti.join(', ')}` : '');
         const sezione = el('div', { class: 'condivisi-sezione' });
         const azioni = el('div', { class: 'sketch-azioni' },
-          docente ? el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => mostraCondivisi(c, sezione) }, 'Sketch condivisi') : '',
+          docente && c.attivo ? el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => mostraCondivisi(c, sezione) }, 'Sketch condivisi') : '',
+          docente ? el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => gestioneUi.gestisci(c) }, 'Gestisci') : '',
           el('span', { class: 'cloud-badge', 'data-ruolo': docente ? 'docente' : 'studente' }, docente ? 'Docente' : 'Studente'));
         lista.append(el('div', { class: 'corso-blocco' },
           el('div', { class: 'sketch-riga corso-riga' },
@@ -124,22 +131,33 @@ export function montaCorsi({ toast, programma, dopoCaricamento }) {
       }
     }
 
-    // Un docente non si iscrive ai corsi come studente: niente campo del codice.
+    // Un docente non si iscrive ai corsi come studente: niente campo del codice,
+    // ma può creare e gestire i propri corsi.
+    const archiviati = el('input', { type: 'checkbox' });
+    archiviati.checked = mostraArchiviati;
+    archiviati.addEventListener('change', () => { mostraArchiviati = archiviati.checked; aggiorna(); });
     const iscrizione = ruolo === 'docente'
-      ? [el('p', { class: 'sketch-nota' }, 'Sei docente: i corsi (e i codici per gli studenti) si gestiscono dalla console.')]
+      ? [el('div', { class: 'sketch-riga corsi-docente-barra' },
+          el('button', { type: 'button', class: 'modal-btn', onclick: () => gestioneUi.nuovoCorso() }, 'Nuovo corso'),
+          el('label', { class: 'sketch-data' }, archiviati, ' Mostra anche i corsi archiviati'))]
       : [el('p', { class: 'sketch-nota' }, 'Per entrare in un corso scrivi il codice che ti ha dato il docente.'),
          el('div', { class: 'corsi-iscrizione' }, campo, vai)];
     corpo.append(...iscrizione, el('h3', { class: 'corsi-titolo' }, 'I tuoi corsi'), lista);
     lista.append(el('p', { class: 'sketch-nota' }, 'Carico…'));
+    ricarica = aggiorna;
     aggiorna();
     if (ruolo !== 'docente') campo.focus();
   }
 
   return {
     apri,
-    entra(corsiDiUtente, ruoloUtente = 'studente', vistaDocente = null) {
+    entra(corsiDiUtente, ruoloUtente = 'studente', vistaDocente = null, gestione = null) {
       corsi = corsiDiUtente; ruolo = ruoloUtente; condivisi = vistaDocente;
+      gestioneUi.entra(gestione);
     },
-    esci() { corsi = null; condivisi = null; ruolo = 'studente'; chiudiFinestra(); },
+    esci() {
+      corsi = null; condivisi = null; ruolo = 'studente'; mostraArchiviati = false;
+      gestioneUi.esci(); chiudiFinestra();
+    },
   };
 }
