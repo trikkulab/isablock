@@ -7,7 +7,7 @@ import { extractSourceMap } from './codegen/common.js';
 import { tokenizePseudocode, tokenizeC, tokenizePython } from './codegen/highlight.js';
 import { pseudocodeConfig } from './pseudocode-config.js';
 import { appConfig } from './app-config.js';
-import { changelog, compareVersions } from './changelog.js';
+import { changelog, isUnseenNews as isUnseen, indiceNovitaDaMostrare } from './changelog.js';
 import { saveWorkspaceToFile, saveWorkspaceWithPicker, hasNativeSavePicker, loadWorkspaceFromFile, loadWorkspaceState, serializeWorkspace, isWorkspaceBlank, FileFormatError } from './persistence.js';
 import { createLocalBackup, createDebouncedSaver } from './local-backup.js';
 import { examples } from './examples.js';
@@ -392,16 +392,11 @@ function renderNewsPage() {
   newsOlder.disabled = newsIndex === changelog.length - 1;
 }
 
-// "Nuova" = piu' recente dell'ultima versione vista. Se non c'e' memoria
-// di una versione vista (utente che aveva gia' usato lo strumento prima
-// delle novita'), si considera nuova solo la piu' recente.
-function isUnseenNews(entry) {
-  if (newsLastSeen === null) return entry === changelog[0];
-  return compareVersions(entry.version, newsLastSeen) > 0;
-}
+// "Nuova" = piu' recente dell'ultima versione vista (regola in changelog.js).
+const isUnseenNews = (entry) => isUnseen(changelog, entry, newsLastSeen);
 
-function openNews() {
-  newsIndex = 0;
+function openNews(index = 0) {
+  newsIndex = index;
   renderNewsPage();
   newsModal.hidden = false;
 }
@@ -421,7 +416,7 @@ function showNewsPage(delta) {
   newsIndex = next;
   renderNewsPage();
 }
-document.getElementById('btnNews').addEventListener('click', openNews);
+document.getElementById('btnNews').addEventListener('click', () => openNews());
 document.getElementById('newsCloseBtn').addEventListener('click', closeNews);
 document.getElementById('newsCloseBtn2').addEventListener('click', closeNews);
 newsNewer.addEventListener('click', () => showNewsPage(-1));
@@ -438,7 +433,7 @@ document.addEventListener('keydown', (event) => {
 
 // All'avvio: chi usa lo strumento per la prima volta vede solo il benvenuto
 // (e parte gia' "aggiornato"); gli altri vedono le novita' se la versione e'
-// cambiata, a meno che la voce sia marcata silent. Con lo storage non
+// cambiata, a meno che le voci nuove siano tutte silent. Con lo storage non
 // disponibile non si apre mai da sole: meglio niente che ad ogni visita.
 // Viene chiamata da startAutosave, dopo la scelta sul ripristino: una sola
 // finestra alla volta.
@@ -450,8 +445,10 @@ function startupNews() {
       window.localStorage.setItem(NEWS_SEEN_KEY, appConfig.version);
       newsLastSeen = appConfig.version;
     } else if (stored !== appConfig.version) {
-      const hasLoudNews = changelog.some((e) => !e.silent && isUnseenNews(e));
-      if (hasLoudNews) openNews();
+      // Si apre sulla novita' importante piu' recente non ancora vista, non
+      // sull'ultima correzione da poco (vedi indiceNovitaDaMostrare).
+      const daMostrare = indiceNovitaDaMostrare(changelog, newsLastSeen);
+      if (daMostrare >= 0) openNews(daMostrare);
       else window.localStorage.setItem(NEWS_SEEN_KEY, appConfig.version);
     }
   } catch {
