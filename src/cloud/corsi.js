@@ -1,6 +1,6 @@
-// Corsi e iscrizioni, lato studente (e lettura lato docente). I corsi si creano
-// e si gestiscono da console Firestore: qui si può solo entrare con il codice e
-// leggere i propri. Le regole stanno in firestore.rules.template.
+// Corsi e iscrizioni, lato studente (e lettura lato docente). Qui si entra con il
+// codice e si leggono i propri corsi; creare e gestire i corsi (docente) sta in
+// gestione-corsi.js. Le regole stanno in firestore.rules.template.
 //
 // Modello: `corsi/<CODICE>` (l'id è il codice di accesso) e
 // `iscrizioni/<CODICE>_<email minuscola>`. Vedi docs/CLOUD.md.
@@ -9,7 +9,7 @@
 export const ALFABETO_CODICE = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 export const LUNGHEZZA_CODICE = 6;
 
-// Codice casuale, per i corsi che si creano da console (npm run codice).
+// Codice casuale per un nuovo corso (anche: npm run codice).
 export function generaCodice(lunghezza = LUNGHEZZA_CODICE) {
   const byte = crypto.getRandomValues(new Uint8Array(lunghezza));
   // 256 % 32 === 0: nessun bias
@@ -45,6 +45,23 @@ export function nomeCorso(c) {
   return (parti || c.id) + anno;
 }
 
+// Dal documento Firestore all'oggetto che l'interfaccia usa.
+export function corsoDaDocumento(snap, ruolo) {
+  const v = snap.data();
+  return {
+    id: snap.id,
+    materia: v.materia ?? '',
+    classe: v.classe ?? '',
+    annoScolastico: v.annoScolastico ?? '',
+    nomeScritto: v.nome ?? '',
+    nome: nomeCorso({ ...v, id: snap.id }),
+    iscrizioniAperte: v.iscrizioniAperte === true,
+    attivo: v.attivo !== false,
+    docenti: Array.isArray(v.docenti) ? v.docenti : [],
+    ruolo,
+  };
+}
+
 function traduci(err) {
   if (err instanceof ErroreCorsi) return err;
   const codice = err && err.code;
@@ -59,20 +76,7 @@ export function creaCorsi({ sdk, db }, emailUtente, ruolo = 'studente') {
   const docCorso = (id) => sdk.doc(db, 'corsi', id);
   const docIscrizione = (codice) => sdk.doc(db, 'iscrizioni', `${codice}_${email}`);
 
-  const daDocumento = (snap, ruolo) => {
-    const v = snap.data();
-    return {
-      id: snap.id,
-      materia: v.materia ?? '',
-      classe: v.classe ?? '',
-      annoScolastico: v.annoScolastico ?? '',
-      nome: nomeCorso({ ...v, id: snap.id }),
-      iscrizioniAperte: v.iscrizioniAperte === true,
-      attivo: v.attivo !== false,
-      docenti: Array.isArray(v.docenti) ? v.docenti : [],
-      ruolo,
-    };
-  };
+  const daDocumento = corsoDaDocumento;
 
   // Entra in un corso con il codice. Con codice sbagliato, corso chiuso o
   // archiviato la risposta è la stessa (non si rivela quali codici esistono).
@@ -80,7 +84,7 @@ export function creaCorsi({ sdk, db }, emailUtente, ruolo = 'studente') {
     // Le regole lo vietano comunque: qui si dà un messaggio onesto invece di
     // "codice non valido".
     if (ruolo === 'docente') {
-      throw new ErroreCorsi('docente', 'I docenti non si iscrivono ai corsi come studenti: i tuoi corsi si gestiscono dalla console.');
+      throw new ErroreCorsi('docente', 'I docenti non si iscrivono ai corsi come studenti: i tuoi corsi li gestisci dalla finestra «Corsi».');
     }
     const codice = normalizzaCodice(codiceDigitato);
     if (codice.length < 4) throw new ErroreCorsi('codice', 'Scrivi il codice del corso.');
@@ -104,11 +108,15 @@ export function creaCorsi({ sdk, db }, emailUtente, ruolo = 'studente') {
 
   // I propri corsi: quelli a cui si è iscritti e quelli in cui si è docente.
   // I corsi archiviati (attivo: false) non compaiono.
-  async function elenca() {
+  async function elenca({ archiviati = false } = {}) {
     try {
+      // Solo il docente può interrogare `corsi` per email: le regole chiedono che sia
+      // ancora in `docenti`, e una query di uno studente verrebbe rifiutata per intero.
       const [iscr, docente] = await Promise.all([
         sdk.getDocs(sdk.query(sdk.collection(db, 'iscrizioni'), sdk.where('email', '==', email))),
-        sdk.getDocs(sdk.query(sdk.collection(db, 'corsi'), sdk.where('docenti', 'array-contains', email))),
+        ruolo === 'docente'
+          ? sdk.getDocs(sdk.query(sdk.collection(db, 'corsi'), sdk.where('docenti', 'array-contains', email)))
+          : Promise.resolve({ docs: [] }),
       ]);
       const perId = new Map();
       for (const d of docente.docs) perId.set(d.id, daDocumento(d, 'docente'));
@@ -119,7 +127,8 @@ export function creaCorsi({ sdk, db }, emailUtente, ruolo = 'studente') {
         if (snap && snap.exists()) perId.set(snap.id, daDocumento(snap, 'studente'));
       }
       return [...perId.values()]
-        .filter((c) => c.attivo)
+        // gli archiviati li vede solo il docente che li ha chiesti
+        .filter((c) => c.attivo || (archiviati && c.ruolo === 'docente'))
         .sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
     } catch (err) {
       throw traduci(err);
