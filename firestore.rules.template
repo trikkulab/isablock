@@ -4,7 +4,8 @@ rules_version = '2';
 // `node scripts/build-rules.mjs <dev|scuola>` genera firestore.rules (ignorato
 // da git) sostituendo i segnaposto @@...@@. Vedi docs/CLOUD.md.
 //
-// Stato attuale: AUTENTICAZIONE, ruolo, SKETCH PERSONALI (li scrive solo il
+// Stato attuale: AUTENTICAZIONE, ruolo, COMMENTI DEL DOCENTE sugli sketch condivisi,
+// SKETCH PERSONALI (li scrive solo il
 // proprietario; il docente di un corso legge solo quelli che l'autore ha
 // condiviso con quel corso), CORSI e ISCRIZIONI (i docenti creano e gestiscono
 // i corsi dall'app; lo studente si iscrive con il codice o lo aggiunge il
@@ -142,6 +143,104 @@ service cloud.firestore {
         && (request.resource.data.get('condivisoCon', null) == resource.data.get('condivisoCon', null)
             || condivisioneValida(request.resource.data));
       allow delete: if mioSketch();
+    }
+
+    // Commenti del docente su uno sketch condiviso. Collezione SEPARATA: il docente
+    // non scrive mai sullo sketch, e un commento non è parte del programma.
+    // Id `<sketchId>_<n>`, n da 0 a 29: l'id deterministico è il TETTO di 30
+    // commenti per sketch, imposto qui senza Cloud Functions.
+    //   sketchId, sketchCreato (la `creato` dello sketch: gli id degli sketch si
+    //   riusano, così un commento non passa a un altro sketch con lo stesso id),
+    //   proprietarioUid (serve alla query «tutti i miei commenti»), corsoId (il corso
+    //   in cui è stato scritto), bloccoId (id del blocco nel JSON, o null = sull'intero
+    //   sketch), bloccoTesto (descrizione del blocco al momento del commento),
+    //   testo (1-500), autoreEmail, autoreNome, creato, modificato, letto.
+    // Scrive (crea) un docente del corso, solo su uno sketch condiviso con quel corso
+    // il cui autore è iscritto. Modifica solo il testo dei propri; li cancella l'autore
+    // o un altro docente del corso. Lo studente legge i commenti sui propri sketch e
+    // cambia soltanto `letto`; li cancella solo se lo sketch non esiste più (o è stato
+    // ricreato con lo stesso id).
+    // Lettura del docente: query con `sketchId`, `corsoId` e `sketchCreato` fissati (le
+    // regole possono usare solo i campi che la query fissa); le regole guardano
+    // lo sketch com'è ORA: se lo studente lo condivide con un altro corso o smette,
+    // i docenti del corso di prima non lo leggono più, e nemmeno i commenti.
+    match /commenti/{id} {
+      function datiSketch(sketchId) {
+        return get(/databases/$(database)/documents/sketch/$(sketchId)).data;
+      }
+      function corsoDi(corsoId) {
+        return get(/databases/$(database)/documents/corsi/$(corsoId)).data;
+      }
+      function emailCommento() {
+        return request.auth.token.email.lower();
+      }
+      // Il docente che legge: docente del corso del commento (attivo), sketch ancora
+      // condiviso con quel corso (stessa creazione) e autore ancora iscritto.
+      function docenteVedeCommento() {
+        let c = resource.data;
+        let sk = datiSketch(c.sketchId);
+        return isDocente()
+          && emailCommento() in corsoDi(c.corsoId).docenti
+          && corsoDi(c.corsoId).get('attivo', true) == true
+          && sk.get('condivisoCon', null) == c.corsoId
+          && sk.creato == c.sketchCreato
+          && exists(/databases/$(database)/documents/iscrizioni/$(c.corsoId + '_' + sk.get('proprietarioEmail', '')));
+      }
+      // Forma del documento. Che sketchId e corsoId siano veri (e coerenti con il
+      // proprietario) lo garantisce sketchCoerente(): i get() falliscono se non esistono.
+      function commentoValido() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['sketchId', 'sketchCreato', 'proprietarioUid', 'corsoId', 'bloccoId',
+                                 'bloccoTesto', 'testo', 'autoreEmail', 'autoreNome', 'creato', 'modificato', 'letto'])
+          && d.keys().hasAll(['sketchId', 'sketchCreato', 'proprietarioUid', 'corsoId', 'bloccoId',
+                              'bloccoTesto', 'testo', 'autoreEmail', 'autoreNome', 'creato', 'modificato', 'letto'])
+          && d.sketchId is string
+          && id.matches('^' + d.sketchId + '_([0-9]|[12][0-9])$')
+          && d.sketchCreato is timestamp
+          && d.proprietarioUid is string
+          && d.corsoId is string
+          && (d.bloccoId == null || (d.bloccoId is string && d.bloccoId.size() > 0 && d.bloccoId.size() <= 100))
+          && d.bloccoTesto is string && d.bloccoTesto.size() <= 200
+          && d.testo is string && d.testo.size() > 0 && d.testo.size() <= 500
+          && d.autoreEmail == emailCommento()
+          && d.autoreNome is string && d.autoreNome.size() > 0 && d.autoreNome.size() <= 80
+          && d.creato == request.time
+          && d.modificato == request.time
+          && d.letto == false;
+      }
+      function sketchCoerente() {
+        let d = request.resource.data;
+        let sk = datiSketch(d.sketchId);
+        return sk.proprietarioUid == d.proprietarioUid
+          && sk.creato == d.sketchCreato
+          && sk.get('condivisoCon', null) == d.corsoId
+          && emailCommento() in corsoDi(d.corsoId).docenti
+          && corsoDi(d.corsoId).get('attivo', true) == true
+          && exists(/databases/$(database)/documents/iscrizioni/$(d.corsoId + '_' + sk.get('proprietarioEmail', '')));
+      }
+
+      allow read: if (isAmmesso() && resource.data.get('proprietarioUid', null) == request.auth.uid)
+        || docenteVedeCommento();
+      allow create: if isDocente() && commentoValido() && sketchCoerente();
+      // Solo il testo, e solo l'autore (che deve poter ancora vedere il commento).
+      allow update: if (isDocente()
+            && resource.data.autoreEmail == emailCommento()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['testo', 'modificato'])
+            && request.resource.data.testo is string
+            && request.resource.data.testo.size() > 0 && request.resource.data.testo.size() <= 500
+            && request.resource.data.modificato == request.time
+            && docenteVedeCommento())
+        // lo studente: solo `letto`
+        || (isAmmesso()
+            && resource.data.proprietarioUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['letto'])
+            && request.resource.data.letto is bool);
+      allow delete: if (isDocente() && resource.data.autoreEmail == emailCommento())
+        || docenteVedeCommento()
+        || (isAmmesso()
+            && resource.data.proprietarioUid == request.auth.uid
+            && (!exists(/databases/$(database)/documents/sketch/$(resource.data.sketchId))
+                || datiSketch(resource.data.sketchId).creato != resource.data.sketchCreato));
     }
 
     // Corsi. Un documento per corso, con id = CODICE di accesso (6 caratteri
