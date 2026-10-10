@@ -1,6 +1,7 @@
-// Interfaccia degli sketch personali: "Salva nel cloud" e "I miei sketch".
-// Non conosce Blockly né Firebase: riceve dall'app tre funzioni
-// (`programma`) e dal cloud l'oggetto `sketch` di sketch.js.
+// Interfaccia degli sketch personali: «Salva nel cloud» e «I miei sketch», che il
+// menu «Cloud» (ui.js) chiama con salva() ed elenco(). Non ha pulsanti propri.
+// Non conosce Blockly né Firebase: riceve dall'app le funzioni di `programma`
+// e dal cloud l'oggetto `sketch` di sketch.js.
 //
 //   programma.corrente()  -> testo JSON del programma (come il file di "Salva")
 //   programma.isVuoto()   -> true se non c'è nessuna istruzione
@@ -14,17 +15,12 @@ const formatoData = new Intl.DateTimeFormat('it-IT', {
   day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
 });
 
-export function montaSketch({ contenitore, toast, programma }) {
+export function montaSketch({ toast, programma }) {
   let sketch = null;     // oggetto di sketch.js, valido solo da loggati
   let corsi = null;      // oggetto di corsi.js: per scegliere con quale corso condividere
   let nomiCorsi = new Map(); // codice -> nome del corso, per le etichette «condiviso con…»
   let aperto = null;     // { id, nome, condivisoCon } dello sketch cloud attualmente aperto
   let finestra = null;   // finestra aperta (una alla volta)
-
-  const btnSalva = el('button', { type: 'button', title: 'Salva il programma tra i tuoi sketch nel cloud' }, '☁ Salva');
-  const btnElenco = el('button', { type: 'button', title: 'Apri uno dei tuoi sketch salvati nel cloud' }, '☁ I miei sketch');
-  contenitore.hidden = true;
-  contenitore.append(btnSalva, btnElenco);
 
   const messaggio = (err) => (err && err.message) || 'Qualcosa è andato storto. Riprova.';
 
@@ -36,7 +32,7 @@ export function montaSketch({ contenitore, toast, programma }) {
   }
 
   // --- Salva -------------------------------------------------------------
-  btnSalva.addEventListener('click', () => {
+  function salva() {
     if (programma.isVuoto()) {
       toast('Il programma è vuoto: non c\'è niente da salvare.', 'error');
       return;
@@ -93,11 +89,9 @@ export function montaSketch({ contenitore, toast, programma }) {
     corpo.append(nota, ...(avvisoCondiviso ? [avvisoCondiviso] : []), campo, bottoni);
     campo.focus();
     campo.select();
-  });
+  }
 
   // --- I miei sketch -----------------------------------------------------
-  btnElenco.addEventListener('click', () => mostraElenco());
-
   async function mostraElenco() {
     const { corpo } = nuovaFinestra('I miei sketch');
     const mia = finestra;
@@ -235,11 +229,12 @@ export function montaSketch({ contenitore, toast, programma }) {
   }
 
   return {
+    salva,
+    elenco: () => mostraElenco(),
     // Dopo il login: abilita i pulsanti. `sketchDiUtente` è l'oggetto di sketch.js.
     entra(sketchDiUtente, corsiDiUtente) {
       sketch = sketchDiUtente;
       corsi = corsiDiUtente;
-      contenitore.hidden = false;
     },
     // Dopo il logout: tutto sparisce e non resta nessun riferimento allo sketch aperto.
     esci() {
@@ -248,7 +243,6 @@ export function montaSketch({ contenitore, toast, programma }) {
       nomiCorsi = new Map();
       aperto = null;
       chiudiFinestra();
-      contenitore.hidden = true;
     },
     // Il programma è stato sostituito da altro (Nuovo, file, esempio): lo sketch
     // aperto non è più quello che si vede, "Salva" deve proporne uno nuovo.

@@ -1,5 +1,5 @@
-// Interfaccia dei corsi: pulsante «Corsi» con l'elenco dei propri corsi e il
-// campo per iscriversi con il codice. I corsi si creano da console: qui non c'è
+// Interfaccia dei corsi: la finestra «Corsi» (aperta dal menu «Cloud», ui.js) con
+// l'elenco dei propri corsi e il campo per iscriversi con il codice. I corsi si creano da console: qui non c'è
 // niente per crearli. Non conosce Firebase: riceve l'oggetto `corsi` di corsi.js.
 import { el, apriFinestra } from './dom.js';
 import { normalizzaCodice } from './corsi.js';
@@ -8,24 +8,20 @@ const formatoData = new Intl.DateTimeFormat('it-IT', {
   day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
 });
 
-export function montaCorsi({ contenitore, toast, programma, dopoCaricamento }) {
+export function montaCorsi({ toast, programma, dopoCaricamento }) {
   let corsi = null;   // oggetto di corsi.js, valido solo da loggati
   let condivisi = null; // vista docente (condivisi.js)
   let ruolo = 'studente';
   let finestra = null;
 
-  const btn = el('button', { type: 'button', title: 'I tuoi corsi: iscriviti con il codice del docente' }, '🎓 Corsi');
-  contenitore.hidden = true;
-  contenitore.append(btn);
-
   const messaggio = (err) => (err && err.message) || 'Qualcosa è andato storto. Riprova.';
   function chiudiFinestra() { finestra?.chiudi(); finestra = null; }
 
-  btn.addEventListener('click', () => {
+  function apri() {
     chiudiFinestra();
     finestra = apriFinestra('I miei corsi', () => { finestra = null; });
     costruisci(finestra);
-  });
+  }
 
   function costruisci(mia) {
     const { corpo } = mia;
@@ -140,9 +136,10 @@ export function montaCorsi({ contenitore, toast, programma, dopoCaricamento }) {
   }
 
   return {
+    apri,
     entra(corsiDiUtente, ruoloUtente = 'studente', vistaDocente = null) {
-      corsi = corsiDiUtente; ruolo = ruoloUtente; condivisi = vistaDocente; contenitore.hidden = false;
+      corsi = corsiDiUtente; ruolo = ruoloUtente; condivisi = vistaDocente;
     },
-    esci() { corsi = null; condivisi = null; ruolo = 'studente'; chiudiFinestra(); contenitore.hidden = true; },
+    esci() { corsi = null; condivisi = null; ruolo = 'studente'; chiudiFinestra(); },
   };
 }

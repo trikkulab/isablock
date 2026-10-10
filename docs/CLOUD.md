@@ -90,9 +90,31 @@ git, **da ricreare su un'altra macchina**):
 Il file locale sovrascrive, per ambiente, i campi che contiene. Senza, `emailProva`
 è vuota: le regole dev ammettono solo il dominio.
 
+## Accesso e menu Cloud
+
+Nella toolbar c'è **un solo elemento** del cloud (`src/cloud/ui.js`):
+
+- **Prima del login: «☁ Accedi».** Apre una finestra che spiega a cosa serve, che l'uso
+  è facoltativo e **quali dati vengono salvati** (nome ed email della scuola, gli
+  sketch salvati dallo studente, i corsi a cui si iscrive, e cosa vede il docente se si
+  condivide uno sketch). Mentre la finestra è aperta il cloud si carica; il pulsante
+  «Continua con Google» è pronto al clic successivo e apre **subito** il popup di
+  Google. Così il passaggio in due clic (necessario perché Safari altrimenti blocca il
+  popup aperto in ritardo) è una conferma naturale, e nessun file dell'SDK viene
+  richiesto prima di aprire la finestra.
+- **Dopo il login: «☁ Nome Cognome ▾».** Menu con intestazione (nome, email, badge
+  Docente/Studente) e le voci Salva nel cloud, I miei sketch, Corsi, Esci. Si chiude con
+  Esc, con un clic fuori e scegliendo una voce; si scorre con le frecce. Il nome (non
+  una scritta fissa) serve nei laboratori con PC condivisi: si vede subito chi è
+  collegato.
+- I testi della finestra di accesso stanno in `src/cloud/testi.js`, per poterli rivedere
+  col responsabile della protezione dei dati senza toccare il codice. **L'elenco dei dati
+  deve restare uguale a ciò che il cloud salva davvero.** Periodo di conservazione e
+  luogo dei server non sono dichiarati perché non ancora decisi.
+
 ## Sketch personali
 
-Dopo il login compaiono «☁ Salva» e «☁ I miei sketch» nella toolbar.
+Si usano dal menu «☁ Nome ▾» (vedi «Accesso e menu Cloud»): voci «Salva nel cloud» e «I miei sketch».
 
 - **Salva**: propone un nome a caso (animale-aggettivo, es. `pangolino-ridente`,
   `src/cloud/nomi.js`), modificabile. Se si sta lavorando su uno sketch aperto
@@ -119,7 +141,7 @@ Dopo il login compaiono «☁ Salva» e «☁ I miei sketch» nella toolbar.
 
 I corsi si creano e si gestiscono **da console Firestore** (nessun pannello docente
 per ora: con poche classi non serve). L'app permette solo di iscriversi con il codice
-e di leggere i propri corsi («🎓 Corsi» nella toolbar).
+e di leggere i propri corsi (voce «Corsi» del menu «☁ Nome ▾»).
 
 **Creare un corso.** `npm run codice` stampa un codice casuale (Crockford Base32, 6
 caratteri: niente I L O U; `npm run codice -- 5` ne dà cinque da scegliere). In
@@ -180,7 +202,7 @@ Lo studente condivide **esplicitamente** uno sketch con un corso in cui è iscri
   archivi il corso (`attivo: false`), lo sketch sparisce subito dalla vista del
   docente; lo studente continua a vederlo e a ritirare la condivisione (ma non a
   ri-condividerlo con un corso da cui è stato tolto).
-- **Vista del docente** («🎓 Corsi» → «Sketch condivisi»): per ogni corso, autore,
+- **Vista del docente** (menu → «Corsi» → «Sketch condivisi»): per ogni corso, autore,
   nome e data degli sketch condivisi. «Apri» lo mostra nell'editor **senza
   collegarlo al cloud**: è una copia, il «Salva» del docente ne crea uno suo e
   l'originale non si tocca mai.
