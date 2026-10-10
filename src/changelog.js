@@ -7,6 +7,17 @@
 // finestra (per le correzioni che lo studente non nota).
 export const changelog = Object.freeze([
   {
+    version: '1.8.1',
+    date: '2026-10-10',
+    title: 'Rifiniture',
+    silent: true,
+    items: [
+      'L’editor non ha più bisogno di internet per mostrare le sue icone (zoom, cestino…).',
+      'Tolti i suoni quando agganci i blocchi: in laboratorio disturbavano.',
+      'La finestra Novità si apre sulla novità importante più recente che non hai ancora visto.',
+    ],
+  },
+  {
     version: '1.8.0',
     date: '2026-10-08',
     title: 'Il lavoro non si perde più',
