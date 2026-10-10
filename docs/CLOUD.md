@@ -2,7 +2,7 @@
 
 Stato: **accesso, ruolo (studente/docente), sketch personali, corsi (creati e gestiti dal
 docente nell'app) con iscrizione col codice o a mano, condivisione degli sketch col docente
-del corso**. Commenti del docente e verifica non esistono ancora. Le decisioni di fondo sono nella nota di progetto
+del corso, commenti del docente sugli sketch condivisi**. La verifica non esiste ancora. Le decisioni di fondo sono nella nota di progetto
 "cloud e verifica live"; qui c'è ciò che serve per usare e mantenere il codice.
 
 ## Principi
@@ -246,6 +246,66 @@ Lo studente condivide **esplicitamente** uno sketch con un corso in cui è iscri
   può usare `in` con più email.
 - Codice: `src/cloud/condivisi.js` (vista docente), `sketch.js` (`condividi`),
   `sketch-ui.js` e `corsi-ui.js`.
+
+## Commenti del docente
+
+Il docente commenta lo sketch che uno studente ha **condiviso** col suo corso, agganciando il
+commento a un **blocco** (o all'intero sketch). Lo sketch non si tocca mai: il commento è un
+documento a parte e non entra nel programma né nei tre output.
+
+**Per il docente.** «Corsi» → «Sketch condivisi» → «Apri»: lo sketch si apre come copia (come
+prima) e sotto il codice compare il pannello **«Commenti»**. Cliccando un blocco, il commento
+sarà su quel blocco (la scelta resta anche se poi si clicca nel campo di testo; «Sull'intero
+sketch» la toglie); poi «Aggiungi commento» (max 500 caratteri). Ogni commento ha «Modifica»
+(solo il proprio) ed «Elimina» (proprio o di un altro docente del corso). I blocchi commentati
+hanno un contorno arancione; cliccare «Blocco: …» in un commento seleziona il blocco (e
+quindi evidenzia le righe nei tre codici).
+
+**Per lo studente.** Nessuna notifica push: al login si legge una volta l'elenco dei propri
+commenti. Sul menu «☁ Nome ▾» compare un numero rosso con i commenti **nuovi** (non letti);
+in «I miei sketch» l'etichetta «💬 2 commenti del docente (1 nuovo)»; aprendo lo sketch il
+pannello mostra i commenti (sola lettura), i blocchi commentati sono contornati e i commenti
+diventano «letti». Se lo studente toglie il blocco, il commento resta come «Su un blocco che
+non c'è più: SE x > 3» (si salva una breve descrizione del blocco); se lo sketch è stato
+salvato dopo il commento, compare «Scritto prima dell'ultima modifica dello sketch». Lo
+studente **non risponde e non cancella** i commenti.
+
+**Dati** `commenti/<sketchId>_<n>` (n da 0 a 29: **tetto di 30 commenti per sketch**, imposto
+dall'id deterministico):
+
+| Campo | Note |
+|---|---|
+| `sketchId`, `sketchCreato` | lo sketch e la sua `creato` originale (gli id degli sketch si riusano: un commento non passa a un altro sketch con lo stesso id) |
+| `proprietarioUid` | per la query «tutti i miei commenti» dello studente |
+| `corsoId` | il corso in cui è stato scritto |
+| `bloccoId`, `bloccoTesto` | id del blocco nel JSON del programma (o `null`) e la sua riga di pseudocodice |
+| `testo` (1–500), `autoreEmail`, `autoreNome`, `creato`, `modificato`, `letto` | |
+
+**Regole** (mutation check fatto: 37 controlli spenti a mano, tutti fermati dai test; 3 controlli
+ridondanti sono stati tolti):
+- *Scrive*: un docente ancora in `docenti`, del corso, con lo sketch **condiviso con quel corso**
+  e l'autore iscritto; le regole confrontano il commento con lo sketch di adesso (`get`).
+- *Legge*: lo studente autore; i docenti del corso finché lo sketch è ancora condiviso con quel
+  corso (stessa creazione), l'autore è iscritto e il corso è attivo. Se lo studente condivide con un
+  altro corso, o smette, o viene tolto, il docente di prima non legge più né sketch né commenti, e
+  i docenti del nuovo corso non vedono i commenti scritti per il vecchio.
+- *Modifica*: il docente solo il **testo** dei propri; lo studente solo `letto`.
+- *Cancella*: l'autore, o un altro docente del corso; lo studente solo i commenti il cui sketch
+  **non esiste più** (o è stato ricreato con lo stesso id).
+- *Query*: le regole possono usare solo i campi che la query fissa, quindi il docente interroga
+  con `sketchId` + `corsoId` + `sketchCreato` (il `Timestamp` **originale**, non una `Date`: `toDate()`
+  perde i microsecondi e l'uguaglianza fallirebbe).
+- **Niente Cloud Functions**: quando lo studente elimina uno sketch, il client cancella prima lo
+  sketch e poi i suoi commenti (a quel punto orfani e quindi cancellabili); se la scheda si chiude
+  a metà, i commenti orfani si ripuliscono quando si apre «I miei sketch». Un orfano non ripulito
+  resta nel database finché non lo si ripulisce (rientra nella pulizia di fine anno, ancora da fare).
+- **Quote Spark**: una lettura dei propri commenti al login (e a ogni apertura di «I miei sketch»);
+  il docente una query per sketch aperto. Nessun polling.
+
+Codice: `src/cloud/commenti.js` (dati), `commenti-ui.js` (pannello). `main.js` offre al cloud
+sei piccole funzioni sui blocchi (`bloccoSelezionato`, `onSelezione`, `esisteBlocco`,
+`descriviBlocco`, `selezionaBlocco`, `marcaBlocchi`) dentro l'oggetto `programma`: usa solo il
+contorno CSS `blocco-commentato`, non l'icona di commento di Blockly (che finirebbe nel JSON).
 
 ## Sito di prova (Firebase Hosting, progetto dev)
 
