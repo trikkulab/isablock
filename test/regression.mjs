@@ -110,6 +110,13 @@ if (!changelog.some((e) => e.version === appConfig.version)) {
   process.exit(1);
 }
 
+// Le icone dell'editor stanno in locale (main.js: media: 'vendor/blockly/media/'):
+// senza il file l'editor tornerebbe a chiederle a un sito esterno, e offline mancherebbero.
+if (!existsSync(path.join(root, 'vendor/blockly/media/sprites.svg'))) {
+  console.log('\nFALLITO: manca vendor/blockly/media/sprites.svg (le icone di Blockly in locale).');
+  process.exit(1);
+}
+
 if (failed) {
   console.log('\nFALLITO: uno o più output sono cambiati rispetto allo snapshot.');
   process.exit(1);
