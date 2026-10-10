@@ -67,6 +67,7 @@ let currentBlockId = null;
 // nei pannelli il costrutto corrispondente, con uno stile piu' tenue di
 // quello dell'esecuzione, che ha comunque la precedenza.
 let selectedBlockId = null;
+const selectionListeners = new Set(); // il cloud (commenti) segue la selezione del blocco
 
 function escapeHtml(text) {
   return text.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
@@ -299,6 +300,7 @@ workspace.addChangeListener((event) => {
     // Il blocco program (INIZIO/FINE) non si evidenzia: vedi selectBlockFromCode.
     selectedBlockId = selected && selected.type !== 'program' ? event.newElementId : null;
     renderAllPanels();
+    selectionListeners.forEach((cb) => cb());
   }
   if (event.isUiEvent) return;
   scheduleUpdate();
@@ -459,6 +461,28 @@ function startupNews() {
 // La versione ha una sola fonte (app-config.js): il piè di pagina la legge da lì.
 document.getElementById('appVersion').textContent = appConfig.version;
 
+// Prima riga dello pseudocodice del blocco: serve a riconoscerlo in un commento
+// anche se poi lo studente lo toglie.
+function describeBlock(blockId) {
+  const range = sourceMaps.pseudocode.get(blockId);
+  if (!range) return '';
+  return outputTexts.pseudocode.slice(range.start, range.end).split('\n')[0].trim().slice(0, 200);
+}
+
+// Contorno sui blocchi che hanno un commento (solo classe CSS: non entra nel
+// programma salvato né nei tre output).
+let commentedBlockIds = new Set();
+function markCommentedBlocks(ids) {
+  for (const id of commentedBlockIds) workspace.getBlockById(id)?.removeClass('blocco-commentato');
+  commentedBlockIds = new Set();
+  for (const id of ids) {
+    const block = workspace.getBlockById(id);
+    if (!block) continue;
+    block.addClass('blocco-commentato');
+    commentedBlockIds.add(id);
+  }
+}
+
 // Strato cloud opzionale: con l'interruttore spento non si importa nulla.
 let cloudUi = null; // lo sketch cloud aperto va "scollegato" quando il programma viene sostituito
 if (appConfig.cloud.enabled) {
@@ -479,6 +503,20 @@ if (appConfig.cloud.enabled) {
           resetRunStrip();
           currentFileName = null;
         },
+        // Per i commenti del docente: il cloud legge e segna i blocchi senza
+        // conoscere Blockly. Gli id sono quelli salvati nel JSON del programma.
+        bloccoSelezionato: () => (selectedBlockId ? { id: selectedBlockId, testo: describeBlock(selectedBlockId) } : null),
+        onSelezione: (cb) => { selectionListeners.add(cb); return () => selectionListeners.delete(cb); },
+        esisteBlocco: (id) => !!workspace.getBlockById(id),
+        descriviBlocco: describeBlock,
+        selezionaBlocco: (id) => {
+          const block = workspace.getBlockById(id);
+          if (!block) return false;
+          Blockly.getFocusManager().focusNode(block);
+          scrollBlockIntoViewIfNeeded(id);
+          return true;
+        },
+        marcaBlocchi: markCommentedBlocks,
       },
     });
   });

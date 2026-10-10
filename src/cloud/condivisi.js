@@ -31,6 +31,9 @@ export function creaCondivisi({ sdk, db }) {
           nome: v.nome,
           autoreNome: v.proprietarioNome || v.proprietarioEmail,
           autoreEmail: v.proprietarioEmail,
+          proprietarioUid: v.proprietarioUid,
+          corsoId,
+          creatoTs: v.creato ?? null, // Timestamp originale, per i commenti
           modificato: v.modificato?.toDate?.() ?? null,
           programma: v.programma,
         };

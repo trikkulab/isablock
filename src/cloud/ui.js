@@ -12,6 +12,7 @@
 
 import { montaSketch } from './sketch-ui.js';
 import { montaCorsi } from './corsi-ui.js';
+import { montaCommenti } from './commenti-ui.js';
 import { el, apriFinestra } from './dom.js';
 import { titoloAccesso, introAccesso, titoloDati, datiSalvati, notaServizio } from './testi.js';
 
@@ -31,8 +32,14 @@ export function montaCloud({ contenitore, toast, programma }) {
   contenitore.hidden = false;
   contenitore.textContent = '';
 
-  const sketchUi = montaSketch({ toast, programma });
-  const corsiUi = montaCorsi({ toast, programma, dopoCaricamento: () => sketchUi.scollega() });
+  // Commenti del docente: il pannello e il numero di commenti nuovi sul menu.
+  const nuoviEl = el('span', { class: 'cloud-nuovi', hidden: '', title: 'Commenti nuovi del docente' });
+  const commentiUi = montaCommenti({ toast, programma, dopoCambioConteggio: (n) => {
+    nuoviEl.textContent = String(n);
+    nuoviEl.hidden = n === 0;
+  } });
+  const sketchUi = montaSketch({ toast, programma, commentiUi });
+  const corsiUi = montaCorsi({ toast, programma, commentiUi, dopoCaricamento: () => sketchUi.scollega() });
 
   // --- Elementi nella toolbar ---------------------------------------------
   const btnAccedi = el('button', { type: 'button', class: 'cloud-accedi',
@@ -40,7 +47,7 @@ export function montaCloud({ contenitore, toast, programma }) {
 
   const nomeUtente = el('span', { class: 'cloud-name' });
   const btnMenu = el('button', { type: 'button', class: 'cloud-menu-btn', 'aria-haspopup': 'menu', 'aria-expanded': 'false' },
-    '☁ ', nomeUtente, el('span', { class: 'cloud-caret', 'aria-hidden': 'true' }, ' ▾'));
+    '☁ ', nomeUtente, nuoviEl, el('span', { class: 'cloud-caret', 'aria-hidden': 'true' }, ' ▾'));
   const intNome = el('strong', { class: 'cloud-dd-nome' });
   const intEmail = el('span', { class: 'cloud-dd-email' });
   const badge = el('span', { class: 'cloud-badge' });
@@ -117,10 +124,12 @@ export function montaCloud({ contenitore, toast, programma }) {
       const corsi = cloud.corsiPer(utente.email, utente.ruolo);
       sketchUi.entra(cloud.sketchPer(utente.uid, { email: utente.email, nome: utente.nome }), corsi);
       corsiUi.entra(corsi, utente.ruolo, cloud.condivisi, utente.ruolo === 'docente' ? cloud.gestionePer(utente.email) : null);
+      commentiUi.entra(cloud.commentiPer({ uid: utente.uid, email: utente.email, nome: utente.nome }), utente.ruolo, utente.email);
     } else {
       memo(false);
       sketchUi.esci();
       corsiUi.esci();
+      commentiUi.esci();
     }
     if (errore) toast(errore.message, 'error');
   }
@@ -178,5 +187,6 @@ export function montaCloud({ contenitore, toast, programma }) {
   // Ripristino della sessione: solo se l'utente era già entrato in passato.
   if (eraEntrato()) carica().catch(() => memo(false));
 
-  return { scollega: () => sketchUi.scollega() };
+  // Il programma è stato sostituito da altro: sketch aperto e commenti non valgono più.
+  return { scollega: () => { sketchUi.scollega(); commentiUi.nascondi(); } };
 }

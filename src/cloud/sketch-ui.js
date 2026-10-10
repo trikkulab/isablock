@@ -15,7 +15,7 @@ const formatoData = new Intl.DateTimeFormat('it-IT', {
   day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
 });
 
-export function montaSketch({ toast, programma }) {
+export function montaSketch({ toast, programma, commentiUi }) {
   let sketch = null;     // oggetto di sketch.js, valido solo da loggati
   let corsi = null;      // oggetto di corsi.js: per scegliere con quale corso condividere
   let nomiCorsi = new Map(); // codice -> nome del corso, per le etichette «condiviso con…»
@@ -78,6 +78,7 @@ export function montaSketch({ toast, programma }) {
       }, 'Sketch aggiornato'));
       aggiungi('Salva come nuovo', true, () => esegui(async () => {
         aperto = { ...(await sketch.nuovo(campo.value, testo)), condivisoCon: null };
+        commentiUi.nascondi(); // i commenti erano dell'altro sketch
       }, 'Sketch salvato nel cloud'));
     } else {
       aggiungi('Salva', false, () => esegui(async () => {
@@ -99,6 +100,7 @@ export function montaSketch({ toast, programma }) {
     let sketchSalvati;
     try {
       [sketchSalvati] = await Promise.all([sketch.elenca(), caricaNomiCorsi()]);
+      await commentiUi.aggiornaDaElenco(sketchSalvati); // rilegge i commenti e toglie gli orfani
     } catch (err) {
       if (finestra === mia) { chiudiFinestra(); toast(messaggio(err), 'error'); }
       return;
@@ -125,13 +127,22 @@ export function montaSketch({ toast, programma }) {
     const info = el('div', { class: 'sketch-info' },
       el('strong', {}, s.nome, aperto && aperto.id === s.id ? el('span', { class: 'sketch-aperto' }, ' (aperto)') : ''),
       el('span', { class: 'sketch-data' }, quando ? `modificato il ${quando}` : ''),
-      s.condivisoCon ? el('span', { class: 'sketch-condiviso' }, `👁 condiviso con ${nomeCorsoDi(s.condivisoCon)}`) : '');
+      s.condivisoCon ? el('span', { class: 'sketch-condiviso' }, `👁 condiviso con ${nomeCorsoDi(s.condivisoCon)}`) : '',
+      etichettaCommenti(s));
     const azioni = el('div', { class: 'sketch-azioni' },
       el('button', { type: 'button', class: 'modal-btn', onclick: () => apri(s) }, 'Apri'),
       el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => condividi(s) }, 'Condividi…'),
       el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => rinomina(s) }, 'Rinomina'),
       el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => elimina(s) }, 'Elimina'));
     return el('div', { class: 'sketch-riga' }, info, azioni);
+  }
+
+  // «💬 2 commenti del docente (1 nuovo)» sotto lo sketch, se ce ne sono.
+  function etichettaCommenti(s) {
+    const { totali, nuovi } = commentiUi.info(s.id, s.creatoTs);
+    if (totali === 0) return '';
+    const testo = `💬 ${totali} ${totali === 1 ? 'commento' : 'commenti'} del docente${nuovi ? ` (${nuovi} ${nuovi === 1 ? 'nuovo' : 'nuovi'})` : ''}`;
+    return el('span', { class: nuovi ? 'sketch-condiviso commento-nuovi-etichetta' : 'sketch-condiviso' }, testo);
   }
 
   function apri(s) {
@@ -149,6 +160,8 @@ export function montaSketch({ toast, programma }) {
     aperto = { id: s.id, nome: s.nome, condivisoCon: s.condivisoCon };
     chiudiFinestra();
     toast(`Aperto «${s.nome}»`, 'success');
+    // se il docente ha commentato, il pannello compare accanto al codice
+    commentiUi.mostra({ id: s.id, nome: s.nome, creatoTs: s.creatoTs, modificato: s.modificato });
   }
 
   // Condivisione con il docente di un corso in cui si è iscritti. Il docente vede
@@ -220,6 +233,7 @@ export function montaSketch({ toast, programma }) {
     try {
       await sketch.elimina(s.id);
       if (aperto && aperto.id === s.id) aperto = null;
+      commentiUi.dopoEliminazione(s.id); // i commenti di uno sketch che non c'è più non servono
       toast('Sketch eliminato', 'success');
     } catch (err) {
       toast(messaggio(err), 'error');

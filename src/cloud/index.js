@@ -9,6 +9,7 @@ import { creaSketch } from './sketch.js';
 import { creaCorsi } from './corsi.js';
 import { creaCondivisi } from './condivisi.js';
 import { creaGestione } from './gestione-corsi.js';
+import { creaCommenti } from './commenti.js';
 
 export async function avviaCloud() {
   const config = await caricaConfig();
@@ -32,5 +33,6 @@ export async function avviaCloud() {
     condivisi: creaCondivisi(client),
     corsiPer: (email, ruolo) => creaCorsi(client, email, ruolo),
     gestionePer: (email) => creaGestione(client, email),
+    commentiPer: (profilo) => creaCommenti(client, profilo),
   };
 }

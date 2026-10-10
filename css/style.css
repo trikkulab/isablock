@@ -1018,3 +1018,26 @@ body {
 .cloud-dati { margin: 0 0 0.8rem 1.1rem; padding: 0; }
 .cloud-dati li { margin-bottom: 0.35rem; }
 
+
+/* Commenti del docente sugli sketch condivisi (src/cloud/commenti-ui.js) */
+.blocco-commentato > .blocklyPath { stroke: #f59e0b; stroke-width: 3px; }
+.cloud-nuovi { display: inline-block; min-width: 1.2em; margin-left: 0.3rem; padding: 0 0.35em; border-radius: 999px; background: #dc2626; color: #fff; font-size: 0.75rem; line-height: 1.4; text-align: center; font-weight: 700; }
+.cloud-nuovi[hidden] { display: none; }
+.commento-nuovi-etichetta { font-weight: 700; color: #b45309; }
+.commenti-pannello { flex: none; display: flex; flex-direction: column; max-height: 42%; border-top: 2px solid var(--border); background: var(--panel-bg); color: var(--text, inherit); }
+.commenti-testa { display: flex; align-items: center; gap: 0.4rem; width: 100%; padding: 0.35rem 0.6rem; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.commenti-testa:hover { background: #eef2f7; }
+.commenti-titolo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.commenti-corpo { overflow-y: auto; padding: 0.4rem 0.7rem 0.7rem; }
+.commento { padding: 0.5rem 0; border-top: 1px solid var(--border); }
+.commento:first-child { border-top: 0; }
+.commento-nuovo { background: #fef3c7; margin: 0 -0.4rem; padding: 0.5rem 0.4rem; border-radius: 6px; }
+.commento-testa { display: flex; align-items: baseline; gap: 0.3rem; flex-wrap: wrap; }
+.commento-badge { background: #dc2626; color: #fff; }
+.commento-blocco { display: inline-block; margin: 0.15rem 0; padding: 0.1rem 0.5rem; border: 1px solid #f59e0b; border-radius: 6px; background: #fffbeb; font: inherit; font-size: 0.85rem; color: #78350f; text-align: left; }
+button.commento-blocco { cursor: pointer; }
+.commento-orfano { border-style: dashed; color: var(--text-muted, #64748b); background: transparent; border-color: var(--border); }
+.commento-generale { border-color: var(--border); background: transparent; color: var(--text-muted, #64748b); }
+.commento-testo { margin: 0.25rem 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.commenti-modulo { margin-top: 0.6rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
+.commento-togli { border: 0; background: transparent; color: var(--accent, #2563eb); text-decoration: underline; cursor: pointer; font: inherit; padding: 0 0.2rem; }

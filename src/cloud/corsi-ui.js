@@ -9,7 +9,7 @@ const formatoData = new Intl.DateTimeFormat('it-IT', {
   day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
 });
 
-export function montaCorsi({ toast, programma, dopoCaricamento }) {
+export function montaCorsi({ toast, programma, commentiUi, dopoCaricamento }) {
   let corsi = null;   // oggetto di corsi.js, valido solo da loggati
   let condivisi = null; // vista docente (condivisi.js)
   let ruolo = 'studente';
@@ -93,6 +93,9 @@ export function montaCorsi({ toast, programma, dopoCaricamento }) {
       dopoCaricamento?.();
       chiudiFinestra();
       toast(`Aperto «${s.nome}» di ${s.autoreNome}. È una copia: se lo salvi, lo salvi come tuo sketch.`, 'success');
+      // revisione: il docente vede i commenti e può scriverne (sul blocco selezionato)
+      commentiUi?.mostra({ id: s.id, nome: s.nome, creatoTs: s.creatoTs, modificato: s.modificato,
+        autoreNome: s.autoreNome, proprietarioUid: s.proprietarioUid, corsoId: s.corsoId }, { docente: true });
     }
 
     async function aggiorna() {

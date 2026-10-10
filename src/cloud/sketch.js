@@ -68,6 +68,7 @@ export function creaSketch({ sdk, db }, uid, profilo = {}) {
             id: d.id,
             nome: v.nome,
             creato: v.creato?.toDate?.() ?? null,
+            creatoTs: v.creato ?? null, // Timestamp originale (i commenti lo confrontano esattamente)
             modificato: v.modificato?.toDate?.() ?? null,
             condivisoCon: v.condivisoCon ?? null,
             programma: v.programma,
