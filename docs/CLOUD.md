@@ -1,8 +1,8 @@
 # Cloud (opzionale): autenticazione
 
-Stato: **accesso, ruolo (studente/docente), sketch personali, corsi con iscrizione
-con codice, condivisione degli sketch col docente del corso**. Commenti del docente e
-verifica non esistono ancora. Le decisioni di fondo sono nella nota di progetto
+Stato: **accesso, ruolo (studente/docente), sketch personali, corsi (creati e gestiti dal
+docente nell'app) con iscrizione col codice o a mano, condivisione degli sketch col docente
+del corso**. Commenti del docente e verifica non esistono ancora. Le decisioni di fondo sono nella nota di progetto
 "cloud e verifica live"; qui c'è ciò che serve per usare e mantenere il codice.
 
 ## Principi
@@ -61,7 +61,7 @@ da `scripts/environments.json`, completato da `scripts/environments.local.json` 
   contiene solo email, nome, cognome, scrivibili solo dal proprietario.
 - Il client non decide chi è ammesso: prova a leggere `docenti/{mia email}` e le
   regole rispondono (permesso negato = account non ammesso → uscita con messaggio).
-- Tutto il resto è negato.
+- Corsi e iscrizioni: vedi «Corsi e iscrizioni». Tutto il resto è negato.
 
 Aggiungere un docente: console Firestore → collezione `docenti` → documento con
 ID = email in minuscolo. **Il contenuto del documento è ignorato: conta solo che
@@ -103,7 +103,7 @@ Nella toolbar c'è **un solo elemento** del cloud (`src/cloud/ui.js`):
   popup aperto in ritardo) è una conferma naturale, e nessun file dell'SDK viene
   richiesto prima di aprire la finestra.
 - **Dopo il login: «☁ Nome Cognome ▾».** Menu con intestazione (nome, email, badge
-  Docente/Studente) e le voci Salva nel cloud, I miei sketch, Corsi, Esci. Si chiude con
+  Docente/Studente) e le voci Salva nel cloud, I miei sketch, Corsi (per il docente anche «Nuovo corso» e «Gestisci»), Esci. Si chiude con
   Esc, con un clic fuori e scegliendo una voce; si scorre con le frecce. Il nome (non
   una scritta fissa) serve nei laboratori con PC condivisi: si vede subito chi è
   collegato.
@@ -139,48 +139,73 @@ Si usano dal menu «☁ Nome ▾» (vedi «Accesso e menu Cloud»): voci «Salva
 
 ## Corsi e iscrizioni
 
-I corsi si creano e si gestiscono **da console Firestore** (nessun pannello docente
-per ora: con poche classi non serve). L'app permette solo di iscriversi con il codice
-e di leggere i propri corsi (voce «Corsi» del menu «☁ Nome ▾»).
+Un **docente** (chi ha un documento in `docenti`, creato da console) crea e gestisce i
+corsi **dall'app**: menu «☁ Nome ▾» → «Corsi». Lo **studente** vi entra col codice o lo
+aggiunge il docente. Da console resta solo l'abilitazione dei docenti (`docenti/<email>`).
 
-**Creare un corso.** `npm run codice` stampa un codice casuale (Crockford Base32, 6
-caratteri: niente I L O U; `npm run codice -- 5` ne dà cinque da scegliere). In
-console: collezione `corsi` → documento con **ID = il codice** e i campi:
+**Corso** `corsi/<CODICE>`: l'id è il codice (Crockford Base32, 6 caratteri: niente I L O U) e
+non cambia mai.
 
 | Campo | Esempio | Note |
 |---|---|---|
-| `materia` | `Informatica` | |
-| `classe` | `3AINF` | testo libero (come `classeId` in isaquiz) |
-| `annoScolastico` | `2026/27` | |
-| `docenti` | array di email (minuscole) | titolare e codocenti: per aggiungerne uno si aggiunge l'email |
-| `iscrizioniAperte` | boolean | `true`: gli studenti si iscrivono col codice; `false`: solo a mano |
-| `attivo` | boolean | `false` = archiviato (sparisce dagli elenchi); meglio che cancellare |
+| `materia` | `Informatica` | 1–60 caratteri |
+| `classe` | `3AINF` | testo libero, 1–20 caratteri |
+| `annoScolastico` | `2026/27` | formato `AAAA/AA` imposto dalle regole (il client propone quello corrente, da settembre) |
+| `docenti` | array di email minuscole | **`docenti[0]` è il titolare**, gli altri sono codocenti |
+| `iscrizioniAperte` | boolean | `true`: gli studenti entrano col codice; `false`: solo a mano |
+| `attivo` | boolean | `false` = archiviato (i corsi non si cancellano) |
 | `nome` | `Laboratorio TPSIT` | facoltativo; se manca si mostra «materia – classe (anno)» |
+| `creato` | ora del server | solo nei corsi creati dall'app; non cambia |
 
-L'ID del corso è anche il suo codice, quindi **non si cambia**: per fermare nuovi
-ingressi si mette `iscrizioniAperte: false`.
+**Pannello docente** (`src/cloud/gestione-ui.js`, dati in `gestione-corsi.js`). In «Corsi» il
+docente ha «Nuovo corso», «Mostra anche i corsi archiviati» e, per ogni corso, «Gestisci»:
+- **Creare**: materia, classe, anno (proposto), nome facoltativo; il codice lo genera il
+  browser (`generaCodice()`). Se è già preso le regole rifiutano la scrittura (sarebbe una
+  modifica, `creato` non può cambiare) e il client riprova con un altro, fino a 5 volte.
+  Chi crea è il titolare. Nessun tetto: ogni docente crea i corsi che vuole.
+- **Codice**: grande, con «Copia», e il tasto per aprire/chiudere le iscrizioni.
+- **Iscritti**: elenco di email (non c'è il nome: `utenti/` è privato), «Togli» e un campo
+  dove incollare più email (una per riga, separate da virgole, o «Nome <email>»; al massimo 60
+  per volta). Si può aggiungere anche a iscrizioni chiuse, non a un corso archiviato. Esito:
+  quanti aggiunti, già iscritti, non accettati (email fuori dal dominio, di un docente).
+  Nessun tetto sul numero di iscritti.
+- **Codocenti**: si aggiungono per email, **uno alla volta, solo se esistono in `docenti`**
+  (altrimenti un docente potrebbe dare accesso agli sketch condivisi a uno studente) e si
+  tolgono tutti tranne il titolare, anche da soli. Per cambiare titolare serve la console.
+- **Dati del corso** modificabili e **Archivia / Riattiva**. Archiviato: sparisce agli
+  studenti, le iscrizioni col codice non funzionano, il docente non vede più gli sketch
+  condivisi (riattivando tornano).
 
-**Iscrizioni.** `iscrizioni/<CODICE>_<email minuscola>` con `corsoId` ed `email`.
-- *Con il codice*: lo studente lo digita e il documento lo crea l'app. Le regole lo
-  accettano solo se il corso esiste, è attivo e ha le iscrizioni aperte. Codice
-  sbagliato, corso chiuso o archiviato danno lo stesso messaggio (non si rivela quali
-  codici esistono). Il codice si scrive come capita: `ab-12 cd` vale `AB12CD`
-  (maiuscolo, I/L→1, O→0, il resto scartato).
-- *A mano (anche a corso chiuso)*: crea il documento con ID `<CODICE>_<email>`
-  (es. `AB12CD_nome.cognome@isarome.it`) e i campi `corsoId` (il codice) ed `email`.
-  Funziona anche per chi non ha mai fatto login.
-- *Togliere uno studente*: cancella il suo documento in `iscrizioni`. Perde subito
-  l'accesso al corso. Lo studente non può uscire da solo.
-- Uno studente può essere in più corsi. **Un docente** (chi ha un documento in
-  `docenti`) non si iscrive mai come studente, a nessun corso: le regole lo vietano e
-  l'app non gli mostra il campo del codice. Per provare l'app «da studente» serve un
-  account che non sia in `docenti`.
+**Iscrizioni** `iscrizioni/<CODICE>_<email minuscola>` con `corsoId`, `email`, `creato`.
+- *Con il codice*: lo studente lo digita (`ab-12 cd` vale `AB12CD`) e il documento lo crea
+  l'app; le regole lo accettano solo se il corso è attivo e con le iscrizioni aperte. Codice
+  sbagliato, corso chiuso o archiviato danno lo stesso messaggio.
+- *Dal docente*: lo crea il docente del corso. Le regole controllano email minuscola, senza
+  `/`, del dominio dell'istituto (o di prova in dev), mai quella di un docente. Funziona
+  anche per chi non ha mai fatto login: l'informativa (`testi.js`) lo dice.
+- *Togliere*: solo un docente del corso cancella il documento. Lo studente non esce da solo,
+  e nessuno modifica un'iscrizione. Se le iscrizioni sono aperte, chi è stato tolto può
+  rientrare col codice (non c'è un elenco di bloccati: si chiudono prima le iscrizioni).
+- Uno studente può essere in più corsi. **Un docente non si iscrive mai come studente.**
+  Per provare l'app «da studente» serve un account che non sia in `docenti`.
 
-**Chi vede cosa.** Il corso lo legge chi è tra i suoi `docenti` o ha l'iscrizione;
-ognuno vede solo le **proprie** iscrizioni. Nessuno scrive corsi dall'app.
-Il docente vede nell'elenco anche il codice e se le iscrizioni sono aperte.
+**Chi vede cosa.** Il corso lo legge chi è tra i suoi `docenti` o è iscritto; ognuno vede solo
+le proprie iscrizioni, il docente anche l'elenco degli iscritti del suo corso (query con
+`corsoId == <codice>`). Per leggere o scrivere il corso (e leggere iscritti e sketch
+condivisi) un docente deve stare nell'array del corso **ed esistere ancora in `docenti`**:
+se lo si toglie da `docenti` (console) perde subito accesso e gestione, anche se la sua email
+resta nell'array (che nessuno aggiorna da solo: un altro docente lo toglie dal pannello; se è
+il titolare, da console). Per questo solo il docente interroga `corsi` per email: una query
+di uno studente verrebbe rifiutata per intero.
 
-Codice: `src/cloud/corsi.js` (dati e codice), `src/cloud/corsi-ui.js` (interfaccia).
+**Cosa resta da console**: abilitare o togliere un docente (`docenti/<email>`) e cambiare il
+titolare di un corso. **La pulizia di fine anno non è ancora implementata**: è rimandata a
+dopo la modalità verifica (le verifiche potrebbero andare archiviate prima di cancellare
+dati; si prevede un export stampabile in PDF con il disegno dei blocchi e lo pseudocodice).
+Intanto i corsi si archiviano e i dati restano.
+
+Codice: `src/cloud/corsi.js` (studente, lettura), `gestione-corsi.js` (docente: dati),
+`gestione-ui.js` e `corsi-ui.js` (interfaccia).
 
 ## Condivisione degli sketch col docente
 
@@ -198,10 +223,13 @@ Lo studente condivide **esplicitamente** uno sketch con un corso in cui è iscri
   controllare l'iscrizione; si riscrivono a ogni salvataggio, così anche gli sketch
   vecchi si completano).
 - **Chi legge**: il docente del corso (anche un codocente) **finché il corso è attivo
-  e l'autore è ancora iscritto**. Se togli lo studente dal corso da console, o
+  e l'autore è ancora iscritto**. Se il docente toglie lo studente dal corso, o
   archivi il corso (`attivo: false`), lo sketch sparisce subito dalla vista del
   docente; lo studente continua a vederlo e a ritirare la condivisione (ma non a
-  ri-condividerlo con un corso da cui è stato tolto).
+  ri-condividerlo con un corso da cui è stato tolto). La condivisione resta scritta nello
+  sketch: se lo studente viene **riaggiunto** al corso, il docente rivede subito gli sketch
+  che aveva condiviso, senza che debba ricondividerli (comportamento voluto: rimedia a una
+  rimozione per errore).
 - **Vista del docente** (menu → «Corsi» → «Sketch condivisi»): per ogni corso, autore,
   nome e data degli sketch condivisi. «Apri» lo mostra nell'editor **senza
   collegarlo al cloud**: è una copia, il «Salva» del docente ne crea uno suo e
@@ -251,7 +279,7 @@ per le prove, con dati finti, e si può cancellare a fine prova.
 4. Se il login Google dà errore di dominio: console → Authentication → Settings →
    *Authorized domains* → aggiungere `isablock-test.web.app`.
 5. Per chi deve provare il ruolo docente: documento `docenti/<email>` da console; i corsi
-   di prova si creano da console come in «Corsi e iscrizioni».
+   di prova li crea il docente dall'app («Corsi» → «Nuovo corso»).
 
 **Fine prova:** cancellare i dati dalla console (collezioni `utenti`, `sketch`,
 `iscrizioni`, `corsi`, `docenti`) e, se si vuole, il sito con
