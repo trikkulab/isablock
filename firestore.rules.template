@@ -6,9 +6,9 @@ rules_version = '2';
 //
 // Stato attuale: AUTENTICAZIONE, ruolo, SKETCH PERSONALI (li scrive solo il
 // proprietario; il docente di un corso legge solo quelli che l'autore ha
-// condiviso con quel corso), CORSI e ISCRIZIONI (i corsi si gestiscono da
-// console, l'iscrizione si fa con il codice). La verifica non c'è ancora,
-// quindi tutto il resto è negato.
+// condiviso con quel corso), CORSI e ISCRIZIONI (i docenti creano e gestiscono
+// i corsi dall'app; lo studente si iscrive con il codice o lo aggiunge il
+// docente). La verifica non c'è ancora, quindi tutto il resto è negato.
 //
 // Ruoli: "docente" = esiste docenti/{email}, documento creato SOLO da console
 // (mai da client). Chiunque altro con un account ammesso è studente. Il ruolo
@@ -121,7 +121,7 @@ service cloud.firestore {
       // finché il corso è attivo e l'autore è ancora iscritto: se il docente lo
       // toglie da console, lo sketch sparisce dalla sua vista.
       function condivisoAlDocente() {
-        return isAmmesso()
+        return isDocente()
           && resource.data.get('condivisoCon', null) != null
           && emailMia() in get(/databases/$(database)/documents/corsi/$(resource.data.condivisoCon)).data.docenti
           && get(/databases/$(database)/documents/corsi/$(resource.data.condivisoCon)).data.get('attivo', true) == true
@@ -145,34 +145,87 @@ service cloud.firestore {
     }
 
     // Corsi. Un documento per corso, con id = CODICE di accesso (6 caratteri
-    // Crockford, come in isaquiz). Si creano, si modificano e si archiviano SOLO
-    // da console: il client li può solo leggere.
-    //   materia, classe (testo libero, es. "3AINF"), annoScolastico (es. "2026/27"),
-    //   docenti (elenco di email: titolare e codocenti), iscrizioniAperte (bool),
-    //   attivo (bool, false = archiviato), nome (facoltativo).
+    // Crockford, come in isaquiz).
+    //   materia, classe (testo libero, es. "3AINF"), annoScolastico ("2026/27"),
+    //   docenti (elenco di email minuscole: il primo è il TITOLARE, gli altri
+    //   codocenti), iscrizioniAperte (bool), attivo (bool, false = archiviato),
+    //   nome (facoltativo), creato (ora del server, solo nei corsi creati dall'app).
     // Lettura: i docenti del corso e i suoi iscritti. L'elenco dei propri corsi da
     // docente si ottiene con una query `docenti array-contains <mia email>`.
+    // Scrittura: ogni docente (esiste docenti/{email}) crea i corsi che vuole; li
+    // modificano i docenti del corso. Non si cancellano: si archiviano.
     match /corsi/{codice} {
+      function codiceValido(c) {
+        return c.matches('^[0-9A-HJKMNP-TV-Z]{4,12}$');
+      }
+      // Nell'elenco del corso E ancora docente: se lo si toglie da `docenti` (console)
+      // perde subito anche la lettura, senza aspettare che lo si tolga dall'array.
       function docenteDelCorso() {
-        return isAmmesso() && request.auth.token.email.lower() in resource.data.docenti;
+        return isDocente() && request.auth.token.email.lower() in resource.data.docenti;
       }
       function iscrittoAlCorso() {
         return isAmmesso()
           && exists(/databases/$(database)/documents/iscrizioni/$(codice + '_' + request.auth.token.email.lower()));
       }
+      // Forma del corso risultante (vale per creazione e modifica).
+      function corsoValido(d) {
+        return d.keys().hasOnly(['materia', 'classe', 'annoScolastico', 'nome', 'docenti',
+                                 'iscrizioniAperte', 'attivo', 'creato'])
+          && d.keys().hasAll(['materia', 'classe', 'annoScolastico', 'docenti', 'iscrizioniAperte', 'attivo'])
+          && d.materia is string && d.materia.size() > 0 && d.materia.size() <= 60
+          && d.classe is string && d.classe.size() > 0 && d.classe.size() <= 20
+          && d.annoScolastico is string && d.annoScolastico.matches('^[0-9]{4}/[0-9]{2}$')
+          && d.get('nome', '') is string && d.get('nome', '').size() <= 60
+          && d.docenti is list && d.docenti.size() >= 1
+          && d.docenti.toSet().size() == d.docenti.size()
+          && d.iscrizioniAperte is bool
+          && d.attivo is bool;
+      }
+      // Il titolare è docenti[0] e non cambia mai. Un solo cambio per volta: si
+      // aggiunge UN codocente in coda (deve esistere in `docenti`: altrimenti uno
+      // studente potrebbe farsi dare accesso agli sketch condivisi) oppure se ne
+      // toglie uno qualsiasi tranne il titolare. Le regole non hanno cicli, per
+      // questo non si accetta più di un cambio alla volta.
+      function docentiOk(vecchi, nuovi) {
+        return nuovi[0] == vecchi[0]
+          && (nuovi == vecchi
+              || (nuovi.size() == vecchi.size() + 1
+                  && nuovi[0:vecchi.size()] == vecchi
+                  && nuovi[vecchi.size()].matches('^[^/]+$')
+                  && nuovi[vecchi.size()] == nuovi[vecchi.size()].lower()
+                  && exists(/databases/$(database)/documents/docenti/$(nuovi[vecchi.size()])))
+              || (nuovi.size() == vecchi.size() - 1 && vecchi.hasAll(nuovi)));
+      }
       allow get: if docenteDelCorso() || iscrittoAlCorso();
       allow list: if docenteDelCorso();
-      allow write: if false;
+      allow create: if isDocente()
+        && codiceValido(codice)
+        && corsoValido(request.resource.data)
+        && request.resource.data.keys().hasAll(['creato'])
+        && request.resource.data.creato == request.time
+        && request.resource.data.docenti == [request.auth.token.email.lower()]
+        && request.resource.data.attivo == true;
+      // `creato` non cambia: così scrivere su un codice già occupato (una "creazione"
+      // che in realtà è una modifica) viene rifiutato.
+      allow update: if docenteDelCorso()
+        && corsoValido(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['materia', 'classe', 'annoScolastico', 'nome', 'docenti', 'iscrizioniAperte', 'attivo'])
+        && docentiOk(resource.data.docenti, request.resource.data.docenti);
+      allow delete: if false;
     }
 
     // Iscrizioni: id `<CODICE>_<email minuscola>`. Con l'email nell'id il docente
-    // può iscrivere a mano da console anche chi non ha mai fatto login.
-    // Auto-iscrizione: lo studente crea il proprio documento digitando il codice;
-    // riesce solo se il corso esiste (il codice è l'id), è attivo e ha le
-    // iscrizioni aperte. Chi è docente (esiste docenti/{email}) non si iscrive
-    // mai come studente, a nessun corso. Il client non modifica né cancella
-    // iscrizioni: per togliere uno studente il docente cancella il documento da
-    // console.
+    // può iscrivere anche chi non ha mai fatto login.
+    // Due modi di crearle, con lo stesso documento (corsoId, email, creato):
+    //  - auto-iscrizione: lo studente digita il codice; riesce solo se il corso
+    //    esiste (il codice è l'id), è attivo e ha le iscrizioni aperte. Chi è docente
+    //    (esiste docenti/{email}) non si iscrive mai come studente;
+    //  - dal docente del corso: aggiunge uno studente per email (dominio
+    //    istituzionale, minuscola, non docente), anche a iscrizioni chiuse ma non a
+    //    corso archiviato.
+    // Il client non modifica iscrizioni. Le cancella solo un docente del corso: lo
+    // studente non esce da solo.
     match /iscrizioni/{id} {
       // L'id finisce sempre con `_<email>`: si decide da lì, così anche leggere una
       // iscrizione che non esiste (per sapere se si è già iscritti) è permesso.
@@ -182,25 +235,47 @@ service cloud.firestore {
           && id[id.size() - e.size() - 1:id.size() - e.size()] == '_'
           && id[id.size() - e.size():] == e;
       }
+      function corsoDi(corsoId) {
+        return get(/databases/$(database)/documents/corsi/$(corsoId)).data;
+      }
+      // Email di uno studente aggiunto da un docente: minuscola, senza '/', del
+      // dominio istituzionale (o email di prova), e mai quella di un docente.
+      function emailStudenteValida(e) {
+        return e is string && e.size() <= 100 && e == e.lower()
+          && (e.matches('^[^@/ ]+@' + dominioIstituzionale() + '$') || e in emailProva())
+          && !exists(/databases/$(database)/documents/docenti/$(e));
+      }
+      function formaIscrizione() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['corsoId', 'email', 'creato'])
+          && d.keys().hasAll(['corsoId', 'email', 'creato'])
+          && d.corsoId is string
+          && d.corsoId.matches('^[0-9A-HJKMNP-TV-Z]{4,12}$')
+          && d.email is string
+          && id == d.corsoId + '_' + d.email
+          && d.creato == request.time;
+      }
       allow get: if isAmmesso() && idMio();
       // L'elenco degli iscritti di un corso lo leggono i suoi docenti (query con
       // `corsoId == <codice>`): serve a sapere chi si è iscritto e, di lì, a chiedere
       // gli sketch che ognuno ha condiviso.
       allow list: if isAmmesso()
         && (resource.data.email == request.auth.token.email.lower()
-            || request.auth.token.email.lower() in get(/databases/$(database)/documents/corsi/$(resource.data.corsoId)).data.docenti);
+            || (isDocente() && request.auth.token.email.lower() in get(/databases/$(database)/documents/corsi/$(resource.data.corsoId)).data.docenti));
       allow create: if isAmmesso()
-        && !exists(/databases/$(database)/documents/docenti/$(request.auth.token.email.lower()))
-        && request.resource.data.keys().hasOnly(['corsoId', 'email', 'creato'])
-        && request.resource.data.keys().hasAll(['corsoId', 'email', 'creato'])
-        && request.resource.data.email == request.auth.token.email.lower()
-        && request.resource.data.corsoId is string
-        && request.resource.data.corsoId.matches('^[0-9A-HJKMNP-TV-Z]{4,12}$')
-        && id == request.resource.data.corsoId + '_' + request.resource.data.email
-        && request.resource.data.creato == request.time
-        && get(/databases/$(database)/documents/corsi/$(request.resource.data.corsoId)).data.get('iscrizioniAperte', false) == true
-        && get(/databases/$(database)/documents/corsi/$(request.resource.data.corsoId)).data.get('attivo', true) == true;
-      allow update, delete: if false;
+        && formaIscrizione()
+        && ((request.resource.data.email == request.auth.token.email.lower()
+             && !exists(/databases/$(database)/documents/docenti/$(request.auth.token.email.lower()))
+             && corsoDi(request.resource.data.corsoId).get('iscrizioniAperte', false) == true
+             && corsoDi(request.resource.data.corsoId).get('attivo', true) == true)
+            || (isDocente()
+                && emailStudenteValida(request.resource.data.email)
+                && request.auth.token.email.lower() in corsoDi(request.resource.data.corsoId).docenti
+                && corsoDi(request.resource.data.corsoId).get('attivo', true) == true));
+      allow update: if false;
+      // Il corso si ricava dall'id (il codice non contiene '_'), non dal contenuto.
+      allow delete: if isDocente()
+        && request.auth.token.email.lower() in corsoDi(id.split('_')[0]).docenti;
     }
   }
 }

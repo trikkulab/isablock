@@ -20,6 +20,7 @@ beforeEach(async () => {
   await env.clearFirestore();
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
+    for (const e of ['docente@isarome.it']) await sdk.setDoc(sdk.doc(db, `docenti/${e}`), { attivo: true });
     const base = { materia: 'Informatica', classe: '3AINF', annoScolastico: '2026/27', docenti: ['docente@isarome.it'], iscrizioniAperte: true, attivo: true };
     await sdk.setDoc(sdk.doc(db, 'corsi/AB12CD'), base);
     await sdk.setDoc(sdk.doc(db, 'corsi/TP5B712'), { ...base, materia: 'TPSIT', classe: '3BINF', nome: 'Laboratorio TPSIT' });
@@ -95,7 +96,7 @@ test('corso chiuso: entra solo se il docente iscrive a mano (console)', async ()
 });
 
 test('il docente vede i propri corsi con ruolo docente; uno studente non vede quelli altrui', async () => {
-  const d = await per('docente@isarome.it').elenca();
+  const d = await per('docente@isarome.it', 'docente').elenca();
   assert.deepEqual(d.map((x) => x.id).sort(), ['AB12CD', 'CH7Z9Q', 'TP5B712'].sort());
   assert.ok(d.every((x) => x.ruolo === 'docente'));
   assert.deepEqual(await per('altro@isarome.it').elenca(), []);
@@ -126,5 +127,5 @@ test('un docente non si iscrive: messaggio chiaro, e anche senza il controllo de
     assert.equal(snap.size, 0);
   });
   // e il docente vede ancora i propri corsi come docente
-  assert.ok((await per('docente@isarome.it').elenca()).every((x) => x.ruolo === 'docente'));
+  assert.ok((await per('docente@isarome.it', 'docente').elenca()).every((x) => x.ruolo === 'docente'));
 });

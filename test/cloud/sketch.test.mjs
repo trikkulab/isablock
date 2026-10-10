@@ -93,6 +93,7 @@ const docenteVista = (email = 'docente@isarome.it') => creaCondivisi({ sdk, db: 
 async function corsoConIscritti(iscritti) {
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
+    for (const e of ['docente@isarome.it', 'altro@isarome.it']) await sdk.setDoc(sdk.doc(db, `docenti/${e}`), { attivo: true });
     await sdk.setDoc(sdk.doc(db, 'corsi/AB12CD'), { materia: 'Informatica', classe: '3AINF', annoScolastico: '2026/27', docenti: ['docente@isarome.it'], iscrizioniAperte: true, attivo: true });
     await sdk.setDoc(sdk.doc(db, 'corsi/ZZ99ZZ'), { materia: 'Altro', classe: '3BINF', annoScolastico: '2026/27', docenti: ['altro@isarome.it'], iscrizioniAperte: true, attivo: true });
     for (const e of iscritti) await sdk.setDoc(sdk.doc(db, `iscrizioni/AB12CD_${e}`), { corsoId: 'AB12CD', email: e });

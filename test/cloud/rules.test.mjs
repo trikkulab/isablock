@@ -23,6 +23,7 @@ beforeEach(async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     await setDoc(doc(db, 'docenti/docente@isarome.it'), { attivo: true });
+    await setDoc(doc(db, 'docenti/codocente@isarome.it'), { attivo: true });
     await setDoc(doc(db, 'config/istituto'), { dominio: 'isarome.it', nome: 'ISA' });
   });
 });
@@ -304,7 +305,8 @@ test('corsi: la iscrizione non si modifica né si cancella dal client', async ()
   await assertFails(updateDoc(doc(alunno(), `iscrizioni/AB12CD_${e}`), { corsoId: 'AB12CD' }));
   await assertFails(deleteDoc(doc(alunno(), `iscrizioni/AB12CD_${e}`)));
   await assertFails(setDoc(doc(alunno(), `iscrizioni/AB12CD_${e}`), iscr('AB12CD', e))); // riscrittura
-  await assertFails(deleteDoc(doc(utente('d', 'docente@isarome.it'), `iscrizioni/AB12CD_${e}`)));
+  // nemmeno il docente la modifica: la può solo cancellare (vedi sotto)
+  await assertFails(updateDoc(doc(utente('d', 'docente@isarome.it'), `iscrizioni/AB12CD_${e}`), { corsoId: 'CH7Z9Q' }));
 });
 
 test('corsi: lettura di un corso solo per iscritti e docenti', async () => {
@@ -364,13 +366,11 @@ test('corsi: si può chiedere la propria iscrizione anche se non esiste; quella 
   await assertFails(getDoc(doc(utente('f', 'x@gmail.com'), 'iscrizioni/AB12CD_x@gmail.com')));
 });
 
-test('corsi: nessuno scrive corsi dal client, nemmeno un docente del corso', async () => {
+test('corsi: uno studente non scrive corsi e un corso non si cancella (la gestione dei docenti è in «pannello»)', async () => {
   await creaCorsi();
-  const d = utente('d', 'docente@isarome.it');
-  await assertFails(setDoc(doc(d, 'corsi/NUOVO12'), CORSO));
-  await assertFails(updateDoc(doc(d, 'corsi/AB12CD'), { iscrizioniAperte: false }));
-  await assertFails(deleteDoc(doc(d, 'corsi/AB12CD')));
+  await assertFails(setDoc(doc(alunno(), 'corsi/NUOVO12'), CORSO));
   await assertFails(updateDoc(doc(alunno(), 'corsi/AB12CD'), { docenti: ['alunno@isarome.it'] }));
+  await assertFails(deleteDoc(doc(utente('d', 'docente@isarome.it'), 'corsi/AB12CD')));
 });
 
 // ── Condivisione degli sketch col docente del corso ───────────────────────
@@ -509,6 +509,253 @@ test('iscritti: il docente del corso elenca gli iscritti (corsoId fissato); stud
   await assertFails(perCorso(annaDb(), 'AB12CD'));                     // uno studente non elenca i compagni
   await assertFails(getDocs(collection(docenteDb(), 'iscrizioni')));   // senza filtro
   await assertFails(getDoc(doc(docenteDb(), `iscrizioni/AB12CD_${ANNA}`))); // la singola iscrizione resta privata
-  // il docente non scrive iscrizioni
-  await assertFails(setDoc(doc(docenteDb(), 'iscrizioni/AB12CD_nuovo@isarome.it'), { corsoId: 'AB12CD', email: 'nuovo@isarome.it', creato: serverTimestamp() }));
+});
+
+// ── Pannello docente: creare e gestire corsi, iscrivere e togliere ──────────
+const docente = () => utente('d', 'Docente@isarome.it');
+const codocente = () => utente('c', 'codocente@isarome.it');
+const nuovoCorso = (extra = {}) => ({
+  materia: 'Informatica', classe: '3AINF', annoScolastico: '2026/27',
+  docenti: ['docente@isarome.it'], iscrizioniAperte: true, attivo: true,
+  creato: serverTimestamp(), ...extra,
+});
+async function conDocenti() {
+  await creaCorsi({
+    'docenti/codocente@isarome.it': { attivo: true },
+    'docenti/terzo@isarome.it': { attivo: true },
+  });
+}
+
+test('pannello: un docente crea un corso con un codice libero (titolare = lui, attivo)', async () => {
+  await conDocenti();
+  await assertSucceeds(setDoc(doc(docente(), 'corsi/XY34ZW'), nuovoCorso()));
+  await assertSucceeds(setDoc(doc(docente(), 'corsi/XY35ZW'), nuovoCorso({ nome: 'Lab' })));
+  const snap = await assertSucceeds(getDoc(doc(docente(), 'corsi/XY34ZW')));
+  if (!snap.exists()) throw new Error('corso non creato');
+});
+
+test('pannello: chi non è docente non crea corsi', async () => {
+  await conDocenti();
+  await assertFails(setDoc(doc(alunno(), 'corsi/XY34ZW'), nuovoCorso({ docenti: ['alunno@isarome.it'] })));
+  await assertFails(setDoc(doc(utente('f', 'x@gmail.com'), 'corsi/XY34ZW'), nuovoCorso({ docenti: ['x@gmail.com'] })));
+  await assertFails(setDoc(doc(env.unauthenticatedContext().firestore(), 'corsi/XY34ZW'), nuovoCorso()));
+  await assertFails(setDoc(doc(utente('d2', 'docente@isarome.it', false), 'corsi/XY34ZW'), nuovoCorso())); // email non verificata
+});
+
+test('pannello: la creazione rifiuta forme sbagliate o abusive', async () => {
+  await conDocenti();
+  const d = docente();
+  const prova = (id, dati) => assertFails(setDoc(doc(d, `corsi/${id}`), dati));
+  await prova('XY34ZW', nuovoCorso({ docenti: ['docente@isarome.it', 'terzo@isarome.it'] })); // codocente già in creazione
+  await prova('XY34ZW', nuovoCorso({ docenti: ['terzo@isarome.it'] }));                       // titolare altrui
+  await prova('XY34ZW', nuovoCorso({ docenti: [] }));
+  await prova('XY34ZW', nuovoCorso({ attivo: false }));
+  await prova('XY34ZW', nuovoCorso({ extra: 1 }));                                            // campo non previsto
+  await prova('XY34ZW', nuovoCorso({ creato: Timestamp.fromMillis(1) }));
+  await prova('XY34ZW', nuovoCorso({ annoScolastico: '2026-27' }));
+  await prova('XY34ZW', nuovoCorso({ annoScolastico: '26/27' }));
+  await prova('XY34ZW', nuovoCorso({ materia: '' }));
+  await prova('XY34ZW', nuovoCorso({ materia: 'x'.repeat(61) }));
+  await prova('XY34ZW', nuovoCorso({ classe: 'x'.repeat(21) }));
+  await prova('XY34ZW', nuovoCorso({ nome: 'x'.repeat(61) }));
+  await prova('XY34ZW', nuovoCorso({ nome: 5 }));
+  await prova('XY34ZW', nuovoCorso({ iscrizioniAperte: 'si' }));
+  await prova('ILOU12', nuovoCorso());   // codice non Crockford
+  await prova('AB1', nuovoCorso());      // troppo corto
+  await prova('ab12cd', nuovoCorso());   // non canonico
+  const { creato, ...senza } = nuovoCorso();
+  await prova('XY34ZW', senza);          // manca creato
+});
+
+test('pannello: un codice già preso non si può riscrivere (né il proprio corso né quello di altri)', async () => {
+  await conDocenti();
+  await assertFails(setDoc(doc(utente('t', 'terzo@isarome.it'), 'corsi/AB12CD'), nuovoCorso({ docenti: ['terzo@isarome.it'] }))); // corso altrui
+  await assertFails(setDoc(doc(docente(), 'corsi/AB12CD'), nuovoCorso()));                                                        // corso proprio
+  const snap = await getDoc(doc(docente(), 'corsi/AB12CD'));
+  if (snap.data().docenti.length !== 2) throw new Error('il corso esistente è stato alterato');
+});
+
+test('pannello: titolare e codocenti modificano i dati del corso, gli altri no', async () => {
+  await conDocenti();
+  for (const chi of [docente(), codocente()]) {
+    await assertSucceeds(updateDoc(doc(chi, 'corsi/AB12CD'), { iscrizioniAperte: false }));
+    await assertSucceeds(updateDoc(doc(chi, 'corsi/AB12CD'), { iscrizioniAperte: true, attivo: false }));
+    await assertSucceeds(updateDoc(doc(chi, 'corsi/AB12CD'), { attivo: true, nome: 'Nuovo nome', materia: 'TPSIT', classe: '4BINF', annoScolastico: '2027/28' }));
+  }
+  const iscritto = alunno();
+  await setDoc(doc(iscritto, 'iscrizioni/AB12CD_alunno@isarome.it'), iscr('AB12CD', 'alunno@isarome.it'));
+  await assertFails(updateDoc(doc(iscritto, 'corsi/AB12CD'), { iscrizioniAperte: false }));
+  await assertFails(updateDoc(doc(utente('t', 'terzo@isarome.it'), 'corsi/AB12CD'), { attivo: false })); // docente di un altro corso
+  await assertFails(updateDoc(doc(docente(), 'corsi/BASSA12'), { attivo: false }));                       // corso di un collega
+});
+
+test('pannello: la modifica rifiuta campi non modificabili e valori non validi', async () => {
+  await conDocenti();
+  const d = docente();
+  const prova = (dati) => assertFails(updateDoc(doc(d, 'corsi/AB12CD'), dati));
+  await prova({ creato: serverTimestamp() });
+  await prova({ extra: 1 });
+  await prova({ annoScolastico: 'prossimo' });
+  await prova({ materia: '' });
+  await prova({ attivo: 'no' });
+  await prova({ iscrizioniAperte: null });
+  await prova({ nome: 'x'.repeat(61) });
+  await assertFails(deleteDoc(doc(d, 'corsi/AB12CD'))); // i corsi non si cancellano
+});
+
+test('pannello: codocenti — se ne aggiunge uno alla volta, solo se è un docente vero', async () => {
+  await conDocenti();
+  const d = docente();
+  const base = ['docente@isarome.it', 'codocente@isarome.it'];
+  await assertSucceeds(updateDoc(doc(d, 'corsi/AB12CD'), { docenti: [...base, 'terzo@isarome.it'] }));
+  // uno studente (non in docenti) non diventa codocente
+  await assertFails(updateDoc(doc(d, 'corsi/BASSA12'), { docenti: ['qualcuno@isarome.it', 'alunno@isarome.it'] })); // non è il suo corso
+  await assertFails(updateDoc(doc(d, 'corsi/CH7Z9Q'), { docenti: [...base, 'alunno@isarome.it'] }));
+  // due insieme, maiuscole, in testa, sostituzioni, duplicati, tipi sbagliati
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'docenti/quarto@isarome.it'), { attivo: true }));
+  await assertFails(updateDoc(doc(d, 'corsi/CH7Z9Q'), { docenti: [...base, 'terzo@isarome.it', 'quarto@isarome.it'] }));
+  await assertFails(updateDoc(doc(d, 'corsi/CH7Z9Q'), { docenti: [...base, 'Terzo@isarome.it'] }));
+  await assertFails(updateDoc(doc(d, 'corsi/CH7Z9Q'), { docenti: ['terzo@isarome.it', ...base] }));
+  await assertFails(updateDoc(doc(d, 'corsi/CH7Z9Q'), { docenti: ['docente@isarome.it', 'terzo@isarome.it'] })); // sostituisce codocente
+  await assertFails(updateDoc(doc(d, 'corsi/CH7Z9Q'), { docenti: [...base, 'codocente@isarome.it'] }));          // duplicato
+  await assertFails(updateDoc(doc(d, 'corsi/CH7Z9Q'), { docenti: [...base, 'a/b'] }));
+  await assertFails(updateDoc(doc(d, 'corsi/CH7Z9Q'), { docenti: 'terzo@isarome.it' }));
+});
+
+test('pannello: il titolare non si tocca; i codocenti si tolgono (anche da soli)', async () => {
+  await conDocenti();
+  const tre = ['docente@isarome.it', 'codocente@isarome.it', 'terzo@isarome.it'];
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'corsi/TRE123'), { ...CORSO, docenti: tre }));
+  // il codocente non toglie il titolare, né si mette davanti
+  await assertFails(updateDoc(doc(codocente(), 'corsi/TRE123'), { docenti: ['codocente@isarome.it', 'terzo@isarome.it'] }));
+  await assertFails(updateDoc(doc(codocente(), 'corsi/TRE123'), { docenti: ['codocente@isarome.it', 'docente@isarome.it', 'terzo@isarome.it'] }));
+  await assertFails(updateDoc(doc(docente(), 'corsi/TRE123'), { docenti: ['codocente@isarome.it', 'terzo@isarome.it'] })); // nemmeno il titolare si "toglie"
+  await assertFails(updateDoc(doc(docente(), 'corsi/TRE123'), { docenti: [] }));
+  await assertFails(updateDoc(doc(docente(), 'corsi/TRE123'), { docenti: ['docente@isarome.it'] })); // due tolti insieme
+  // un codocente toglie se stesso; il titolare toglie un altro
+  await assertSucceeds(updateDoc(doc(codocente(), 'corsi/TRE123'), { docenti: ['docente@isarome.it', 'terzo@isarome.it'] }));
+  await assertFails(getDoc(doc(codocente(), 'corsi/TRE123'))); // non è più docente del corso
+  await assertSucceeds(updateDoc(doc(docente(), 'corsi/TRE123'), { docenti: ['docente@isarome.it'] }));
+});
+
+test('pannello: un docente tolto dall\'elenco docenti non gestisce più i corsi', async () => {
+  await conDocenti();
+  await env.withSecurityRulesDisabled((ctx) => deleteDoc(doc(ctx.firestore(), 'docenti/codocente@isarome.it')));
+  await assertFails(updateDoc(doc(codocente(), 'corsi/AB12CD'), { attivo: false }));
+  await assertFails(setDoc(doc(codocente(), 'corsi/XY34ZW'), nuovoCorso({ docenti: ['codocente@isarome.it'] })));
+});
+
+test('pannello: il docente iscrive uno studente per email (anche a iscrizioni chiuse)', async () => {
+  await conDocenti();
+  const e = 'nuovo.alunno@isarome.it';
+  await assertSucceeds(setDoc(doc(docente(), `iscrizioni/AB12CD_${e}`), iscr('AB12CD', e)));
+  await assertSucceeds(setDoc(doc(docente(), `iscrizioni/CH7Z9Q_${e}`), iscr('CH7Z9Q', e)));      // corso chiuso
+  await assertSucceeds(setDoc(doc(codocente(), 'iscrizioni/AB12CD_altro@isarome.it'), iscr('AB12CD', 'altro@isarome.it'))); // codocente
+  // lo studente iscritto così vede il corso
+  await assertSucceeds(getDoc(doc(utente('n', e), 'corsi/AB12CD')));
+});
+
+test('pannello: iscrizione fatta dal docente — rifiuti', async () => {
+  await conDocenti();
+  const d = docente();
+  const prova = (id, dati, chi = d) => assertFails(setDoc(doc(chi, `iscrizioni/${id}`), dati));
+  const e = 'nuovo@isarome.it';
+  await prova(`BASSA12_${e}`, iscr('BASSA12', e));                                   // corso di un collega
+  await prova(`ARCH123_${e}`, iscr('ARCH123', e));                                   // corso archiviato
+  await prova(`ZZZZZZ_${e}`, iscr('ZZZZZZ', e));                                     // corso inesistente
+  await prova('AB12CD_x@gmail.com', iscr('AB12CD', 'x@gmail.com'));                  // fuori dominio
+  await prova('AB12CD_nuovo@isarome.it.evil.com', iscr('AB12CD', 'nuovo@isarome.it.evil.com'));
+  await prova('AB12CD_Nuovo@isarome.it', iscr('AB12CD', 'Nuovo@isarome.it'));        // maiuscole
+  await prova('AB12CD_a b@isarome.it', iscr('AB12CD', 'a b@isarome.it'));
+  await prova('AB12CD_terzo@isarome.it', iscr('AB12CD', 'terzo@isarome.it'));        // un docente non è studente
+  await prova('AB12CD_docente@isarome.it', iscr('AB12CD', 'docente@isarome.it'));    // nemmeno sé stesso
+  await prova(`AB12CD_altro@isarome.it`, iscr('AB12CD', e));                         // id diverso dall'email
+  await prova(`CH7Z9Q_${e}`, iscr('AB12CD', e));                                     // id diverso dal corso
+  await prova(`AB12CD_${e}`, iscr('AB12CD', e, { extra: 1 }));
+  await prova(`AB12CD_${e}`, iscr('AB12CD', e, { creato: Timestamp.fromMillis(1) }));
+  await prova(`AB12CD_${e}`, { corsoId: 'AB12CD', email: e });                       // manca creato
+  // chi non è docente del corso o non è docente affatto
+  await prova(`AB12CD_${e}`, iscr('AB12CD', e), utente('t', 'terzo@isarome.it'));    // docente di un altro corso
+  await prova(`CH7Z9Q_${e}`, iscr('CH7Z9Q', e), alunno());                           // studente su corso chiuso
+  await prova(`AB12CD_${e}`, iscr('AB12CD', e), utente('f', 'x@gmail.com'));
+  // uno studente iscritto non iscrive altri nemmeno a corso aperto
+  await prova(`AB12CD_${e}`, iscr('AB12CD', e), alunno());
+});
+
+test('pannello: togliere uno studente — lo fa il docente (anche codocente) del corso, nessun altro', async () => {
+  await conDocenti();
+  const e = 'alunno@isarome.it';
+  const metti = () => env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), `iscrizioni/AB12CD_${e}`), { corsoId: 'AB12CD', email: e }));
+  await metti();
+  await assertFails(deleteDoc(doc(alunno(), `iscrizioni/AB12CD_${e}`)));                    // lui stesso no
+  await assertFails(deleteDoc(doc(utente('x', 'altro@isarome.it'), `iscrizioni/AB12CD_${e}`)));
+  await assertFails(deleteDoc(doc(utente('t', 'terzo@isarome.it'), `iscrizioni/AB12CD_${e}`))); // docente di un altro corso
+  await assertFails(deleteDoc(doc(utente('f', 'x@gmail.com'), `iscrizioni/AB12CD_${e}`)));
+  await assertSucceeds(deleteDoc(doc(docente(), `iscrizioni/AB12CD_${e}`)));
+  await assertFails(getDoc(doc(alunno(), 'corsi/AB12CD')));                                  // perde l'accesso
+  await metti();
+  await assertSucceeds(deleteDoc(doc(codocente(), `iscrizioni/AB12CD_${e}`)));
+});
+
+test('pannello: il docente elenca gli iscritti del proprio corso e non di altri', async () => {
+  await conDocenti();
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'iscrizioni/AB12CD_alunno@isarome.it'), { corsoId: 'AB12CD', email: 'alunno@isarome.it' }));
+  const q = (corso) => query(collection(docente(), 'iscrizioni'), where('corsoId', '==', corso));
+  const snap = await assertSucceeds(getDocs(q('AB12CD')));
+  if (snap.size !== 1) throw new Error('atteso 1 iscritto');
+  await assertFails(getDocs(q('BASSA12')));
+});
+
+test('pannello: codocenti — niente trucchi con inserimenti o sostituzioni mascherati da aggiunta/rimozione', async () => {
+  await conDocenti();
+  const tre = ['docente@isarome.it', 'codocente@isarome.it', 'terzo@isarome.it'];
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'corsi/TRE123'), { ...CORSO, docenti: tre }));
+  const d = docente();
+  // "aggiunta" (+1) in cui un codocente vero è sostituito da uno studente e in coda c'è un docente vero
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'docenti/quarto@isarome.it'), { attivo: true }));
+  await assertFails(updateDoc(doc(d, 'corsi/TRE123'), { docenti: ['docente@isarome.it', 'alunno@isarome.it', 'terzo@isarome.it', 'quarto@isarome.it'] }));
+  // "rimozione" (-1) che in realtà sostituisce due docenti con uno studente
+  await assertFails(updateDoc(doc(d, 'corsi/TRE123'), { docenti: ['docente@isarome.it', 'alunno@isarome.it'] }));
+  // quelle oneste passano
+  await assertSucceeds(updateDoc(doc(d, 'corsi/TRE123'), { docenti: [...tre, 'quarto@isarome.it'] }));
+  await assertSucceeds(updateDoc(doc(d, 'corsi/TRE123'), { docenti: ['docente@isarome.it', 'terzo@isarome.it', 'quarto@isarome.it'] }));
+});
+
+test('pannello: un docente il cui documento in `docenti` è di maiuscole miste non si aggiunge (il client scrive minuscole)', async () => {
+  await conDocenti();
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'docenti/Misto@isarome.it'), { attivo: true }));
+  await assertFails(updateDoc(doc(docente(), 'corsi/CH7Z9Q'), { docenti: [...CORSO.docenti, 'Misto@isarome.it'] }));
+});
+
+test('pannello: chi è ancora nell\'elenco del corso ma non è più un docente non iscrive né toglie studenti', async () => {
+  await conDocenti();
+  const e = 'alunno@isarome.it';
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), `iscrizioni/AB12CD_${e}`), { corsoId: 'AB12CD', email: e });
+    await deleteDoc(doc(ctx.firestore(), 'docenti/codocente@isarome.it'));
+  });
+  await assertFails(setDoc(doc(codocente(), 'iscrizioni/AB12CD_nuovo@isarome.it'), iscr('AB12CD', 'nuovo@isarome.it')));
+  await assertFails(deleteDoc(doc(codocente(), `iscrizioni/AB12CD_${e}`)));
+  // il titolare, ancora docente, sì
+  await assertSucceeds(deleteDoc(doc(docente(), `iscrizioni/AB12CD_${e}`)));
+});
+
+test('pannello: un docente tolto dall\'elenco `docenti` (ma ancora nell\'array del corso) non legge più nulla del corso', async () => {
+  await scenario();
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'docenti/codocente@isarome.it'), { attivo: true }));
+  const c = codocente();
+  // finché è docente legge tutto
+  await assertSucceeds(getDoc(doc(c, 'corsi/AB12CD')));
+  await assertSucceeds(getDocs(query(collection(c, 'corsi'), where('docenti', 'array-contains', 'codocente@isarome.it'))));
+  await assertSucceeds(getDocs(query(collection(c, 'iscrizioni'), where('corsoId', '==', 'AB12CD'))));
+  await assertSucceeds(getDocs(query(collection(c, 'sketch'), where('condivisoCon', '==', 'AB12CD'), where('proprietarioEmail', '==', ANNA))));
+  // tolto da console: l'email resta nell'array, ma non vede più niente
+  await env.withSecurityRulesDisabled((ctx) => deleteDoc(doc(ctx.firestore(), 'docenti/codocente@isarome.it')));
+  await assertFails(getDoc(doc(c, 'corsi/AB12CD')));
+  await assertFails(getDocs(query(collection(c, 'corsi'), where('docenti', 'array-contains', 'codocente@isarome.it'))));
+  await assertFails(getDocs(query(collection(c, 'iscrizioni'), where('corsoId', '==', 'AB12CD'))));
+  await assertFails(getDocs(query(collection(c, 'sketch'), where('condivisoCon', '==', 'AB12CD'), where('proprietarioEmail', '==', ANNA))));
+  await assertFails(getDoc(doc(c, 'sketch/anna_0')));
+  // il titolare, ancora docente, sì
+  await assertSucceeds(getDoc(doc(docente(), 'sketch/anna_0')));
 });
