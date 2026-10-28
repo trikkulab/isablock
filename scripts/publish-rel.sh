@@ -1,10 +1,10 @@
 #!/bin/bash
 # Pubblica lo stato corrente di main sul branch rel (GitHub Pages),
-# rimuovendo i file non necessari all'app pubblicata (docs/, README.md, CLAUDE.md, src/cloud/config.dev.js).
+# rimuovendo i file non necessari all'app pubblicata (docs/, README.md, CLAUDE.md, src/cloud/config.dev.js, schede_pattern/).
 set -euo pipefail
 
 # config.dev.js: configurazione del progetto Firebase personale, non va online.
-FILE_DA_ESCLUDERE=(docs README.md CLAUDE.md src/cloud/config.dev.js)
+FILE_DA_ESCLUDERE=(docs README.md CLAUDE.md src/cloud/config.dev.js schede_pattern)
 
 git rev-parse --abbrev-ref HEAD | grep -qx main && ORIG_BRANCH=main || ORIG_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
