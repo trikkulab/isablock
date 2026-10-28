@@ -7,6 +7,16 @@
 // finestra (per le correzioni che lo studente non nota).
 export const changelog = Object.freeze([
   {
+    version: '1.8.3',
+    date: '2026-10-28',
+    title: 'Rifiniture su vero e falso',
+    silent: true,
+    items: [
+      'In C, un programma che usa vero/falso senza variabili booleane (per esempio MENTRE VERO) ora si compila.',
+      'VERO, FALSO, true e false hanno lo stesso colore dei numeri, perché sono valori.',
+    ],
+  },
+  {
     version: '1.8.2',
     date: '2026-10-28',
     title: 'VERO e FALSO come negli appunti',

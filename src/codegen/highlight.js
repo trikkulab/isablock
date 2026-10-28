@@ -49,6 +49,11 @@ function buildTokenizer(patterns) {
 // generatori, che scrive sempre "a <op> b" con spazi).
 const NUMBER_SOURCE = '-?\\b\\d+\\b';
 
+// vero/falso sono colorati come i numeri (token 'number'), non come parole
+// chiave: nei tre output hanno il ruolo di valori, e vederli dello stesso
+// colore aiuta a riconoscerli come tali (anche se in Python e in C23 sono
+// formalmente parole chiave).
+
 // --- Pseudocodice ---------------------------------------------------------
 // Le parole chiave non sono fisse: arrivano da pseudocodeConfig (vedi
 // src/pseudocode-config.js), pensato per essere adattato al libro di testo
@@ -60,7 +65,7 @@ const PSEUDOCODE_KEYWORD_KEYS = [
   'WHILE', 'DO', 'END_WHILE', 'DO_WHILE_START', 'DO_WHILE_END',
   'FOR', 'FROM', 'TO', 'STEP', 'END_FOR',
   'REPEAT', 'TIMES', 'END_REPEAT',
-  'AND', 'OR', 'NOT', 'TRUE', 'FALSE',
+  'AND', 'OR', 'NOT',
   'EQ', 'NEQ', 'LT', 'LTE', 'GT', 'GTE',
   'ADD', 'SUB', 'MUL', 'DIV', 'MOD',
   'LENGTH_OF', 'DECLARATIONS', 'DECLARE_ARRAY', 'OF', 'ELEMENTS',
@@ -76,7 +81,7 @@ export function tokenizePseudocode(text, cfg) {
     cachedPseudocodeTokenize = buildTokenizer([
       { type: 'comment', source: `${escapeRegExp(cfg.COMMENT)}[^\\n]*` },
       { type: 'string', source: '"[^"\\n]*"' },
-      { type: 'number', source: NUMBER_SOURCE },
+      { type: 'number', source: `${NUMBER_SOURCE}|${keywordToPattern(cfg.TRUE)}|${keywordToPattern(cfg.FALSE)}` },
       { type: 'keyword', source: `(?:${words.map(keywordToPattern).join('|')})` },
     ]);
     cachedPseudocodeCfg = cfg;
@@ -89,8 +94,8 @@ const tokenizeCImpl = buildTokenizer([
   { type: 'comment', source: '//[^\\n]*' },
   { type: 'preprocessor', source: '#include\\s*<[^>]*>' },
   { type: 'string', source: '"(?:[^"\\\\]|\\\\.)*"' },
-  { type: 'number', source: NUMBER_SOURCE },
-  { type: 'keyword', source: '\\b(?:int|void|if|else|do|while|for|return|bool|true|false)\\b' },
+  { type: 'number', source: `${NUMBER_SOURCE}|\\b(?:true|false)\\b` },
+  { type: 'keyword', source: '\\b(?:int|void|if|else|do|while|for|return|bool)\\b' },
   { type: 'builtin', source: '\\b(?:printf|scanf)\\b' },
 ]);
 export function tokenizeC(text) {
@@ -101,8 +106,8 @@ export function tokenizeC(text) {
 const tokenizePythonImpl = buildTokenizer([
   { type: 'comment', source: '#[^\\n]*' },
   { type: 'string', source: '"(?:[^"\\\\]|\\\\.)*"' },
-  { type: 'number', source: NUMBER_SOURCE },
-  { type: 'keyword', source: '\\b(?:if|elif|else|while|for|in|and|or|not|True|False|pass|break)\\b' },
+  { type: 'number', source: `${NUMBER_SOURCE}|\\b(?:True|False)\\b` },
+  { type: 'keyword', source: '\\b(?:if|elif|else|while|for|in|and|or|not|pass|break)\\b' },
   { type: 'builtin', source: '\\b(?:print|input|int|range|len)\\b' },
 ]);
 export function tokenizePython(text) {

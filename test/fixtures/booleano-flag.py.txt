@@ -1,0 +1,10 @@
+n = int(input())
+trovato = False
+for _ in range(n):
+    x = int(input())
+    if x == 1:
+        trovato = True
+if trovato:
+    print(1)
+else:
+    print(0)

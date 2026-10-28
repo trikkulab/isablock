@@ -1,0 +1,21 @@
+#include <stdio.h>
+#include <stdbool.h>
+
+int main(void) {
+    int n, x;
+    bool trovato;
+    scanf("%d", &n);
+    trovato = false;
+    for (int _i = 0; _i < n; _i++) {
+        scanf("%d", &x);
+        if (x == 1) {
+            trovato = true;
+        }
+    }
+    if (trovato) {
+        printf("%d\n", 1);
+    } else {
+        printf("%d\n", 0);
+    }
+    return 0;
+}

@@ -1,0 +1,79 @@
+{
+  "blocks": {
+    "languageVersion": 0,
+    "blocks": [
+      {
+        "type": "program",
+        "id": "program",
+        "x": 0,
+        "y": 0,
+        "inputs": {
+          "BODY": {
+            "block": {
+              "type": "read",
+              "id": "r_6",
+              "fields": {
+                "VAR": {
+                  "id": "var_n"
+                }
+              },
+              "next": {
+                "block": {
+                  "type": "controls_while",
+                  "id": "wh_5",
+                  "inputs": {
+                    "COND": {
+                      "block": {
+                        "type": "bool_literal",
+                        "id": "b_1",
+                        "fields": {
+                          "VALUE": "TRUE"
+                        }
+                      }
+                    },
+                    "BODY": {
+                      "block": {
+                        "type": "write",
+                        "id": "w_3",
+                        "inputs": {
+                          "VALUE": {
+                            "block": {
+                              "type": "variable_get",
+                              "id": "g_4",
+                              "fields": {
+                                "VAR": {
+                                  "id": "var_n"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "next": {
+                          "block": {
+                            "type": "read",
+                            "id": "r_2",
+                            "fields": {
+                              "VAR": {
+                                "id": "var_n"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "variables": [
+    {
+      "name": "n",
+      "id": "var_n"
+    }
+  ]
+}
