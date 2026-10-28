@@ -43,8 +43,8 @@ export const pseudocodeConfig = {
   AND: 'E',
   OR: 'O',
   NOT: 'NON',
-  TRUE: 'vero',
-  FALSE: 'falso',
+  TRUE: 'VERO',
+  FALSE: 'FALSO',
 
   EQ: '=',
   NEQ: '≠',

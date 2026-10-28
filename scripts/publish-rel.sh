@@ -1,9 +1,9 @@
 #!/bin/bash
 # Pubblica lo stato corrente di main sul branch rel (GitHub Pages),
-# rimuovendo i file non necessari all'app pubblicata (docs/, README.md, CLAUDE.md).
+# rimuovendo i file non necessari all'app pubblicata (docs/, README.md, CLAUDE.md, schede_pattern/).
 set -euo pipefail
 
-FILE_DA_ESCLUDERE=(docs README.md CLAUDE.md)
+FILE_DA_ESCLUDERE=(docs README.md CLAUDE.md schede_pattern)
 
 git rev-parse --abbrev-ref HEAD | grep -qx main && ORIG_BRANCH=main || ORIG_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 

@@ -195,7 +195,7 @@ export function createCGenerator(Blockly, cfg) {
   };
 
   gen.forBlock['bool_literal'] = function (block) {
-    return [block.getFieldValue('VALUE') === 'TRUE' ? '1' : '0', Order.ATOMIC];
+    return [block.getFieldValue('VALUE') === 'TRUE' ? 'true' : 'false', Order.ATOMIC];
   };
 
   gen.forBlock['text_literal'] = function (block) {
