@@ -1,0 +1,15 @@
+INIZIO
+   LEGGI n
+   ASSEGNA A trovato IL VALORE FALSO
+   RIPETI n VOLTE
+      LEGGI x
+      SE x = 1 ALLORA
+         ASSEGNA A trovato IL VALORE VERO
+      FINE SE
+   FINE RIPETI
+   SE trovato ALLORA
+      SCRIVI 1
+   ALTRIMENTI
+      SCRIVI 0
+   FINE SE
+FINE
