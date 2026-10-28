@@ -7,6 +7,16 @@
 // finestra (per le correzioni che lo studente non nota).
 export const changelog = Object.freeze([
   {
+    version: '1.8.2',
+    date: '2026-10-28',
+    title: 'VERO e FALSO come negli appunti',
+    silent: true,
+    items: [
+      'Nello pseudocodice VERO e FALSO si scrivono in maiuscolo, come le altre parole chiave.',
+      'In C si scrive true e false al posto di 1 e 0.',
+    ],
+  },
+  {
     version: '1.8.1',
     date: '2026-10-10',
     title: 'Rifiniture',
