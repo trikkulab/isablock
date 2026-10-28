@@ -1,0 +1,207 @@
+{
+  "blocks": {
+    "languageVersion": 0,
+    "blocks": [
+      {
+        "type": "program",
+        "id": "program",
+        "x": 0,
+        "y": 0,
+        "inputs": {
+          "BODY": {
+            "block": {
+              "type": "read",
+              "id": "r_18",
+              "fields": {
+                "VAR": {
+                  "id": "var_n"
+                }
+              },
+              "next": {
+                "block": {
+                  "type": "assign",
+                  "id": "a_16",
+                  "fields": {
+                    "VAR": {
+                      "id": "var_trovato"
+                    }
+                  },
+                  "inputs": {
+                    "VALUE": {
+                      "block": {
+                        "type": "bool_literal",
+                        "id": "b_17",
+                        "fields": {
+                          "VALUE": "FALSE"
+                        }
+                      }
+                    }
+                  },
+                  "next": {
+                    "block": {
+                      "type": "repeat_times",
+                      "id": "rep_15",
+                      "inputs": {
+                        "TIMES": {
+                          "block": {
+                            "type": "variable_get",
+                            "id": "g_7",
+                            "fields": {
+                              "VAR": {
+                                "id": "var_n"
+                              }
+                            }
+                          }
+                        },
+                        "BODY": {
+                          "block": {
+                            "type": "read",
+                            "id": "r_14",
+                            "fields": {
+                              "VAR": {
+                                "id": "var_x"
+                              }
+                            },
+                            "next": {
+                              "block": {
+                                "type": "controls_if_simple",
+                                "id": "if_13",
+                                "inputs": {
+                                  "COND": {
+                                    "block": {
+                                      "type": "compare_op",
+                                      "id": "cmp_8",
+                                      "fields": {
+                                        "OP": "EQ"
+                                      },
+                                      "inputs": {
+                                        "A": {
+                                          "block": {
+                                            "type": "variable_get",
+                                            "id": "g_9",
+                                            "fields": {
+                                              "VAR": {
+                                                "id": "var_x"
+                                              }
+                                            }
+                                          }
+                                        },
+                                        "B": {
+                                          "block": {
+                                            "type": "number_literal",
+                                            "id": "n_10",
+                                            "fields": {
+                                              "VALUE": 1
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "THEN": {
+                                    "block": {
+                                      "type": "assign",
+                                      "id": "a_11",
+                                      "fields": {
+                                        "VAR": {
+                                          "id": "var_trovato"
+                                        }
+                                      },
+                                      "inputs": {
+                                        "VALUE": {
+                                          "block": {
+                                            "type": "bool_literal",
+                                            "id": "b_12",
+                                            "fields": {
+                                              "VALUE": "TRUE"
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "next": {
+                        "block": {
+                          "type": "controls_if_else",
+                          "id": "if_6",
+                          "inputs": {
+                            "COND": {
+                              "block": {
+                                "type": "variable_get_bool",
+                                "id": "g_1",
+                                "fields": {
+                                  "VAR": {
+                                    "id": "var_trovato"
+                                  }
+                                }
+                              }
+                            },
+                            "THEN": {
+                              "block": {
+                                "type": "write",
+                                "id": "w_2",
+                                "inputs": {
+                                  "VALUE": {
+                                    "block": {
+                                      "type": "number_literal",
+                                      "id": "n_3",
+                                      "fields": {
+                                        "VALUE": 1
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "ELSE": {
+                              "block": {
+                                "type": "write",
+                                "id": "w_4",
+                                "inputs": {
+                                  "VALUE": {
+                                    "block": {
+                                      "type": "number_literal",
+                                      "id": "n_5",
+                                      "fields": {
+                                        "VALUE": 0
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "variables": [
+    {
+      "name": "n",
+      "id": "var_n"
+    },
+    {
+      "name": "x",
+      "id": "var_x"
+    },
+    {
+      "name": "trovato",
+      "id": "var_trovato",
+      "type": "Boolean"
+    }
+  ]
+}

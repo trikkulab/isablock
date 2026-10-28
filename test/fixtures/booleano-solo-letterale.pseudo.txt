@@ -1,0 +1,7 @@
+INIZIO
+   LEGGI n
+   MENTRE VERO ESEGUI
+      SCRIVI n
+      LEGGI n
+   FINE MENTRE
+FINE

@@ -62,7 +62,11 @@ export function createCGenerator(Blockly, cfg) {
     if (numberVars.length) decl += `${generator.INDENT}int ${numberVars.join(', ')};\n`;
     if (boolVars.length) decl += `${generator.INDENT}bool ${boolVars.join(', ')};\n`;
     decl += arrayDecl;
-    const stdbool = boolVars.length ? '#include <stdbool.h>\n' : '';
+    // true/false non esistono in C99 senza stdbool.h: serve anche quando il
+    // programma usa solo un letterale vero/falso (es. MENTRE VERO), senza
+    // nessuna variabile booleana.
+    const usesBoolLiteral = generator.workspace.getAllBlocks(false).some((b) => b.type === 'bool_literal');
+    const stdbool = boolVars.length || usesBoolLiteral ? '#include <stdbool.h>\n' : '';
     return `#include <stdio.h>\n${stdbool}\nint main(void) {\n${decl}${body}${generator.INDENT}return 0;\n}\n`;
   };
 

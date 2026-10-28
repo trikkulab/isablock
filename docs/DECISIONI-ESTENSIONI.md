@@ -93,6 +93,9 @@ bit-per-bit identici) e verifica sia headless sia su browser reale (Playwright).
   maiuscoli (come le altre parole chiave, `pseudocodeConfig.TRUE/FALSE`); in C
   `true`/`false` (prima `1`/`0`; `stdbool.h` c'era già). Nel blocco restano
   `vero`/`falso` minuscoli. Python invariato (`True`/`False`).
+  `stdbool.h` si include anche con un solo letterale (es. `MENTRE VERO`), non
+  solo con variabili booleane (1.8.3). Colorazione: `vero/falso/true/false/True/False`
+  hanno il colore dei numeri (token `number`), non delle parole chiave: sono valori.
 - **Stampa:** risolto con la minima inferenza di tipo prevista sotto — una
   tabella `isBooleanExpr` per tipo di blocco (`src/codegen/common.js`), non
   serve altro perché ogni tipo ha un blocco distinto. `SCRIVI` di un'espressione
