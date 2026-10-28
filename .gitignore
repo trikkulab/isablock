@@ -1,2 +1,5 @@
 .DS_Store
 node_modules/
+# Schede dei pattern: solo gli strumenti si versionano, il resto (appunti, bozze, output) no.
+schede_pattern/*
+!schede_pattern/strumenti/

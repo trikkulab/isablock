@@ -90,7 +90,7 @@ const tokenizeCImpl = buildTokenizer([
   { type: 'preprocessor', source: '#include\\s*<[^>]*>' },
   { type: 'string', source: '"(?:[^"\\\\]|\\\\.)*"' },
   { type: 'number', source: NUMBER_SOURCE },
-  { type: 'keyword', source: '\\b(?:int|void|if|else|do|while|for|return|bool)\\b' },
+  { type: 'keyword', source: '\\b(?:int|void|if|else|do|while|for|return|bool|true|false)\\b' },
   { type: 'builtin', source: '\\b(?:printf|scanf)\\b' },
 ]);
 export function tokenizeC(text) {

@@ -89,6 +89,10 @@ bit-per-bit identici) e verifica sia headless sia su browser reale (Playwright).
   sia headless sia nel workspace reale.
 - C: `#include <stdbool.h>` solo se esiste almeno una variabile booleana;
   dichiarazioni raggruppate per tipo (`int ...;` e, se serve, `bool ...;`).
+- **Letterali vero/falso** (dalla 1.8.1): nello pseudocodice sono `VERO`/`FALSO`
+  maiuscoli (come le altre parole chiave, `pseudocodeConfig.TRUE/FALSE`); in C
+  `true`/`false` (prima `1`/`0`; `stdbool.h` c'era già). Nel blocco restano
+  `vero`/`falso` minuscoli. Python invariato (`True`/`False`).
 - **Stampa:** risolto con la minima inferenza di tipo prevista sotto — una
   tabella `isBooleanExpr` per tipo di blocco (`src/codegen/common.js`), non
   serve altro perché ogni tipo ha un blocco distinto. `SCRIVI` di un'espressione
