@@ -63,7 +63,7 @@ function datiPuliti(d, { completi }) {
       if (out[k] === undefined) throw new ErroreGestione('dati', 'Mancano dei dati del corso.');
     }
   }
-  // un nome vuoto non si scrive nel corso nuovo: se manca, si mostra "materia – classe"
+  // un nome vuoto non si scrive nel corso nuovo: se manca, si mostra la materia
   if (completi && !out.nome) delete out.nome;
   return out;
 }

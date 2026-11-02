@@ -37,12 +37,22 @@ export class ErroreCorsi extends Error {
   }
 }
 
-// Nome mostrato: quello scritto nel corso, altrimenti materia – classe (anno).
+// Nome mostrato: quello scritto nel corso, altrimenti la materia. Classe e anno
+// non sono nel nome: gli elenchi li mostrano sempre in una riga a parte (contestoCorso).
 export function nomeCorso(c) {
-  if (c.nome) return c.nome;
-  const parti = [c.materia, c.classe].filter(Boolean).join(' – ');
-  const anno = c.annoScolastico ? ` (${c.annoScolastico})` : '';
-  return (parti || c.id) + anno;
+  return c.nome || c.materia || c.id;
+}
+
+// Nome con la classe, per le etichette fuori dall'elenco corsi («condiviso con…»,
+// scelta del corso, conferme): «Informatica (3AINF)». La classe si aggiunge anche
+// se il nome la contiene già: meglio una ripetizione che un'ambiguità.
+export function etichettaCorso(c) {
+  return c.classe ? `${c.nome} (${c.classe})` : c.nome;
+}
+
+// Riga di contesto sotto il nome: «3AINF · 2026/27».
+export function contestoCorso(c) {
+  return [c.classe, c.annoScolastico].filter(Boolean).join(' · ');
 }
 
 // Dal documento Firestore all'oggetto che l'interfaccia usa.

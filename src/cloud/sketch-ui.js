@@ -9,6 +9,7 @@
 //   programma.carica(json)-> sostituisce il programma (lancia se non leggibile)
 import { nomeCasuale } from './nomi.js';
 import { MAX_SKETCH } from './sketch.js';
+import { etichettaCorso } from './corsi.js';
 import { el, apriFinestra } from './dom.js';
 
 const formatoData = new Intl.DateTimeFormat('it-IT', {
@@ -117,7 +118,7 @@ export function montaSketch({ toast, programma, commentiUi }) {
   // Nomi dei corsi per le etichette; se non si riesce a leggerli non è grave.
   async function caricaNomiCorsi() {
     try {
-      nomiCorsi = new Map((await corsi.elenca()).map((c) => [c.id, c.nome]));
+      nomiCorsi = new Map((await corsi.elenca()).map((c) => [c.id, etichettaCorso(c)]));
     } catch { /* si usa il codice al posto del nome */ }
   }
   const nomeCorsoDi = (codice) => nomiCorsi.get(codice) || `il corso ${codice}`;
@@ -196,10 +197,11 @@ export function montaSketch({ toast, programma, commentiUi }) {
       }
     }
     for (const c of miei) {
-      nomiCorsi.set(c.id, c.nome);
+      const etichetta = etichettaCorso(c);
+      nomiCorsi.set(c.id, etichetta);
       const attuale = s.condivisoCon === c.id;
       const b = el('button', { type: 'button', class: 'modal-btn corso-scelta',
-        onclick: () => scegli(c.id, c.nome) }, attuale ? `${c.nome} (già condiviso)` : c.nome);
+        onclick: () => scegli(c.id, etichetta) }, attuale ? `${etichetta} (già condiviso)` : etichetta);
       if (attuale) b.disabled = true; // quello attuale non si sceglie di nuovo
       else tutti.push(b);
       corpo.append(b);

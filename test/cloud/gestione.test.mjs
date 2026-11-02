@@ -61,9 +61,9 @@ test('crea: codice generato dal browser, titolare = chi crea, iscrizioni aperte,
   assert.deepEqual(miei.map((x) => x.id), [c.id]);
 });
 
-test('crea: senza nome mostra materia – classe (anno); dati sbagliati rifiutati prima di scrivere', async () => {
+test('crea: senza nome mostra la materia; dati sbagliati rifiutati prima di scrivere', async () => {
   const g = gestione();
-  assert.equal((await g.crea(DATI)).nome, 'Informatica – 3AINF (2026/27)');
+  assert.equal((await g.crea(DATI)).nome, 'Informatica');
   await assert.rejects(g.crea({ ...DATI, materia: ' ' }), (e) => e instanceof ErroreGestione && e.codice === 'dati');
   await assert.rejects(g.crea({ ...DATI, classe: 'x'.repeat(21) }), (e) => e.codice === 'dati');
   await assert.rejects(g.crea({ ...DATI, annoScolastico: '2026-27' }), (e) => e.codice === 'dati');
@@ -95,7 +95,7 @@ test('modifica, apri/chiudi iscrizioni, archivia e riattiva', async () => {
   let l = await g.leggi(c.id);
   assert.equal(l.classe, '4AINF'); assert.equal(l.nome, 'Altro'); assert.equal(l.iscrizioniAperte, false);
   await g.modifica(c.id, { nome: '' }); // toglie il nome scritto
-  assert.equal((await g.leggi(c.id)).nome, 'Informatica – 4AINF (2026/27)');
+  assert.equal((await g.leggi(c.id)).nome, 'Informatica');
   await g.impostaAttivo(c.id, false);
   const corsi = creaCorsi({ sdk, db: dbDi('docente@isarome.it') }, 'docente@isarome.it', 'docente');
   assert.deepEqual(await corsi.elenca(), []);

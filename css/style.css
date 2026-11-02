@@ -992,6 +992,11 @@ body {
 .corso-scelta { display: block; width: 100%; margin: 0 0 0.5rem; text-align: left; }
 .corso-blocco { border-top: 1px solid var(--border); }
 .corso-blocco .corso-riga { border-top: 0; }
+.corso-archiviato { opacity: 0.6; }
+.stato-corso { font-weight: 600; }
+.stato-corso[data-stato="chiuse"] { color: #15803d; }
+.stato-corso[data-stato="aperte"] { color: #b45309; }
+.stato-corso[data-stato="archiviato"] { color: #5f5d6e; }
 .corsi-docente-barra { border-top: 0; padding-top: 0; margin-bottom: 0.6rem; }
 .gestione-sezione { border-top: 1px solid var(--border); padding: 0.8rem 0 0.4rem; }
 .gestione-campo { display: block; margin-bottom: 0.5rem; }

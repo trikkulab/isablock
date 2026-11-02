@@ -3,6 +3,7 @@
 // «Corsi» (corsi-ui.js). Non conosce Firebase: riceve l'oggetto di gestione-corsi.js.
 // Niente innerHTML: nomi ed email vengono dagli utenti, sempre textContent.
 import { el, apriFinestra } from './dom.js';
+import { contestoCorso } from './corsi.js';
 import { analizzaElencoEmail, annoCorrente, MAX_MATERIA, MAX_CLASSE, MAX_NOME_CORSO } from './gestione-corsi.js';
 
 const MAX_INCOLLA = 60; // email per volta: oltre, si divide in due giri
@@ -31,7 +32,7 @@ export function montaGestione({ toast, dopoCambio }) {
     const materia = campo('Materia', { value: 'Informatica', maxlength: String(MAX_MATERIA) });
     const classe = campo('Classe (es. 3AINF)', { maxlength: String(MAX_CLASSE) });
     const anno = campo('Anno scolastico', { value: annoCorrente(), maxlength: '7', placeholder: '2026/27' });
-    const nome = campo('Nome (facoltativo)', { maxlength: String(MAX_NOME_CORSO), placeholder: 'se vuoto: materia – classe (anno)' });
+    const nome = campo('Nome (facoltativo)', { maxlength: String(MAX_NOME_CORSO), placeholder: 'se vuoto: la materia' });
     const crea = el('button', { type: 'button', class: 'modal-btn' }, 'Crea corso');
     const invia = async () => {
       crea.disabled = true;
@@ -59,7 +60,7 @@ export function montaGestione({ toast, dopoCambio }) {
   // --- Gestisci un corso -------------------------------------------------
   async function gestisci(corsoIniziale) {
     let corso = corsoIniziale;
-    const f = apri(`Gestisci: ${corso.nome}`);
+    const f = apri(`Gestisci: ${corso.nome}${contestoCorso(corso) ? ` (${contestoCorso(corso)})` : ''}`);
     const titolo = f.corpo.parentElement.querySelector('h2');
     const aperta = () => finestre.has(f); // la finestra è ancora aperta?
 
@@ -72,7 +73,7 @@ export function montaGestione({ toast, dopoCambio }) {
 
     async function rileggi() {
       corso = await gestione.leggi(corso.id);
-      if (titolo) titolo.textContent = `Gestisci: ${corso.nome}`;
+      if (titolo) titolo.textContent = `Gestisci: ${corso.nome}${contestoCorso(corso) ? ` (${contestoCorso(corso)})` : ''}`;
     }
     const esegui = async (fn, ok) => {
       try {

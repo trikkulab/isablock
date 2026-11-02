@@ -2,7 +2,7 @@
 // l'elenco dei propri corsi e il campo per iscriversi con il codice. Il docente ha in più «Nuovo corso» e
 // «Gestisci» (gestione-ui.js). Non conosce Firebase: riceve l'oggetto `corsi` di corsi.js.
 import { el, apriFinestra } from './dom.js';
-import { normalizzaCodice } from './corsi.js';
+import { normalizzaCodice, contestoCorso, etichettaCorso } from './corsi.js';
 import { montaGestione } from './gestione-ui.js';
 
 const formatoData = new Intl.DateTimeFormat('it-IT', {
@@ -40,7 +40,7 @@ export function montaCorsi({ toast, programma, commentiUi, dopoCaricamento }) {
       vai.disabled = true;
       try {
         const c = await corsi.iscriviti(campo.value);
-        toast(`Ti sei iscritto a «${c.nome}»`, 'success');
+        toast(`Ti sei iscritto a «${etichettaCorso(c)}»`, 'success');
         campo.value = '';
         await aggiorna();
       } catch (err) {
@@ -116,19 +116,23 @@ export function montaCorsi({ toast, programma, commentiUi, dopoCaricamento }) {
       }
       for (const c of elenco) {
         const docente = c.ruolo === 'docente';
+        const stato = !c.attivo ? ['archiviato', 'Archiviato']
+          : c.iscrizioniAperte ? ['aperte', 'Iscrizioni aperte'] : ['chiuse', 'Iscrizioni chiuse'];
         const dettaglio = docente
-          ? `Codice ${c.id} · ${c.attivo ? `iscrizioni ${c.iscrizioniAperte ? 'aperte' : 'chiuse'}` : 'archiviato'}`
-          : (c.docenti.length ? `Docente: ${c.docenti.join(', ')}` : '');
+          ? el('span', { class: 'sketch-data' }, `Codice ${c.id} · `, el('span', { class: 'stato-corso', 'data-stato': stato[0] }, stato[1]))
+          : (c.docenti.length ? el('span', { class: 'sketch-data' }, `Docente: ${c.docenti.join(', ')}`) : '');
+        const contesto = contestoCorso(c);
         const sezione = el('div', { class: 'condivisi-sezione' });
         const azioni = el('div', { class: 'sketch-azioni' },
           docente && c.attivo ? el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => mostraCondivisi(c, sezione) }, 'Sketch condivisi') : '',
           docente ? el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => gestioneUi.gestisci(c) }, 'Gestisci') : '',
           el('span', { class: 'cloud-badge', 'data-ruolo': docente ? 'docente' : 'studente' }, docente ? 'Docente' : 'Studente'));
-        lista.append(el('div', { class: 'corso-blocco' },
+        lista.append(el('div', { class: `corso-blocco${c.attivo ? '' : ' corso-archiviato'}` },
           el('div', { class: 'sketch-riga corso-riga' },
             el('div', { class: 'sketch-info' },
               el('strong', {}, c.nome),
-              dettaglio ? el('span', { class: 'sketch-data' }, dettaglio) : ''),
+              contesto ? el('span', { class: 'sketch-data' }, contesto) : '',
+              dettaglio),
             azioni),
           sezione));
       }

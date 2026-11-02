@@ -154,7 +154,7 @@ non cambia mai.
 | `docenti` | array di email minuscole | **`docenti[0]` è il titolare**, gli altri sono codocenti |
 | `iscrizioniAperte` | boolean | `true`: gli studenti entrano col codice; `false`: solo a mano |
 | `attivo` | boolean | `false` = archiviato (i corsi non si cancellano) |
-| `nome` | `Laboratorio TPSIT` | facoltativo; se manca si mostra «materia – classe (anno)» |
+| `nome` | `Laboratorio TPSIT` | facoltativo; se manca si mostra la materia (classe e anno stanno in una riga a parte) |
 | `creato` | ora del server | solo nei corsi creati dall'app; non cambia |
 
 **Pannello docente** (`src/cloud/gestione-ui.js`, dati in `gestione-corsi.js`). In «Corsi» il

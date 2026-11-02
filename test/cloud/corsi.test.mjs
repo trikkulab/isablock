@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment } from '@firebase/rules-unit-testing';
 import * as sdk from 'firebase/firestore';
-import { creaCorsi, ErroreCorsi, normalizzaCodice, generaCodice, nomeCorso, ALFABETO_CODICE } from '../../src/cloud/corsi.js';
+import { creaCorsi, ErroreCorsi, normalizzaCodice, generaCodice, nomeCorso, contestoCorso, etichettaCorso, ALFABETO_CODICE } from '../../src/cloud/corsi.js';
 
 sdk.setLogLevel('silent');
 const [host, port] = (process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8186').split(':');
@@ -44,9 +44,14 @@ test('codice: alfabeto Crockford, lunghezza 6, normalizzazione perdonante', () =
   assert.equal(normalizzaCodice('😀 ünï'), 'N');           // emoji e lettere accentate sono scartate
 });
 
-test('nome del corso: quello scritto, altrimenti materia – classe (anno)', () => {
+test('nome del corso: quello scritto, altrimenti la materia', () => {
   assert.equal(nomeCorso({ id: 'X', nome: 'Laboratorio TPSIT' }), 'Laboratorio TPSIT');
-  assert.equal(nomeCorso({ id: 'X', materia: 'Informatica', classe: '3AINF', annoScolastico: '2026/27' }), 'Informatica – 3AINF (2026/27)');
+  assert.equal(nomeCorso({ id: 'X', materia: 'Informatica', classe: '3AINF', annoScolastico: '2026/27' }), 'Informatica');
+  assert.equal(contestoCorso({ classe: '3AINF', annoScolastico: '2026/27' }), '3AINF · 2026/27');
+  assert.equal(contestoCorso({ classe: '3AINF' }), '3AINF');
+  assert.equal(etichettaCorso({ nome: 'Informatica', classe: '3AINF' }), 'Informatica (3AINF)');
+  assert.equal(etichettaCorso({ nome: 'Informatica 3AINF', classe: '3AINF' }), 'Informatica 3AINF (3AINF)');
+  assert.equal(etichettaCorso({ nome: 'Informatica', classe: '' }), 'Informatica');
   assert.equal(nomeCorso({ id: 'X' }), 'X');
 });
 
@@ -54,7 +59,7 @@ test('iscriviti: col codice (anche scritto male) entra e restituisce il corso', 
   const s = per('alunno@isarome.it');
   const c = await s.iscriviti(' ab12-cd ');
   assert.equal(c.id, 'AB12CD');
-  assert.equal(c.nome, 'Informatica – 3AINF (2026/27)');
+  assert.equal(c.nome, 'Informatica');
   assert.equal(c.ruolo, 'studente');
   const miei = await s.elenca();
   assert.deepEqual(miei.map((x) => x.id), ['AB12CD']);
@@ -84,7 +89,7 @@ test('più corsi per uno studente, in ordine alfabetico; archiviati nascosti', a
   await s.iscriviti('TP5B712');
   await s.iscriviti('AB12CD');
   await env.withSecurityRulesDisabled((ctx) => sdk.setDoc(sdk.doc(ctx.firestore(), 'iscrizioni/ARCH123_alunno@isarome.it'), { corsoId: 'ARCH123', email: 'alunno@isarome.it' }));
-  assert.deepEqual((await s.elenca()).map((x) => x.nome), ['Informatica – 3AINF (2026/27)', 'Laboratorio TPSIT']);
+  assert.deepEqual((await s.elenca()).map((x) => x.nome), ['Informatica', 'Laboratorio TPSIT']);
 });
 
 test('corso chiuso: entra solo se il docente iscrive a mano (console)', async () => {
