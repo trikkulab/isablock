@@ -9,7 +9,8 @@ rules_version = '2';
 // proprietario; il docente di un corso legge solo quelli che l'autore ha
 // condiviso con quel corso), CORSI e ISCRIZIONI (i docenti creano e gestiscono
 // i corsi dall'app; lo studente si iscrive con il codice o lo aggiunge il
-// docente). La verifica non c'è ancora, quindi tutto il resto è negato.
+// docente), VERIFICHE e TRACCE (lavori e consegne arrivano nei passi successivi:
+// finché non ci sono, sono negati come tutto il resto).
 //
 // Ruoli: "docente" = esiste docenti/{email}, documento creato SOLO da console
 // (mai da client). Chiunque altro con un account ammesso è studente. Il ruolo
@@ -251,6 +252,128 @@ service cloud.firestore {
             && resource.data.proprietarioUid == request.auth.uid
             && (!exists(/databases/$(database)/documents/sketch/$(resource.data.sketchId))
                 || datiSketch(resource.data.sketchId).creato != resource.data.sketchCreato));
+    }
+
+    // Verifiche (modalità verifica). Un documento per verifica, id automatico.
+    //   corsoId, titolo, stato ('bozza' | 'aperta' | 'chiusa'), fine (fine prevista:
+    //   obbligatoria per aprire; è il default delle scadenze personali), tracciaDefault
+    //   (id di una traccia), creataDa, creato, apertaIl, chiusaIl (null finché non succede).
+    // Niente scadenze personali né assegnazioni di tracce qui: stanno nel lavoro di ogni
+    // studente, perché da tempo e traccia si dedurrebbe chi ha bisogni particolari.
+    // Transizioni: bozza -> aperta -> chiusa -> aperta (la chiusa si può riaprire); in
+    // bozza non si torna. Li scrive solo un docente del corso (ancora in `docenti`).
+    // Gli studenti iscritti la leggono solo se NON è in bozza: la query è per corso
+    // con `stato == 'aperta'` (o `in`), così la regola è dimostrabile dalla query.
+    match /verifiche/{vid} {
+      function emailVer() {
+        return request.auth.token.email.lower();
+      }
+      function corsoVer(corsoId) {
+        return get(/databases/$(database)/documents/corsi/$(corsoId)).data;
+      }
+      function docenteDelCorsoVer(corsoId) {
+        return isDocente() && emailVer() in corsoVer(corsoId).docenti;
+      }
+      function iscrittoVer(corsoId) {
+        return isAmmesso()
+          && exists(/databases/$(database)/documents/iscrizioni/$(corsoId + '_' + emailVer()));
+      }
+      // Id di una traccia: t0 ... t(maxTracce-1), senza zeri iniziali. Il tetto sul numero
+      // di tracce è imposto dall'id, come per sketch e commenti.
+      function idTracciaValido(t) {
+        return t is string && t.matches('^t(0|[1-9][0-9]*)$') && int(t[1:t.size()]) < maxTracce();
+      }
+      // Forma delle chiavi e dei campi liberi. Gli altri campi (creataDa, creato, apertaIl,
+      // chiusaIl, stato, corsoId) sono fissati dai rami di create e update, che li confrontano
+      // con valori precisi: un controllo di tipo in più sarebbe ridondante.
+      function verificaValida(d) {
+        return d.keys().hasOnly(['corsoId', 'titolo', 'stato', 'fine', 'tracciaDefault', 'creataDa',
+                                 'creato', 'apertaIl', 'chiusaIl'])
+          && d.keys().hasAll(['corsoId', 'titolo', 'stato', 'fine', 'tracciaDefault', 'creataDa',
+                              'creato', 'apertaIl', 'chiusaIl'])
+          && d.titolo is string && d.titolo.size() > 0 && d.titolo.size() <= maxTitoloVerifica()
+          && (d.fine == null || d.fine is timestamp)
+          && (d.tracciaDefault == null || idTracciaValido(d.tracciaDefault));
+      }
+      function cambiate() {
+        return request.resource.data.diff(resource.data).affectedKeys();
+      }
+
+      allow read: if docenteDelCorsoVer(resource.data.corsoId)
+        || (resource.data.stato != 'bozza' && iscrittoVer(resource.data.corsoId));
+      allow create: if verificaValida(request.resource.data)
+        && docenteDelCorsoVer(request.resource.data.corsoId)
+        && corsoVer(request.resource.data.corsoId).get('attivo', true) == true
+        && request.resource.data.stato == 'bozza'
+        && request.resource.data.creataDa == emailVer()
+        && request.resource.data.creato == request.time
+        && request.resource.data.apertaIl == null
+        && request.resource.data.chiusaIl == null;
+      allow update: if docenteDelCorsoVer(resource.data.corsoId)
+        && verificaValida(request.resource.data)
+        && request.resource.data.corsoId == resource.data.corsoId
+        && request.resource.data.creataDa == resource.data.creataDa
+        && request.resource.data.creato == resource.data.creato
+        && (
+          // bozza: titolo, fine e traccia di default si cambiano liberamente
+          (resource.data.stato == 'bozza' && request.resource.data.stato == 'bozza'
+            && request.resource.data.apertaIl == null && request.resource.data.chiusaIl == null)
+          // apertura: serve una fine nel futuro e una traccia di default che esista
+          || (resource.data.stato == 'bozza' && request.resource.data.stato == 'aperta'
+              && cambiate().hasOnly(['stato', 'apertaIl', 'fine', 'tracciaDefault', 'titolo'])
+              && request.resource.data.apertaIl == request.time
+              && request.resource.data.fine is timestamp && request.resource.data.fine > request.time
+              && exists(/databases/$(database)/documents/verifiche/$(vid)/tracce/$(request.resource.data.tracciaDefault)))
+          // aperta: si cambia titolo e fine (se cambia, nel futuro)
+          || (resource.data.stato == 'aperta' && cambiate().hasOnly(['titolo', 'fine'])
+              && (request.resource.data.fine == resource.data.fine || request.resource.data.fine > request.time))
+          // chiusura
+          || (resource.data.stato == 'aperta' && request.resource.data.stato == 'chiusa'
+              && cambiate().hasOnly(['stato', 'chiusaIl'])
+              && request.resource.data.chiusaIl == request.time)
+          // chiusa: solo il titolo
+          || (resource.data.stato == 'chiusa' && cambiate().hasOnly(['titolo']))
+          // riapertura: la fine può restare nel passato (si riapre per dare tempo a qualcuno)
+          || (resource.data.stato == 'chiusa' && request.resource.data.stato == 'aperta'
+              && cambiate().hasOnly(['stato', 'apertaIl', 'fine'])
+              && request.resource.data.apertaIl == request.time
+              && request.resource.data.fine is timestamp)
+        );
+      // Si butta via solo una bozza (prima il client cancella le sue tracce).
+      allow delete: if docenteDelCorsoVer(resource.data.corsoId) && resource.data.stato == 'bozza';
+
+      // Tracce: id `t<n>`, n da 0 a maxTracce-1. titolo NEUTRO scelto dal docente, testoMd
+      // (Markdown), rev (0 alla creazione, +1 a ogni modifica: lo studente si accorge
+      // dell'aggiornamento), modificato. Scrive solo il docente del corso: in bozza e a
+      // verifica aperta (un refuso si corregge), mai a chiusa; si cancella solo in bozza.
+      // Lo studente legge SOLO la traccia che gli è stata assegnata nel suo lavoro, e mai
+      // prima dell'apertura (verifica in bozza).
+      match /tracce/{tid} {
+        function verificaTr() {
+          return get(/databases/$(database)/documents/verifiche/$(vid)).data;
+        }
+        function tracciaValida(d) {
+          return d.keys().hasOnly(['titolo', 'testoMd', 'rev', 'modificato'])
+            && d.keys().hasAll(['titolo', 'testoMd', 'rev', 'modificato'])
+            && d.titolo is string && d.titolo.size() > 0 && d.titolo.size() <= maxTitoloTraccia()
+            && d.testoMd is string && d.testoMd.size() > 0 && d.testoMd.size() <= maxTestoTraccia()
+            && d.modificato == request.time;
+        }
+        allow read: if docenteDelCorsoVer(verificaTr().corsoId)
+          || (isAmmesso()
+              && verificaTr().stato != 'bozza'
+              && get(/databases/$(database)/documents/verifiche/$(vid)/lavori/$(emailVer())).data.get('tracciaId', null) == tid);
+        allow create: if idTracciaValido(tid)
+          && docenteDelCorsoVer(verificaTr().corsoId)
+          && verificaTr().stato in ['bozza', 'aperta']
+          && tracciaValida(request.resource.data)
+          && request.resource.data.rev == 0;
+        allow update: if docenteDelCorsoVer(verificaTr().corsoId)
+          && verificaTr().stato in ['bozza', 'aperta']
+          && tracciaValida(request.resource.data)
+          && request.resource.data.rev == resource.data.rev + 1;
+        allow delete: if docenteDelCorsoVer(verificaTr().corsoId) && verificaTr().stato == 'bozza';
+      }
     }
 
     // Corsi. Un documento per corso, con id = CODICE di accesso (6 caratteri

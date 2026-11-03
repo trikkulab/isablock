@@ -11,7 +11,7 @@ export { initializeApp } from 'firebase/app';
 export { getAuth, connectAuthEmulator, GoogleAuthProvider, signInWithPopup,
          signOut, onAuthStateChanged, getRedirectResult } from 'firebase/auth';
 export { getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, updateDoc, deleteDoc,
-         collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
+         collection, query, where, getDocs, serverTimestamp, Timestamp, onSnapshot, writeBatch } from 'firebase/firestore';
 `;
 mkdirSync(`${root}vendor/firebase`, { recursive: true });
 const r = await build({

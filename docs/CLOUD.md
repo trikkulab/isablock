@@ -309,7 +309,49 @@ contorno CSS `blocco-commentato`, non l'icona di commento di Blockly (che finire
 
 ## Modalità verifica (in costruzione)
 
-Non ancora utilizzabile. Per ora esiste solo `src/cloud/verifica-config.js`, che raccoglie
+Non ancora utilizzabile: per ora ci sono i dati e le regole di **verifiche e tracce** (passo 2 di 13);
+lavori, consegne e tutte le schermate arrivano nei passi successivi. Il piano e le decisioni
+sono nella nota di progetto «Verifica: struttura approvata».
+
+### Verifiche e tracce (dati e regole)
+
+**Verifica** `verifiche/<id automatico>`: `corsoId`, `titolo` (≤80), `stato` (`bozza`, `aperta`,
+`chiusa`), `fine` (fine prevista, obbligatoria per aprire), `tracciaDefault`, `creataDa`,
+`creato`, `apertaIl`, `chiusaIl` (null finché non succede). **Niente scadenze personali né
+assegnazioni di tracce qui**: stanno nel lavoro di ogni studente (passo 3), perché da tempo e
+traccia si dedurrebbe chi ha bisogni particolari.
+- *Transizioni*: bozza → aperta → chiusa → aperta (la chiusa si riapre, anche con la fine ormai
+  passata: ai singoli si dà tempo con la scadenza personale). In bozza non si torna.
+- *Aprire* richiede una `fine` nel futuro e una `tracciaDefault` che esista. A verifica aperta
+  si cambiano solo titolo e fine (se cambia, nel futuro); a chiusa solo il titolo.
+- *Chi*: scrive un docente del corso ancora in `docenti` (la verifica nasce solo in un corso
+  attivo). Lo studente iscritto legge solo se non è una bozza: la query è `corsoId == X` con
+  `stato == 'aperta'` (o `in [...]`), l'unica forma che le regole possono dimostrare.
+- *Si butta via solo una bozza*; il client cancella prima le sue tracce (le sottocollezioni non
+  seguono il documento).
+
+**Traccia** `verifiche/<id>/tracce/t<n>`, n da 0 a 49 (**tetto di 50 tracce** imposto dall'id:
+una per studente è possibile): `titolo` neutro (≤40), `testoMd` (Markdown, ≤6000), `rev`
+(0 alla creazione, **+1 a ogni modifica**: lo studente si accorgerà dell'aggiornamento),
+`modificato`. L'ordine è quello dell'id.
+- Il docente le crea e le modifica in bozza **e a verifica aperta** (un refuso si corregge),
+  mai a chiusa; si cancellano solo in bozza.
+- Lo studente legge **solo la traccia che gli è assegnata** nel suo lavoro
+  (`get(lavori/<email>).tracciaId`), mai prima dell'apertura e mai l'elenco. Le assegnazioni
+  non sono visibili agli altri.
+
+Mutation check: 82 controlli spenti a mano, tutti fermati dai test tranne i due `hasAll` (tenuti
+apposta: senza, una chiave mancante verrebbe rifiutata solo per un errore di valutazione, un
+comportamento implicito); i controlli ridondanti sono stati tolti.
+
+Codice: `src/cloud/verifiche.js` (dati; `ErroreVerifica`); test `verifiche-rules.test.mjs` e
+`verifiche.test.mjs`. Il bundle Firebase ora esporta anche `Timestamp`, `onSnapshot` e
+`writeBatch`. Un documento che non esiste dà «negato» e non «assente»: le regole non vedono
+i suoi dati.
+
+### Parametri
+
+Il file `src/cloud/verifica-config.js` raccoglie
 tutti i parametri: la sezione `regole` (limiti che fanno rispettare anche le regole
 Firestore: grazia sulla scadenza, tetto di tracce, lunghezze, versioni di consegna, campioni)
 e la sezione `client` (debounce, battito, soglie di offline, timer, campioni, avvisi). I
