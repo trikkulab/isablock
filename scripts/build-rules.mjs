@@ -4,6 +4,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { leggiAmbienti } from './ambienti.mjs';
 import { fileURLToPath } from 'node:url';
+import { verificaConfig } from '../src/cloud/verifica-config.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
@@ -13,6 +14,12 @@ export function buildRules(env) {
   const { dominio, emailProva } = envs[env];
   const lista = '[' + emailProva.map((e) => `'${e.toLowerCase()}'`).join(', ') + ']';
   return readFileSync(`${root}firestore.rules.template`, 'utf8')
+    .replace(/@@VERIFICA_(\w+)@@/g, (_, nome) => {
+      if (!Number.isInteger(verificaConfig.regole[nome])) {
+        throw new Error(`verifica-config.js: manca o non è un intero regole.${nome}`);
+      }
+      return String(verificaConfig.regole[nome]);
+    })
     .replace(/@@DOMINIO@@/g, dominio)
     .replace(/return @@EMAIL_PROVA@@;/, `return ${lista};`);
 }

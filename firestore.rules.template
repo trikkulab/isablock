@@ -18,6 +18,16 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Limiti della modalità verifica: i valori stanno in src/cloud/verifica-config.js
+    // (sezione `regole`) e li scrive scripts/build-rules.mjs. Non modificarli qui.
+    function graziaSecondi() { return @@VERIFICA_graziaSecondi@@; }
+    function maxTracce() { return @@VERIFICA_maxTracce@@; }
+    function maxTitoloTraccia() { return @@VERIFICA_maxTitoloTraccia@@; }
+    function maxTestoTraccia() { return @@VERIFICA_maxTestoTraccia@@; }
+    function maxTitoloVerifica() { return @@VERIFICA_maxTitoloVerifica@@; }
+    function maxVersioniConsegna() { return @@VERIFICA_maxVersioniConsegna@@; }
+    function maxCampioni() { return @@VERIFICA_maxCampioni@@; }
+
     function dominioIstituzionale() {
       return '@@DOMINIO@@';
     }

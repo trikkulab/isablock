@@ -307,6 +307,18 @@ sei piccole funzioni sui blocchi (`bloccoSelezionato`, `onSelezione`, `esisteBlo
 `descriviBlocco`, `selezionaBlocco`, `marcaBlocchi`) dentro l'oggetto `programma`: usa solo il
 contorno CSS `blocco-commentato`, non l'icona di commento di Blockly (che finirebbe nel JSON).
 
+## Modalità verifica (in costruzione)
+
+Non ancora utilizzabile. Per ora esiste solo `src/cloud/verifica-config.js`, che raccoglie
+tutti i parametri: la sezione `regole` (limiti che fanno rispettare anche le regole
+Firestore: grazia sulla scadenza, tetto di tracce, lunghezze, versioni di consegna, campioni)
+e la sezione `client` (debounce, battito, soglie di offline, timer, campioni, avvisi). I
+valori di `regole` finiscono in `firestore.rules` tramite i segnaposto `@@VERIFICA_<nome>@@`
+del modello; un test controlla che ogni valore e ogni segnaposto si corrispondano.
+**Cambiare un valore di `regole` richiede di ripubblicare le regole.** I parametri `client`
+decidono soprattutto le quote Spark (stima con 30 studenti e 2 ore: ~4,5k scritture, ~9k nel
+caso peggiore, su 20.000 al giorno): non abbassare il debounce sotto i 25 s senza rifare il conto.
+
 ## Sito di prova (Firebase Hosting, progetto dev)
 
 Per far provare l'app a pochi colleghi c'è un sito sul progetto dev:

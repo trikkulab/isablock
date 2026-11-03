@@ -20,6 +20,18 @@ test('dev: contiene il dominio e le email di prova configurate', () => {
   }
 });
 
+test('parametri della verifica: ogni valore di verifica-config.js finisce nelle regole, e viceversa', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { verificaConfig } = await import('../../src/cloud/verifica-config.js');
+  const modello = readFileSync(new URL('../../firestore.rules.template', import.meta.url), 'utf8');
+  const usati = [...modello.matchAll(/@@VERIFICA_(\w+)@@/g)].map((m) => m[1]).sort();
+  assert.deepEqual(usati, Object.keys(verificaConfig.regole).sort());
+  const r = buildRules('test');
+  for (const [nome, valore] of Object.entries(verificaConfig.regole)) {
+    assert.match(r, new RegExp(`function ${nome}\\(\\) \\{ return ${valore}; \\}`), nome);
+  }
+});
+
 test('il file committato non contiene email personali', async () => {
   const { readFileSync } = await import('node:fs');
   const testo = readFileSync(new URL('../../scripts/environments.json', import.meta.url), 'utf8');
