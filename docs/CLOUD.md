@@ -309,7 +309,7 @@ contorno CSS `blocco-commentato`, non l'icona di commento di Blockly (che finire
 
 ## Modalità verifica (in costruzione)
 
-Non ancora utilizzabile: per ora ci sono i dati e le regole di **verifiche, tracce e lavori** (passi 2-4 di 13);
+Non ancora utilizzabile: per ora ci sono i dati e le regole di **verifiche, tracce e lavori** (passi 2-5 di 13);
 le consegne e tutte le schermate arrivano nei passi successivi. Il piano e le decisioni
 sono nella nota di progetto «Verifica: struttura approvata».
 
@@ -403,6 +403,22 @@ l'ultima versione è quella valida. Campi: `studenteEmail`, `studenteNome`, `cor
 Codice: `src/cloud/consegne.js` (`creaConsegneStudente`: `mie`, `miaUltima`, `consegna`;
 `creaConsegneDocente`: `elenca`, `raccogli`, `caricaFile`); test `consegne-rules.test.mjs` e
 `consegne.test.mjs`.
+
+### Operazioni del docente (`verifica-docente.js`)
+
+`creaVerificaDocente` compone verifiche, lavori e consegne nelle operazioni che userà l'interfaccia
+(nessuna regola nuova): `crea`, `cambiaFine`, `assegna`, `apri`, `aggiungiIscritti`, `tempoAggiuntivo`,
+`chiudi({raccogli})`, `raccogli`, `riapri`, `caricaFile`, `situazione` (verifica + lavori + consegne in tre
+letture, per la tabella). Ciclo: *crea in bozza (con la fine prevista) → tracce → assegna (facoltativo) →
+apri → tempo aggiuntivo / iscritti tardivi → chiudi (+ raccogli) → riapri*.
+- **Scadenza personale = fine prevista + minuti extra**, assoluta nel lavoro. Se la fine cambia in bozza
+  (`cambiaFine`) o all'apertura, le scadenze di chi non è entrato si spostano **della stessa differenza,
+  extra compresi, in un solo batch** con la modifica della verifica; da aperta cambia solo il default.
+- `apri`: crea il lavoro degli iscritti che non l'hanno (traccia di default, vecchia fine), poi in un batch
+  sposta le scadenze e apre. Se fallisce non resta niente a metà e riprovare non sposta due volte.
+- `assegna` richiede la fine già impostata; il tempo extra si dà come totale rispetto alla fine, mentre
+  `tempoAggiuntivo` sposta la scadenza attuale (anche all'indietro). **Nessun motivo viene scritto mai.**
+- `raccogli` si rilancia: crea la versione successiva solo se il lavoro è cambiato dall'ultima consegna.
 
 ### Parametri
 
