@@ -27,8 +27,9 @@ export function buildRules(env) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const env = process.argv[2];
   try {
-    writeFileSync(`${root}firestore.rules`, buildRules(env));
-    console.log(`firestore.rules generato per "${env}"`);
+    const destinazione = process.argv[3] ?? 'firestore.rules';
+    writeFileSync(`${root}${destinazione}`, buildRules(env));
+    console.log(`${destinazione} generato per "${env}"`);
   } catch (e) {
     console.error(e.message);
     console.error('Uso: node scripts/build-rules.mjs <dev|scuola|test>');

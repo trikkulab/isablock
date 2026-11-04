@@ -4,7 +4,8 @@ import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
 
 export const PROGETTO = 'demo-isablock';
-const REST = `http://127.0.0.1:8186/v1/projects/${PROGETTO}/databases/(default)/documents`;
+const HOST_FIRESTORE = process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8186';   // lo imposta emulators:exec
+const REST = `http://${HOST_FIRESTORE}/v1/projects/${PROGETTO}/databases/(default)/documents`;
 const intestazioni = { Authorization: 'Bearer owner', 'Content-Type': 'application/json' };
 export const MOD = process.platform === 'darwin' ? 'Meta' : 'Control';   // tasto dei comandi (Cmd/Ctrl)
 

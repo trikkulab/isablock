@@ -387,7 +387,8 @@ service cloud.firestore {
       // Traccia e scadenza stanno QUI, non nella verifica, perché la verifica la legge ogni
       // studente iscritto: da tempo e traccia si dedurrebbe chi ha bisogni particolari.
       // Il docente crea il documento (in bozza o a verifica aperta) e può cambiare scadenza
-      // sempre, traccia solo finché lo studente non è entrato. Lo studente scrive solo i suoi
+      // sempre, traccia solo finché lo studente non è entrato. In bozza la traccia può essere
+      // vuota («di tutti»), da aperta mai. Lo studente scrive solo i suoi
       // campi, a verifica aperta, entro la scadenza personale più la grazia, e finché non ha
       // consegnato; `consegnato: true` solo insieme alla consegna (batch atomico, existsAfter).
       match /lavori/{lid} {
@@ -404,11 +405,18 @@ service cloud.firestore {
         function tracciaEsiste(t) {
           return exists(/databases/$(database)/documents/verifiche/$(vid)/tracce/$(t));
         }
+        // `tracciaId` vuoto (null) = «traccia di tutti»: ammesso SOLO in bozza, dove segue la traccia
+        // predefinita qualunque sia; all'apertura il client lo sostituisce con l'id vero nello stesso
+        // batch. Da aperta in poi la traccia è sempre esplicita.
+        function tracciaOk(t) {
+          return (t == null && verificaLav().stato == 'bozza')
+            || (verificaLav().stato != 'chiusa' && tracciaEsiste(t));
+        }
         function lavoroNuovoValido(d) {
           return d.keys().hasOnly(['studenteEmail', 'tracciaId', 'scadenza', 'entrato', 'consegnato'])
             && d.keys().hasAll(['studenteEmail', 'tracciaId', 'scadenza', 'entrato', 'consegnato'])
             && d.studenteEmail == lid
-            && tracciaEsiste(d.tracciaId)
+            && tracciaOk(d.tracciaId)
             && d.scadenza is timestamp
             && d.entrato == null
             && d.consegnato == false;
@@ -419,8 +427,7 @@ service cloud.firestore {
             && request.resource.data.scadenza is timestamp
             && (request.resource.data.tracciaId == resource.data.tracciaId
                 || (resource.data.entrato == null
-                    && verificaLav().stato != 'chiusa'
-                    && tracciaEsiste(request.resource.data.tracciaId)));
+                    && tracciaOk(request.resource.data.tracciaId)));
         }
         function esecuzioniValide(e) {
           return e.keys().hasOnly(['n', 'esito', 'quando'])
@@ -432,6 +439,9 @@ service cloud.firestore {
           let d = request.resource.data;
           return mioLavoro()
             && verificaLav().stato == 'aperta'
+            // una traccia ancora «di tutti» (vuota) non è risolta: meglio che la scrittura fallisca
+            // in modo visibile che far lavorare lo studente senza traccia
+            && resource.data.tracciaId != null
             && request.time <= resource.data.scadenza + duration.value(graziaSecondi(), 's')
             && resource.data.consegnato == false
             && d.diff(resource.data).affectedKeys().hasOnly(['studenteNome', 'programma', 'programmaHash',

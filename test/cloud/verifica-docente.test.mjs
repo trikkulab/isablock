@@ -15,7 +15,7 @@ let env;
 before(async () => {
   env = await initializeTestEnvironment({
     projectId: 'demo-isablock-verifica-docente',
-    firestore: { host, port: Number(port), rules: readFileSync('firestore.rules', 'utf8') },
+    firestore: { host, port: Number(port), rules: readFileSync(process.env.REGOLE_FILE || 'firestore.rules', 'utf8') },
   });
 });
 after(() => env.cleanup());
@@ -84,13 +84,40 @@ test('assegna in bozza: traccia diversa e tempo extra per uno studente, prima de
   await d.assegna(vid, ANNA, { minutiExtra: 0 });                               // torna alla fine prevista
   await assert.rejects(d.assegna(vid, DARIO, { tracciaId: 't0' }), (e) => e.codice === 'negato');   // non iscritto
   await assert.rejects(d.assegna(vid, CARLA, { minutiExtra: -5 }), (e) => e.codice === 'dati');
-  await assert.rejects(d.assegna(vid, CARLA), (e) => e.codice === 'traccia');                       // niente traccia di default ancora
+  await d.assegna(vid, CARLA, { minutiExtra: 5 });                              // solo tempo: traccia «di tutti» (vuota)
+  const prima = Object.fromEntries((await d.lavori.elenca(vid)).map((l) => [l.email, l]));
+  assert.deepEqual([prima[ANNA].tracciaId, prima[BRUNO].tracciaId, prima[CARLA].tracciaId], ['t1', 't1', null]);
   await d.apri(vid, { tracciaDefault: 't0' });
   const per = Object.fromEntries((await d.lavori.elenca(vid)).map((l) => [l.email, l]));
-  assert.deepEqual([per[ANNA].tracciaId, per[BRUNO].tracciaId, per[CARLA].tracciaId], ['t1', 't1', 't0']);   // l'apertura non azzera le assegnazioni
+  assert.deepEqual([per[ANNA].tracciaId, per[BRUNO].tracciaId, per[CARLA].tracciaId], ['t1', 't1', 't0']);   // l'apertura risolve i vuoti e non azzera le assegnazioni
   assert.ok(vicino(per[BRUNO].scadenza.getTime(), fine.getTime() + 15 * 60000));
   assert.ok(vicino(per[ANNA].scadenza.getTime(), fine.getTime()));
-  assert.ok(vicino(per[CARLA].scadenza.getTime(), fine.getTime()));
+  assert.ok(vicino(per[CARLA].scadenza.getTime(), fine.getTime() + 5 * 60000));
+});
+
+test('«di tutti» segue la traccia predefinita fino all\'apertura; una traccia scelta a mano resta, anche se coincide', async () => {
+  const d = docente();
+  const { vid } = await bozza(d);
+  await d.verifiche.modifica(vid, { tracciaDefault: 't0' });
+  await d.assegna(vid, ANNA, { tracciaId: 't0' });                              // scelta a mano, uguale a quella di tutti
+  await d.assegna(vid, BRUNO, { minutiExtra: 10 });                             // solo tempo: «di tutti»
+  await d.impostaTracciaDefault(vid, 't1');                                      // la traccia di tutti cambia
+  await d.apri(vid);
+  const per = Object.fromEntries((await d.lavori.elenca(vid)).map((l) => [l.email, l.tracciaId]));
+  assert.deepEqual([per[ANNA], per[BRUNO], per[CARLA]], ['t0', 't1', 't1']);   // Anna tiene la sua; Bruno e Carla la nuova
+});
+
+test('assegna null: in bozza torna «di tutti», da aperta diventa la traccia predefinita', async () => {
+  const d = docente();
+  const { vid } = await bozza(d);
+  await d.verifiche.modifica(vid, { tracciaDefault: 't0' });
+  await d.assegna(vid, ANNA, { tracciaId: 't1' });
+  await d.assegna(vid, ANNA, { tracciaId: null });
+  assert.equal((await d.lavori.elenca(vid))[0].tracciaId, null);
+  await d.apri(vid);
+  await d.assegna(vid, ANNA, { tracciaId: 't1' });
+  await d.assegna(vid, ANNA, { tracciaId: null });                              // da aperta non esiste «vuoto»
+  assert.equal((await d.lavori.elenca(vid)).find((l) => l.email === ANNA).tracciaId, 't0');
 });
 
 test('assegna richiede la fine prevista', async () => {
@@ -228,4 +255,119 @@ test('errori di stato e permessi', async () => {
   await assert.rejects(d.aggiungiIscritti(vid), (e) => e.codice === 'stato');
   const collega = creaVerificaDocente({ sdk, db: dbDi('collega@isarome.it') }, 'collega@isarome.it');
   await assert.rejects(collega.riapri(vid), (e) => e.codice === 'negato');         // docente di un altro corso
+});
+
+test('eliminaTraccia: non si elimina se è assegnata a mano (il messaggio dice quanti); la traccia di tutti passa alla prima rimasta', async () => {
+  const d = docente();
+  const { vid } = await bozza(d);                                                 // t0, t1
+  await d.verifiche.nuovaTraccia(vid, TR('Traccia 3'));                            // t2
+  await d.verifiche.modifica(vid, { tracciaDefault: 't1' });
+  await d.assegna(vid, ANNA, { tracciaId: 't2' });
+  await assert.rejects(d.eliminaTraccia(vid, 't2'), (e) => e.codice === 'assegnata' && e.message === '1 studente ha questa traccia: riassegnalo prima.' && e.studenti.join() === ANNA);
+  await d.assegna(vid, BRUNO, { tracciaId: 't2' });
+  await assert.rejects(d.eliminaTraccia(vid, 't2'), (e) => e.message === '2 studenti hanno questa traccia: riassegnali prima.');
+  assert.equal((await d.verifiche.tracce(vid)).length, 3);                          // niente è stato toccato
+  // chi ha «di tutti» (vuoto) non blocca: eliminando la traccia di tutti si riassegna da sola
+  await d.assegna(vid, CARLA, { minutiExtra: 1 });
+  await d.eliminaTraccia(vid, 't1');
+  assert.equal((await d.verifiche.leggi(vid)).tracciaDefault, 't0');
+  // riassegnati, la traccia si elimina; l'ultima traccia lascia la verifica senza traccia di tutti
+  await d.assegna(vid, ANNA, { tracciaId: null }); await d.assegna(vid, BRUNO, { tracciaId: null });
+  await d.eliminaTraccia(vid, 't2');
+  await d.eliminaTraccia(vid, 't0');
+  assert.equal((await d.verifiche.leggi(vid)).tracciaDefault, null);
+  assert.equal((await d.verifiche.tracce(vid)).length, 0);
+  await assert.rejects(d.apri(vid), (e) => e.codice === 'traccia');                 // senza traccia non si apre, anche con studenti assegnati
+});
+
+test('impattoUsaPerTutti: quanti l\'hanno a mano e quanti la riceverebbero', async () => {
+  const d = docente();
+  const { vid } = await bozza(d);
+  await d.verifiche.modifica(vid, { tracciaDefault: 't0' });
+  assert.deepEqual(await d.impattoUsaPerTutti(vid, 't1'), { amano: 0, riceveranno: 3 });   // nessuno ha assegnazioni: i 3 iscritti seguono «di tutti»
+  await d.assegna(vid, ANNA, { tracciaId: 't1' });
+  assert.deepEqual(await d.impattoUsaPerTutti(vid, 't1'), { amano: 1, riceveranno: 2 });   // Anna la tiene, la riceverebbero Bruno e Carla
+  await d.assegna(vid, BRUNO, { tracciaId: 't0' });                                           // Bruno ha a mano la traccia che oggi è di tutti
+  assert.deepEqual(await d.impattoUsaPerTutti(vid, 't1'), { amano: 1, riceveranno: 1 });
+  assert.deepEqual(await d.impattoUsaPerTutti(vid, 't0'), { amano: 1, riceveranno: 1 });
+});
+
+test('apri si ferma se una traccia assegnata a mano non esiste più, senza cambiare niente', async () => {
+  const d = docente();
+  const { vid, fine } = await bozza(d);
+  await d.assegna(vid, ANNA, { tracciaId: 't1' });
+  await env.withSecurityRulesDisabled((ctx) => sdk.deleteDoc(sdk.doc(ctx.firestore(), `verifiche/${vid}/tracce/t1`)));   // sparita (per forza)
+  await assert.rejects(d.apri(vid, { tracciaDefault: 't0', fine: new Date(fine.getTime() + ORA) }),
+    (e) => e.codice === 'traccia' && e.message === 'La traccia assegnata a 1 studente non esiste più: riassegnala prima di aprire.');
+  assert.equal((await d.verifiche.leggi(vid)).stato, 'bozza');
+  assert.ok(vicino((await scadenze(d, vid))[ANNA], fine.getTime()));                // nemmeno le scadenze si sono mosse
+});
+
+test('eliminaVerifica: solo una bozza, con assegnazioni e tracce (niente orfani)', async () => {
+  const d = docente();
+  const { vid } = await bozza(d);
+  await d.assegna(vid, ANNA, { tracciaId: 't1', minutiExtra: 10 });
+  await d.assegna(vid, BRUNO, { minutiExtra: 5 });
+  assert.deepEqual(await d.riepilogoEliminazione(vid), { tracce: 2, assegnazioni: 2 });
+  // cosa c'è davvero nel database (saltando le regole), per accorgersi di eventuali orfani
+  async function resti() {
+    let n;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      n = { lavori: (await sdk.getDocs(sdk.collection(db, `verifiche/${vid}/lavori`))).size, tracce: (await sdk.getDocs(sdk.collection(db, `verifiche/${vid}/tracce`))).size,
+        verifica: (await sdk.getDoc(sdk.doc(db, `verifiche/${vid}`))).exists() ? 1 : 0 };
+    });
+    return n;
+  }
+  assert.deepEqual(await resti(), { lavori: 2, tracce: 2, verifica: 1 });
+  await d.eliminaVerifica(vid);
+  assert.deepEqual(await resti(), { lavori: 0, tracce: 0, verifica: 0 });
+  // una aperta non si elimina
+  const w = await bozza(d);
+  await d.apri(w.vid, { tracciaDefault: 't0' });
+  await assert.rejects(d.eliminaVerifica(w.vid), (e) => e.codice === 'stato');
+  await d.chiudi(w.vid);
+  await assert.rejects(d.eliminaVerifica(w.vid), (e) => e.codice === 'stato');
+  assert.equal((await d.verifiche.leggi(w.vid)).stato, 'chiusa');
+});
+
+test('assegnazioni: una riga per iscritto, con traccia, minuti in più e stato', async () => {
+  const d = docente();
+  const { vid } = await bozza(d);
+  await d.verifiche.modifica(vid, { tracciaDefault: 't0' });
+  await d.assegna(vid, BRUNO, { tracciaId: 't1', minutiExtra: 15 });
+  await d.assegna(vid, CARLA, { minutiExtra: 0 });
+  const { righe, tracce, verifica } = await d.assegnazioni(vid);
+  assert.deepEqual(tracce.map((t) => t.id), ['t0', 't1']);
+  assert.equal(verifica.stato, 'bozza');
+  assert.deepEqual(righe.map((r) => [r.email, r.assegnato, r.tracciaId, r.extraMinuti, r.entrato]),
+    [[ANNA, false, null, 0, false], [BRUNO, true, 't1', 15, false], [CARLA, true, null, 0, false]]);
+});
+
+test('iscritti arrivati prima dell\'apertura seguono «di tutti»; dopo l\'apertura hanno la traccia predefinita esplicita', async () => {
+  const d = docente();
+  const { vid } = await bozza(d);
+  await d.verifiche.modifica(vid, { tracciaDefault: 't0' });
+  await d.aggiungiIscritti(vid);
+  assert.deepEqual((await d.lavori.elenca(vid)).map((l) => l.tracciaId), [null, null, null]);
+  await d.apri(vid);
+  assert.deepEqual((await d.lavori.elenca(vid)).map((l) => l.tracciaId), ['t0', 't0', 't0']);
+  await iscrivi(DARIO);
+  await d.aggiungiIscritti(vid);
+  assert.equal((await d.lavori.elenca(vid)).find((l) => l.email === DARIO).tracciaId, 't0');
+});
+
+test('un\'apertura interrotta a metà lascia i lavori «di tutti»: cambiando poi la traccia di tutti, seguono la nuova', async () => {
+  const d = docente();
+  const { vid } = await bozza(d);
+  await d.verifiche.modifica(vid, { tracciaDefault: 't0' });
+  // stessa operazione, ma con un batch che non riesce a confermare (rete caduta)
+  const sdkRotto = { ...sdk, writeBatch: (db) => { const b = sdk.writeBatch(db); return { update: (...a) => b.update(...a), commit: async () => { throw Object.assign(new Error('rete'), { code: 'unavailable' }); } }; } };
+  const rotto = creaVerificaDocente({ sdk: sdkRotto, db: dbDi(DOC) }, DOC);
+  await assert.rejects(rotto.apri(vid), (e) => e.codice === 'rete');
+  assert.equal((await d.verifiche.leggi(vid)).stato, 'bozza');
+  assert.deepEqual((await d.lavori.elenca(vid)).map((l) => l.tracciaId), [null, null, null]);   // creati, ma non fissati su t0
+  await d.impostaTracciaDefault(vid, 't1');
+  await d.apri(vid);
+  assert.deepEqual((await d.lavori.elenca(vid)).map((l) => l.tracciaId), ['t1', 't1', 't1']);
 });

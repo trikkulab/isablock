@@ -66,9 +66,10 @@ export function creaLavoriDocente({ sdk, db }) {
   // Crea il lavoro di chi non ce l'ha ancora (si può rilanciare: non tocca quelli esistenti,
   // così non azzera traccia e tempo già assegnati). `iscritti` sono le email del corso;
   // `perStudente` ({email: {tracciaId, scadenza}}) sostituisce il default per chi ha una
-  // traccia o un tempo diversi. Restituisce { create, esistenti, rifiutate }.
+  // traccia o un tempo diversi. `tracciaDefault` null (o assente) = «traccia di tutti»: la traccia
+  // resta vuota, ammessa solo in bozza, e l'apertura la sostituisce con l'id vero.
+  // Restituisce { create, esistenti, rifiutate }.
   async function creaMancanti(vid, iscritti, { tracciaDefault, scadenza, perStudente = {} }) {
-    if (!tracciaDefault) throw new ErroreLavoro('dati', 'Manca la traccia di default.');
     if (!(scadenza instanceof Date)) throw new ErroreLavoro('dati', 'Manca la fine prevista.');
     const esistenti = new Set((await elenca(vid)).map((l) => l.email));
     const nuovi = iscritti.map((e) => e.toLowerCase()).filter((e) => !esistenti.has(e));
@@ -77,7 +78,7 @@ export function creaLavoriDocente({ sdk, db }) {
       try {
         await sdk.setDoc(doc(vid, email), {
           studenteEmail: email,
-          tracciaId: p.tracciaId ?? tracciaDefault,
+          tracciaId: p.tracciaId !== undefined ? p.tracciaId : (tracciaDefault ?? null),
           scadenza: sdk.Timestamp.fromDate(p.scadenza ?? scadenza),
           entrato: null,
           consegnato: false,
@@ -114,7 +115,8 @@ export function creaLavoriDocente({ sdk, db }) {
     } catch (err) { throw traduci(err); }
   }
 
-  // Cambia la traccia assegnata: solo finché lo studente non è entrato.
+  // Cambia la traccia assegnata: solo finché lo studente non è entrato. `null` = «traccia di tutti»
+  // (solo in bozza).
   const impostaTraccia = (vid, email, tracciaId) =>
     aggiorna(vid, email, { tracciaId }, 'La traccia si cambia solo prima che lo studente entri, e deve esistere.');
 

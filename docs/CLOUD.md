@@ -354,7 +354,10 @@ i suoi dati.
 **Lavoro** `verifiche/<id>/lavori/<email minuscola>`: il documento personale dello studente in una
 verifica. L'id è l'**email** (non l'uid): il docente lo crea prima del login dello studente.
 - *Del docente*: `tracciaId` e `scadenza` (timestamp assoluto: la fine prevista o il tempo
-  aggiuntivo; **nessun motivo viene mai scritto**). Il docente crea il lavoro in bozza o a verifica
+  aggiuntivo; **nessun motivo viene mai scritto**). **In bozza `tracciaId` può essere vuoto (null) e
+  vale «traccia di tutti»**: segue la traccia predefinita, qualunque sia. All'apertura il client lo
+  sostituisce con l'id vero nello stesso batch che apre la verifica; da aperta in poi la traccia è sempre
+  esplicita (le regole non ammettono il vuoto, e uno studente non scrive finché la sua traccia non è risolta). Il docente crea il lavoro in bozza o a verifica
   aperta, solo per chi è iscritto al corso; la scadenza si cambia in ogni stato, la traccia solo
   finché lo studente non è entrato. Si toglie solo il lavoro di chi non è mai entrato.
 - *Dello studente*: `studenteNome`, `programma` (+ `programmaHash`), `nBlocchi`, `esecuzioni`
@@ -418,6 +421,17 @@ apri → tempo aggiuntivo / iscritti tardivi → chiudi (+ raccogli) → riapri*
   sposta le scadenze e apre. Se fallisce non resta niente a metà e riprovare non sposta due volte.
 - `assegna` richiede la fine già impostata; il tempo extra si dà come totale rispetto alla fine, mentre
   `tempoAggiuntivo` sposta la scadenza attuale (anche all'indietro). **Nessun motivo viene scritto mai.**
+  Senza traccia indicata una nuova assegnazione è «di tutti» (vuota in bozza); `tracciaId: null` riporta
+  «di tutti» (da aperta: la traccia predefinita).
+- **«Di tutti» segue la traccia predefinita fino all'apertura**; una traccia scelta a mano resta, anche se
+  coincide con quella di tutti. `apri` si ferma se una traccia assegnata a mano non esiste più.
+- `eliminaTraccia`: **non si elimina una traccia assegnata a mano** («2 studenti hanno questa traccia:
+  riassegnali prima»); se era quella di tutti, questa passa alla prima rimasta (o a nessuna: senza, non si apre).
+- `impattoUsaPerTutti`: quanti l'hanno a mano e quanti la riceverebbero, per l'avviso della stella.
+- `eliminaVerifica` (solo bozza): cancella prima le assegnazioni (altrimenti, tolta la verifica, nessuno
+  potrebbe più eliminarle e resterebbero orfane), poi le tracce, poi la verifica. Una verifica aperta o
+  chiusa **non si elimina** (consegne immutabili): si archivierà (passo 6e).
+- `assegnazioni`: una riga per iscritto (email, traccia, minuti in più, entrato, consegnato) per la tabella.
 - `raccogli` si rilancia: crea la versione successiva solo se il lavoro è cambiato dall'ultima consegna.
 
 ### Markdown delle tracce (`markdown.js`)
@@ -470,8 +484,18 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
   piena** segna la traccia di tutti e sulle altre una stella vuota compare solo passandoci sopra o con la
   tastiera («Usa questa traccia per tutti», solo in bozza). La prima traccia salvata diventa quella di
   tutti; eliminando quella di tutti passa alla prima rimasta.
-- A verifica chiusa la scheda è di sola lettura. Non ci sono ancora: assegnazione per studente (passo 6d),
-  «Apri verifica» (6e), tabella live (9).
+- **Avviso sulla stella**: se la traccia scelta come «per tutti» è già assegnata a mano ad altri, chiede
+  conferma («è assegnata a mano a 1 studente: se diventa la traccia di tutti, la riceveranno anche gli
+  altri 2»). Solo in quel caso; negli altri la stella funziona senza domande.
+- **Assegnazioni individuali** (in bozza e a verifica aperta): sezione **chiusa di default** (la finestra
+  può essere proiettata alla LIM). Aperta, una riga per iscritto con l'**email** (il nome non si conosce finché
+  lo studente non entra): menu della traccia («Per tutti (Versione A)» o una traccia) e minuti in più; si salva
+  alla modifica. «Per i selezionati» applica traccia e/o minuti a più studenti. Chi ha già iniziato non cambia
+  traccia, chi ha consegnato non si tocca. Nessun campo «motivo». Aprendola, la finestra scorre fino a lì.
+- **Eliminare una traccia** assegnata a mano è rifiutato con il numero di studenti. **«Elimina verifica»**
+  (solo in bozza) chiede conferma con i numeri («Elimino la verifica «…», la sua traccia e le assegnazioni di 3
+  studenti? Non si può annullare»).
+- A verifica chiusa la scheda è di sola lettura. Non ci sono ancora: «Apri verifica» e archivia (6e), tabella live (9).
 - **Esc chiude solo la finestra in cima** (prima chiudeva tutte quelle impilate): `dom.js` tiene una pila.
   `apriFinestra` ha le opzioni `larga` e `puoChiudere` (può rifiutare la chiusura).
 - Testo dei titoli di traccia: il suggerimento chiede un nome neutro, «senza note personali».
@@ -479,11 +503,14 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
 ### Prove nel browser (`npm run test:e2e`)
 
 `test/e2e/` pilota Chromium (Playwright) contro l'app vera e gli emulatori Auth e Firestore (vuoti, avviati
-da `firebase emulators:exec`; stesse porte di `test:cloud`, quindi non con il tuo emulatore acceso). Un
+da `firebase emulators:exec` con `firebase.test.json`; stesse porte di `npm run emulators`, quindi non con
+l'emulatore dev acceso). Il server statico e gli aiuti leggono le porte da `FIREBASE_AUTH_EMULATOR_HOST` e
+`FIRESTORE_EMULATOR_HOST` (le imposta `emulators:exec`): con un'altra configurazione su altre porte la prova
+gira anche accanto all'emulatore dev. Un
 piccolo server statico (`server.mjs`) serve il progetto accendendo al volo l'interruttore del cloud, senza
 toccare il working tree. L'accesso usa una credenziale Google finta via SDK (deterministico; il popup
 dell'emulatore in Chromium senza interfaccia perdeva il clic a volte). Con `E2E_SCHERMATE=<cartella>` salva
-le schermate. `verifiche.mjs` copre il passo 6c in 20 controlli; i passi successivi con interfaccia
+le schermate. `verifiche.mjs` copre i passi 6c e 6d in 38 controlli; i passi successivi con interfaccia
 aggiungeranno i loro. Il bundle Firebase esporta per questo `signInWithCredential`.
 
 ### Parametri
@@ -540,12 +567,19 @@ per le prove, con dati finti, e si può cancellare a fine prova.
 
 ```
 npm run test:cloud     # regole sull'emulatore (ambiente "test"), + test del generatore
+npm run test:e2e       # prove nel browser (Chromium) contro l'app vera: vedi «Prove nel browser»
 npm run emulators      # emulatori Auth + Firestore con regole dev (UI su :4100);
                        # i dati restano in .emulator-data (cancellarla per ripartire da zero)
                        # e i docenti di prova (environments.local.json, dev.docentiProva) si ricreano ogni volta
 python3 -m http.server # e aprire http://localhost:8000 con cloud.enabled = true
 npm run vendor:firebase  # rigenera vendor/firebase/cloud.js (solo per aggiornare Firebase)
 ```
+
+**Attenzione alle regole.** L'emulatore **ricarica da solo** `firestore.rules` quando il file cambia. Per
+questo `test:cloud` e `test:e2e` NON lo toccano: scrivono le regole di test in `.regole-test.rules` (ignorato da
+git; i test lo leggono da `REGOLE_FILE`) e usano `firebase.test.json`. `scripts/build-rules.mjs <ambiente>
+[file]` scrive in `firestore.rules` solo se non gli si dà un file. Le due prove usano le stesse porte di
+`npm run emulators`: con l'emulatore dev acceso non partono (porta occupata) senza toccare niente.
 
 Nell'emulatore l'accesso Google è una finestra fittizia dove si inventa l'account.
 Il ruolo docente in locale lo danno i `docentiProva` di `scripts/environments.local.json`.

@@ -12,7 +12,7 @@ let env;
 before(async () => {
   env = await initializeTestEnvironment({
     projectId: 'demo-isablock-lavori',
-    firestore: { host, port: Number(port), rules: readFileSync('firestore.rules', 'utf8') },
+    firestore: { host, port: Number(port), rules: readFileSync(process.env.REGOLE_FILE || 'firestore.rules', 'utf8') },
   });
 });
 after(() => env.cleanup());
@@ -168,13 +168,47 @@ test('lavori: il docente cambia la scadenza in ogni stato, la traccia solo prima
     await semina(stato);
     await assertSucceeds(updateDoc(lav(docente()), { tracciaId: 't1' }));
     await assertFails(updateDoc(lav(docente()), { tracciaId: 't7' }));            // non esiste
-    await assertFails(updateDoc(lav(docente()), { tracciaId: null }));
+    await assertFails(updateDoc(lav(docente()), { tracciaId: 5 }));
   }
   await semina('chiusa');
   await assertFails(updateDoc(lav(docente()), { tracciaId: 't1' }));
   await semina('aperta', entrata());
   await assertFails(updateDoc(lav(docente()), { tracciaId: 't1' }));              // lo studente è già entrato
   await assertSucceeds(updateDoc(lav(docente()), { scadenza: tra(7_200_000) }));  // ma il tempo sì
+});
+
+test('lavori: in bozza la traccia può essere vuota («di tutti»), da aperta mai', async () => {
+  // creazione
+  await semina('bozza');
+  await admin((db) => deleteDoc(lav(db)));
+  await assertSucceeds(setDoc(lav(docente()), scheletro(ANNA, { tracciaId: null })));
+  await semina('aperta');
+  await admin((db) => deleteDoc(lav(db)));
+  await assertFails(setDoc(lav(docente()), scheletro(ANNA, { tracciaId: null })));
+  // modifica: un'assegnazione esplicita torna «di tutti» solo in bozza
+  await semina('bozza');
+  await assertSucceeds(updateDoc(lav(docente()), { tracciaId: null }));
+  await assertSucceeds(updateDoc(lav(docente()), { tracciaId: 't1' }));
+  await semina('aperta');
+  await assertFails(updateDoc(lav(docente()), { tracciaId: null }));
+  // e una traccia vuota si risolve in un id vero, in bozza (come fa l'apertura) e anche dopo
+  for (const stato of ['bozza', 'aperta']) {
+    await semina(stato, { tracciaId: null });
+    await assertSucceeds(updateDoc(lav(docente()), { tracciaId: 't0' }));
+  }
+  await semina('chiusa', { tracciaId: null });
+  await assertFails(updateDoc(lav(docente()), { tracciaId: 't0' }));
+  // un lavoro già entrato non cambia traccia nemmeno verso «di tutti»
+  await semina('bozza', entrata());
+  await assertFails(updateDoc(lav(docente()), { tracciaId: null }));
+});
+
+test('lavori: lo studente non scrive se la sua traccia non è stata risolta (ancora «di tutti») a verifica aperta', async () => {
+  await semina('aperta', { tracciaId: null });                         // stato che l'apertura corretta non produce
+  await assertFails(updateDoc(lav(anna()), mio()));
+  await assertFails(getDoc(doc(anna(), 'verifiche/v1/tracce/t0')));    // e non legge nessuna traccia
+  await admin((db) => updateDoc(lav(db), { tracciaId: 't0' }));
+  await assertSucceeds(updateDoc(lav(anna()), mio()));
 });
 
 test('lavori: il docente non tocca i campi dello studente né l\'identità', async () => {

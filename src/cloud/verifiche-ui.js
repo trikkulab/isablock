@@ -157,7 +157,7 @@ export function montaVerifiche({ toast }) {
     fine.addEventListener('change', () => {
       const d = daCampo(fine.value);
       if (!d) { fine.value = verifica.fine ? perCampo(verifica.fine) : ''; toast('Indica data e ora della fine prevista.', 'error'); return; }
-      salvaDati(async () => { await vd.cambiaFine(vid, d); verifica = await vd.verifiche.leggi(vid); });
+      salvaDati(async () => { await vd.cambiaFine(vid, d); verifica = await vd.verifiche.leggi(vid); aggiornaAssegnazioni(); });
     });
     const avviso = {
       aperta: 'Verifica aperta: le modifiche alle tracce sono visibili subito agli studenti (che vedranno un avviso di traccia aggiornata).',
@@ -202,9 +202,19 @@ export function montaVerifiche({ toast }) {
 
     async function usaPerTutti(id) {
       try {
-        await vd.verifiche.modifica(vid, { tracciaDefault: id });
+        // Se la traccia è già assegnata a mano a qualcuno, probabilmente non è fatta per tutti: si avvisa
+        // (solo in quel caso, e solo se qualcun altro la riceverebbe davvero).
+        const { amano, riceveranno } = await vd.impattoUsaPerTutti(vid, id);
+        if (amano > 0 && riceveranno > 0) {
+          const t = tracce.find((x) => x.id === id);
+          const chi = amano === 1 ? '1 studente' : `${amano} studenti`;
+          const altri = riceveranno === 1 ? 'la riceverà anche 1 altro studente' : `la riceveranno anche gli altri ${riceveranno} studenti`;
+          if (!window.confirm(`«${t.titolo}» è assegnata a mano a ${chi}.\nSe diventa la traccia di tutti, ${altri}.\n\nVuoi usarla per tutti?`)) return;
+        }
+        await vd.impostaTracciaDefault(vid, id);
         verifica = await vd.verifiche.leggi(vid);
         disegnaElenco();
+        aggiornaAssegnazioni();
       } catch (err) { toast(messaggio(err), 'error'); }
     }
 
@@ -273,6 +283,7 @@ export function montaVerifiche({ toast }) {
           selezione = salvata.id;
           disegnaElenco();
           disegnaEditor();
+          aggiornaAssegnazioni();
           toast(esistente && !bozza() ? 'Modifica pubblicata: gli studenti vedranno l\'avviso di traccia aggiornata.' : 'Traccia salvata.', 'success');
         } catch (err) {
           toast(messaggio(err), 'error');
@@ -284,16 +295,15 @@ export function montaVerifiche({ toast }) {
       async function elimina() {
         if (!window.confirm(`Eliminare la traccia «${esistente.titolo}»?`)) return;
         try {
-          await vd.verifiche.eliminaTraccia(vid, esistente.id);
+          // il modulo rifiuta se la traccia è assegnata a mano a qualcuno e, se era quella di tutti, la sposta
+          await vd.eliminaTraccia(vid, esistente.id);
           tracce = await vd.verifiche.tracce(vid);
-          if (verifica.tracciaDefault === esistente.id) {            // la traccia di tutti passa alla prima rimasta
-            await vd.verifiche.modifica(vid, { tracciaDefault: tracce[0]?.id ?? null });
-            verifica = await vd.verifiche.leggi(vid);
-          }
+          verifica = await vd.verifiche.leggi(vid);
           modificata = () => false;
           selezione = null;
           disegnaElenco();
           disegnaEditor();
+          aggiornaAssegnazioni();
           toast('Traccia eliminata.', 'success');
         } catch (err) { toast(messaggio(err), 'error'); }
       }
@@ -305,6 +315,166 @@ export function montaVerifiche({ toast }) {
           salvaBtn,
           esistente && bozza() ? el('button', { type: 'button', class: 'modal-btn secondary', onclick: elimina }, 'Elimina') : ''));
       (esistente ? editor : { focus: () => titoloTraccia.select() }).focus();
+    }
+
+    // --- Assegnazioni individuali: traccia e tempo per chi ne ha bisogno -------------
+    // CHIUSA di default: la finestra può essere proiettata alla LIM e le righe con un tempo in più non devono
+    // vedersi. Una riga per iscritto, con l'email (il nome non lo conosciamo finché non entra). Nessun campo
+    // «motivo»: solo traccia e minuti in più.
+    let assAperta = false;
+    const esitoAss = el('span', { class: 'sketch-data verifica-esito', 'aria-live': 'polite' });
+    const corpoAss = el('div', { class: 'assegnazioni-corpo', hidden: '' });
+    const toggleAss = el('button', { type: 'button', class: 'assegnazioni-toggle', 'aria-expanded': 'false' });
+    const etichettaToggle = () => `${assAperta ? '▾' : '▸'} Assegnazioni individuali (traccia e tempo)`;
+    toggleAss.textContent = etichettaToggle();
+    toggleAss.addEventListener('click', () => {
+      assAperta = !assAperta;
+      corpoAss.hidden = !assAperta;
+      toggleAss.setAttribute('aria-expanded', String(assAperta));
+      toggleAss.textContent = etichettaToggle();
+      // aprendo, la finestra scorre fino alle assegnazioni (altrimenti le righe restano sotto il bordo)
+      if (assAperta) aggiornaAssegnazioni().then(() => toggleAss.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+    });
+    if (scrivibile()) f.corpo.append(el('div', { class: 'assegnazioni' }, el('div', { class: 'sketch-riga' }, toggleAss, esitoAss), corpoAss));
+
+    async function aggiornaAssegnazioni() {
+      if (!assAperta || !scrivibile()) return;
+      let dati;
+      try { dati = await vd.assegnazioni(vid); } catch (err) { toast(messaggio(err), 'error'); return; }
+      if (!finestre.has(f) || !assAperta) return;
+      disegnaAssegnazioni(dati);
+    }
+
+    function disegnaAssegnazioni({ tracce: elencoTracce, righe, verifica: v }) {
+      corpoAss.textContent = '';
+      if (righe.length === 0) {
+        corpoAss.append(el('p', { class: 'sketch-nota' }, 'Nessuno studente iscritto al corso: aggiungili da «Gestisci».'));
+        return;
+      }
+      const titoloDefault = elencoTracce.find((t) => t.id === v.tracciaDefault)?.titolo;
+      const opzioni = (conNessuna) => [
+        conNessuna ? el('option', { value: '__nessuna' }, '— non cambiare —') : null,
+        el('option', { value: '' }, titoloDefault ? `Per tutti (${titoloDefault})` : 'Per tutti'),
+        ...elencoTracce.map((t) => el('option', { value: t.id }, t.titolo)),
+      ].filter(Boolean);
+      const minutiValidi = (testo) => {
+        const t = String(testo).trim();
+        if (t === '') return 0;
+        const n = Number(t);
+        return Number.isInteger(n) && n >= 0 && n <= 1000 ? n : null;
+      };
+      const mostraEsito = (testo) => {
+        esitoAss.textContent = testo;
+        clearTimeout(mostraEsito.t);
+        if (testo.endsWith('✓')) mostraEsito.t = setTimeout(() => { esitoAss.textContent = ''; }, 2500);
+      };
+
+      corpoAss.append(el('p', { class: 'sketch-nota' },
+        'Chi non è modificato qui usa la traccia di tutti e la fine prevista. Si registrano solo la traccia e i minuti in più, nessun motivo.'));
+
+      const caselle = [];
+      const tabella = el('div', { class: 'assegnazioni-righe' });
+      for (const r of righe) {
+        const chk = el('input', { type: 'checkbox', 'aria-label': `Seleziona ${r.email}` });
+        caselle.push([r, chk]);
+        const sel = el('select', { class: 'assegnazioni-traccia', 'aria-label': `Traccia di ${r.email}` }, ...opzioni(false));
+        sel.value = r.tracciaId ?? '';
+        const min = el('input', { type: 'number', min: '0', max: '1000', step: '1', class: 'assegnazioni-minuti', placeholder: '0',
+          'aria-label': `Minuti in più per ${r.email}` });
+        min.value = r.extraMinuti > 0 ? String(r.extraMinuti) : '';
+        if (r.entrato) { sel.disabled = true; sel.title = 'Ha già iniziato: la traccia non si cambia.'; }
+        if (r.consegnato) { sel.disabled = true; min.disabled = true; min.title = 'Ha già consegnato.'; }
+
+        async function salva(campi) {
+          mostraEsito('Salvo…');
+          try {
+            await vd.assegna(vid, r.email, campi);
+            r.assegnato = true;
+            if (campi.tracciaId !== undefined) r.tracciaId = campi.tracciaId === null && v.stato === 'aperta' ? v.tracciaDefault : campi.tracciaId;
+            if (campi.minutiExtra !== undefined) r.extraMinuti = campi.minutiExtra;
+            mostraEsito('Salvato ✓');
+          } catch (err) {
+            mostraEsito('');
+            toast(messaggio(err), 'error');
+            sel.value = r.tracciaId ?? '';
+            min.value = r.extraMinuti > 0 ? String(r.extraMinuti) : '';
+          }
+        }
+        sel.addEventListener('change', () => salva({ tracciaId: sel.value === '' ? null : sel.value }));
+        min.addEventListener('change', () => {
+          const n = minutiValidi(min.value);
+          if (n === null) { toast('I minuti in più sono un numero intero da 0 a 1000.', 'error'); min.value = r.extraMinuti > 0 ? String(r.extraMinuti) : ''; return; }
+          if (!r.assegnato && n === 0) return;           // niente da salvare: nessuna assegnazione e nessun tempo in più
+          salva({ minutiExtra: n });
+        });
+        tabella.append(el('div', { class: 'assegnazioni-riga' }, chk, el('span', { class: 'assegnazioni-email', title: r.email }, r.email), sel, min,
+          el('span', { class: 'assegnazioni-min-etichetta' }, 'min')));
+      }
+
+      // «Per i selezionati»
+      const tutti = el('input', { type: 'checkbox', 'aria-label': 'Seleziona tutti' });
+      tutti.addEventListener('change', () => { for (const [r, c] of caselle) if (!r.consegnato) c.checked = tutti.checked; });
+      const bulkTraccia = el('select', { class: 'assegnazioni-traccia', 'aria-label': 'Traccia per i selezionati' }, ...opzioni(true));
+      bulkTraccia.value = '__nessuna';
+      const bulkMin = el('input', { type: 'number', min: '0', max: '1000', step: '1', class: 'assegnazioni-minuti', placeholder: '—', 'aria-label': 'Minuti in più per i selezionati' });
+      const applica = el('button', { type: 'button', class: 'modal-btn secondary' }, 'Applica ai selezionati');
+      applica.addEventListener('click', async () => {
+        const scelti = caselle.filter(([, c]) => c.checked).map(([r]) => r);
+        if (scelti.length === 0) { toast('Seleziona almeno uno studente.', 'error'); return; }
+        const campi = {};
+        if (bulkTraccia.value !== '__nessuna') campi.tracciaId = bulkTraccia.value === '' ? null : bulkTraccia.value;
+        if (bulkMin.value.trim() !== '') {
+          const n = minutiValidi(bulkMin.value);
+          if (n === null) { toast('I minuti in più sono un numero intero da 0 a 1000.', 'error'); return; }
+          campi.minutiExtra = n;
+        }
+        if (Object.keys(campi).length === 0) { toast('Scegli una traccia o i minuti da applicare.', 'error'); return; }
+        applica.disabled = true;
+        mostraEsito('Salvo…');
+        let fatti = 0;
+        let saltati = 0;
+        try {
+          for (const r of scelti) {
+            const c = { ...campi };
+            if (r.entrato && c.tracciaId !== undefined) { delete c.tracciaId; saltati++; }   // chi ha iniziato tiene la sua traccia
+            if (Object.keys(c).length === 0) continue;
+            await vd.assegna(vid, r.email, c);
+            fatti++;
+          }
+          mostraEsito('Salvato ✓');
+          toast(`Applicato a ${fatti} student${fatti === 1 ? 'e' : 'i'}${saltati ? ` (la traccia non è cambiata a ${saltati}: hanno già iniziato)` : ''}.`, 'success');
+        } catch (err) {
+          mostraEsito('');
+          toast(messaggio(err), 'error');
+        }
+        applica.disabled = false;
+        aggiornaAssegnazioni();
+      });
+      corpoAss.append(
+        el('div', { class: 'assegnazioni-bulk' }, el('label', { class: 'sketch-data' }, tutti, ' Tutti'),
+          el('span', { class: 'sketch-data' }, 'Per i selezionati:'), bulkTraccia, bulkMin, el('span', { class: 'assegnazioni-min-etichetta' }, 'min in più'), applica),
+        tabella);
+    }
+
+    // --- Elimina verifica (solo in bozza) -------------------------------------------
+    async function eliminaQuestaVerifica() {
+      let r;
+      try { r = await vd.riepilogoEliminazione(vid); } catch (err) { toast(messaggio(err), 'error'); return; }
+      const parti = [];
+      if (r.tracce) parti.push(r.tracce === 1 ? 'la sua traccia' : `le sue ${r.tracce} tracce`);
+      if (r.assegnazioni) parti.push(r.assegnazioni === 1 ? 'l\'assegnazione di 1 studente' : `le assegnazioni di ${r.assegnazioni} studenti`);
+      const insieme = parti.length ? `, ${parti.join(' e ')}` : '';
+      if (!window.confirm(`Elimino la verifica «${verifica.titolo}»${insieme}?\nNon si può annullare.`)) return;
+      try {
+        await vd.eliminaVerifica(vid);
+        modificata = () => false;
+        toast('Verifica eliminata.', 'success');
+        f.chiudi();
+      } catch (err) { toast(messaggio(err), 'error'); }
+    }
+    if (bozza()) {
+      f.corpo.append(el('div', { class: 'verifica-piede' },
+        el('button', { type: 'button', class: 'modal-btn secondary', onclick: eliminaQuestaVerifica }, 'Elimina verifica')));
     }
 
     selezione = tracce[0]?.id ?? null;

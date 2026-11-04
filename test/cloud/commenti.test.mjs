@@ -16,7 +16,7 @@ let env;
 before(async () => {
   env = await initializeTestEnvironment({
     projectId: 'demo-isablock-commenti-dati',
-    firestore: { host, port: Number(port), rules: readFileSync('firestore.rules', 'utf8') },
+    firestore: { host, port: Number(port), rules: readFileSync(process.env.REGOLE_FILE || 'firestore.rules', 'utf8') },
   });
 });
 after(() => env.cleanup());

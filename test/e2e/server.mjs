@@ -1,6 +1,7 @@
 // Piccolo server statico per le prove nel browser (test/e2e). Serve la cartella del progetto così
-// com'è, tranne src/app-config.js: lì accende al volo l'interruttore del cloud (nel repository
-// resta false, e il tuo working tree non viene toccato).
+// com'è, tranne due file, modificati al volo (il working tree non viene toccato): src/app-config.js, dove
+// accende l'interruttore del cloud (nel repository resta false), e src/cloud/env.js, dove mette le porte
+// degli emulatori prese dall'ambiente.
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
@@ -21,6 +22,13 @@ export function avviaServer(porta = 8123) {
       const file = normalize(join(radice, percorso));
       if (!file.startsWith(radice)) { res.writeHead(403).end(); return; }
       let corpo = await readFile(file);
+      if (percorso === '/src/cloud/env.js') {
+        // porte degli emulatori: quelle dell'ambiente (emulators:exec le imposta), così la prova può girare
+        // accanto a un emulatore dev già acceso su altre porte
+        const porta = (nome, predefinita) => Number((process.env[nome] ?? '').split(':').pop()) || predefinita;
+        corpo = Buffer.from(corpo.toString('utf8').replace(/Object\.freeze\(\{\s*authPort:\s*\d+,\s*firestorePort:\s*\d+\s*\}\)/,
+          `Object.freeze({ authPort: ${porta('FIREBASE_AUTH_EMULATOR_HOST', 9199)}, firestorePort: ${porta('FIRESTORE_EMULATOR_HOST', 8186)} })`));
+      }
       if (percorso === '/src/app-config.js') {
         corpo = Buffer.from(corpo.toString('utf8').replace(/cloud:\s*Object\.freeze\(\{\s*enabled:\s*(true|false)\s*\}\)/, 'cloud: Object.freeze({ enabled: true })'));
       }
