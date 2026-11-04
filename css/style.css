@@ -1101,3 +1101,32 @@ button.commento-blocco { cursor: pointer; }
 .traccia-md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
 .traccia-md .md-link { text-decoration: underline dotted; text-underline-offset: 2px; }
 .traccia-md .md-immagine { font-style: italic; color: #52606d; }
+
+/* ── Verifiche: elenco, scheda e tracce (src/cloud/verifiche-ui.js) ── */
+.modal-box.verifica-box { max-width: min(1100px, 94vw); width: 94vw; max-height: 92vh; overflow-y: auto; }
+.stato-corso[data-stato="bozza"] { background: #fff4d6; color: #7a5200; }
+.stato-corso[data-stato="aperta"] { background: #dff5e6; color: #14663a; }
+.stato-corso[data-stato="chiusa"] { background: #e8ebef; color: #3e4c59; }
+.verifica-testata { display: grid; grid-template-columns: 1fr minmax(13rem, 16rem) auto; gap: 0.8rem; align-items: end; }
+.verifica-stato { display: flex; align-items: center; gap: 0.6rem; padding-bottom: 0.55rem; min-height: 2.4rem; }
+.verifica-esito { min-width: 5.5rem; }
+.verifica-nota { display: block; margin: 0.2rem 0 0; font-size: 0.82rem; }
+.verifica-avviso { margin: 0.6rem 0 0; padding: 0.45rem 0.7rem; border-radius: 8px; background: #fff4d6; }
+.tracce-corpo { display: grid; grid-template-columns: 14rem 1fr; gap: 1rem; margin-top: 0.8rem; align-items: start; }
+.tracce-elenco { display: flex; flex-direction: column; gap: 0.2rem; }
+.tracce-elenco .corsi-titolo { margin-top: 0; }
+.traccia-voce { display: flex; align-items: center; border: 1px solid transparent; border-radius: 8px; }
+.traccia-voce.attiva { background: #e8f0fa; border-color: var(--accent); }
+.traccia-nome { flex: 1; min-width: 0; padding: 0.4rem 0.6rem; border: 0; background: none; font: inherit; text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.traccia-nome.traccia-bozza { font-style: italic; color: #52606d; cursor: default; }
+/* Il segno «per tutti» è discreto: una stella piena sulla traccia di tutti; sulle altre una stella vuota che si vede solo passandoci sopra o con la tastiera */
+.traccia-predef { padding: 0 0.5rem; color: #b07a00; font-size: 0.95rem; }
+.traccia-usa { padding: 0 0.5rem; border: 0; background: none; color: #8a97a3; font-size: 0.95rem; cursor: pointer; opacity: 0; }
+.traccia-voce:hover .traccia-usa, .traccia-usa:focus-visible { opacity: 1; }
+.traccia-usa:hover { color: #b07a00; }
+.traccia-aggiungi { margin-top: 0.5rem; }
+.tracce-editor .editor-md { margin-top: 0.6rem; }
+@media (max-width: 800px) {
+  .verifica-testata, .tracce-corpo { grid-template-columns: 1fr; }
+  .verifica-stato { padding-bottom: 0; }
+}

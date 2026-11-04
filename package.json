@@ -21,6 +21,7 @@
     "test:cloud": "node scripts/build-rules.mjs test && firebase emulators:exec --only firestore --project demo-isablock \"node --test --test-concurrency=1 test/cloud/\"",
     "codice": "node scripts/codice.mjs",
     "deploy:test": "node scripts/deploy-test.mjs",
-    "vendor:markdown": "node scripts/bundle-markdown.mjs"
+    "vendor:markdown": "node scripts/bundle-markdown.mjs",
+    "test:e2e": "node scripts/build-rules.mjs test && firebase emulators:exec --only auth,firestore --project demo-isablock \"node test/e2e/verifiche.mjs\""
   }
 }

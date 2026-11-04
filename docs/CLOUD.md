@@ -454,6 +454,38 @@ se si può salvare). Su schermo stretto (≤ 800 px) diventano due schede «Scri
   Verificato a mano in Chromium (Playwright) con pulsanti, scorciatoie, annulla, elenchi, tabella, contatore
   e anteprima con tentativi di iniezione.
 
+### Interfaccia del docente: elenco e scheda della verifica (`verifiche-ui.js`)
+
+Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»** (accanto a «Gestisci»).
+- **Elenco** delle verifiche del corso (titolo, badge Bozza/Aperta/Chiusa, fine prevista) e **«Nuova
+  verifica»**: titolo e fine prevista, proposta tra due ore (provvisoria: all'apertura si sceglierà la
+  durata). La verifica nasce in bozza.
+- **Scheda** (finestra grande): titolo e fine prevista, che si salvano da soli quando si esce dal campo
+  («Salvato ✓»); in bozza cambiare la fine sposta le scadenze degli studenti (`cambiaFine`).
+  Sotto, **tracce a sinistra** ed **editor Markdown a destra** (con anteprima). Si salva con «Salva» o
+  Cmd/Ctrl+S (a verifica aperta il pulsante è «Pubblica modifica»); modifiche non salvate chiedono conferma
+  se si cambia traccia o si chiude la finestra. «Nuova traccia» crea una bozza locale che esiste nel
+  database solo dopo il salvataggio.
+- **«Per tutti»** è discreto: con **una** sola traccia non compare niente; con due o più, una **stella
+  piena** segna la traccia di tutti e sulle altre una stella vuota compare solo passandoci sopra o con la
+  tastiera («Usa questa traccia per tutti», solo in bozza). La prima traccia salvata diventa quella di
+  tutti; eliminando quella di tutti passa alla prima rimasta.
+- A verifica chiusa la scheda è di sola lettura. Non ci sono ancora: assegnazione per studente (passo 6d),
+  «Apri verifica» (6e), tabella live (9).
+- **Esc chiude solo la finestra in cima** (prima chiudeva tutte quelle impilate): `dom.js` tiene una pila.
+  `apriFinestra` ha le opzioni `larga` e `puoChiudere` (può rifiutare la chiusura).
+- Testo dei titoli di traccia: il suggerimento chiede un nome neutro, «senza note personali».
+
+### Prove nel browser (`npm run test:e2e`)
+
+`test/e2e/` pilota Chromium (Playwright) contro l'app vera e gli emulatori Auth e Firestore (vuoti, avviati
+da `firebase emulators:exec`; stesse porte di `test:cloud`, quindi non con il tuo emulatore acceso). Un
+piccolo server statico (`server.mjs`) serve il progetto accendendo al volo l'interruttore del cloud, senza
+toccare il working tree. L'accesso usa una credenziale Google finta via SDK (deterministico; il popup
+dell'emulatore in Chromium senza interfaccia perdeva il clic a volte). Con `E2E_SCHERMATE=<cartella>` salva
+le schermate. `verifiche.mjs` copre il passo 6c in 20 controlli; i passi successivi con interfaccia
+aggiungeranno i loro. Il bundle Firebase esporta per questo `signInWithCredential`.
+
 ### Parametri
 
 Il file `src/cloud/verifica-config.js` raccoglie

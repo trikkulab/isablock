@@ -123,7 +123,8 @@ export function montaCloud({ contenitore, toast, programma }) {
       dialogo?.chiudi();
       const corsi = cloud.corsiPer(utente.email, utente.ruolo);
       sketchUi.entra(cloud.sketchPer(utente.uid, { email: utente.email, nome: utente.nome }), corsi);
-      corsiUi.entra(corsi, utente.ruolo, cloud.condivisi, utente.ruolo === 'docente' ? cloud.gestionePer(utente.email) : null);
+      corsiUi.entra(corsi, utente.ruolo, cloud.condivisi, utente.ruolo === 'docente' ? cloud.gestionePer(utente.email) : null,
+        utente.ruolo === 'docente' ? cloud.verificaDocentePer(utente.email) : null);
       commentiUi.entra(cloud.commentiPer({ uid: utente.uid, email: utente.email, nome: utente.nome }), utente.ruolo, utente.email);
     } else {
       memo(false);

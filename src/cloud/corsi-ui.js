@@ -4,6 +4,7 @@
 import { el, apriFinestra } from './dom.js';
 import { normalizzaCodice, contestoCorso, etichettaCorso } from './corsi.js';
 import { montaGestione } from './gestione-ui.js';
+import { montaVerifiche } from './verifiche-ui.js';
 
 const formatoData = new Intl.DateTimeFormat('it-IT', {
   day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -17,6 +18,7 @@ export function montaCorsi({ toast, programma, commentiUi, dopoCaricamento }) {
   let ricarica = null;      // ridisegna l'elenco della finestra aperta
   let mostraArchiviati = false;
   const gestioneUi = montaGestione({ toast, dopoCambio: () => ricarica?.() });
+  const verificheUi = montaVerifiche({ toast });
 
   const messaggio = (err) => (err && err.message) || 'Qualcosa è andato storto. Riprova.';
   function chiudiFinestra() { finestra?.chiudi(); finestra = null; }
@@ -125,6 +127,7 @@ export function montaCorsi({ toast, programma, commentiUi, dopoCaricamento }) {
         const sezione = el('div', { class: 'condivisi-sezione' });
         const azioni = el('div', { class: 'sketch-azioni' },
           docente && c.attivo ? el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => mostraCondivisi(c, sezione) }, 'Sketch condivisi') : '',
+          docente && c.attivo ? el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => verificheUi.elenco(c) }, 'Verifiche') : '',
           docente ? el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => gestioneUi.gestisci(c) }, 'Gestisci') : '',
           el('span', { class: 'cloud-badge', 'data-ruolo': docente ? 'docente' : 'studente' }, docente ? 'Docente' : 'Studente'));
         lista.append(el('div', { class: `corso-blocco${c.attivo ? '' : ' corso-archiviato'}` },
@@ -158,13 +161,14 @@ export function montaCorsi({ toast, programma, commentiUi, dopoCaricamento }) {
 
   return {
     apri,
-    entra(corsiDiUtente, ruoloUtente = 'studente', vistaDocente = null, gestione = null) {
+    entra(corsiDiUtente, ruoloUtente = 'studente', vistaDocente = null, gestione = null, verificaDocente = null) {
       corsi = corsiDiUtente; ruolo = ruoloUtente; condivisi = vistaDocente;
       gestioneUi.entra(gestione);
+      verificheUi.entra(verificaDocente);
     },
     esci() {
       corsi = null; condivisi = null; ruolo = 'studente'; mostraArchiviati = false;
-      gestioneUi.esci(); chiudiFinestra();
+      gestioneUi.esci(); verificheUi.esci(); chiudiFinestra();
     },
   };
 }

@@ -9,7 +9,7 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const entry = `
 export { initializeApp } from 'firebase/app';
 export { getAuth, connectAuthEmulator, GoogleAuthProvider, signInWithPopup,
-         signOut, onAuthStateChanged, getRedirectResult } from 'firebase/auth';
+         signOut, onAuthStateChanged, getRedirectResult, signInWithCredential } from 'firebase/auth';
 export { getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, updateDoc, deleteDoc,
          collection, query, where, getDocs, serverTimestamp, Timestamp, onSnapshot, writeBatch } from 'firebase/firestore';
 `;
