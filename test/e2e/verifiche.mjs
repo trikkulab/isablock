@@ -136,6 +136,42 @@ try {
   await aspetta(600);
   verifica(dialoghi.length === 0 && valoreTesto(await leggi(`verifiche/${vid}`), 'tracciaDefault') === 't1', 'per una traccia senza assegnazioni a mano nessun avviso: B torna di tutti');
 
+  // 5c-bis) l'avviso c'è anche quando nessun altro la riceverebbe (tutti hanno già una traccia a mano)
+  await page.check('[aria-label="Seleziona tutti"]');
+  await page.selectOption('[aria-label="Traccia per i selezionati"]', 't1');                // tutti e tre: a mano B
+  await page.click('button:has-text("Applica ai selezionati")');
+  await page.waitForSelector('.verifica-esito:has-text("Salvato")');
+  await aspetta(900);
+  await page.hover('.traccia-voce:nth-of-type(1)');
+  await page.click('.traccia-voce:nth-of-type(1) .traccia-usa');                           // A di tutti (nessuno la ha a mano: nessun avviso)
+  await aspetta(600);
+  verifica(valoreTesto(await leggi(`verifiche/${vid}`), 'tracciaDefault') === 't0', 'A (senza assegnazioni a mano) torna di tutti senza domande');
+  dialoghi.length = 0; rispondi = 'dismiss';
+  await page.hover('.traccia-voce:nth-of-type(2)');
+  await page.click('.traccia-voce:nth-of-type(2) .traccia-usa');                           // B: assegnata a mano a tutti e 3, nessun altro la riceverebbe
+  await aspetta(600);
+  verifica(dialoghi.length === 1 && /assegnata a mano a 3 studenti/.test(dialoghi[0]) && /oggi nessuno/.test(dialoghi[0]), `avviso anche se nessun altro la riceverebbe: «${dialoghi[0]?.split('\n').slice(0, 2).join(' ')}»`);
+  verifica(valoreTesto(await leggi(`verifiche/${vid}`), 'tracciaDefault') === 't0', '…e rifiutando la traccia di tutti non cambia');
+  rispondi = 'accept';
+  await page.hover('.traccia-voce:nth-of-type(2)');
+  await page.click('.traccia-voce:nth-of-type(2) .traccia-usa');
+  await aspetta(600);
+  verifica(valoreTesto(await leggi(`verifiche/${vid}`), 'tracciaDefault') === 't1', '…accettando, B diventa la traccia di tutti');
+  // si rimette tutto com'era: tutti «di tutti», e la traccia di tutti torna A come nei passi seguenti
+  await page.check('[aria-label="Seleziona tutti"]');
+  await page.selectOption('[aria-label="Traccia per i selezionati"]', '');
+  await page.click('button:has-text("Applica ai selezionati")');
+  await page.waitForSelector('.verifica-esito:has-text("Salvato")');
+  await aspetta(900);
+  await page.hover('.traccia-voce:nth-of-type(1)');
+  await page.click('.traccia-voce:nth-of-type(1) .traccia-usa');
+  await aspetta(600);
+  await page.hover('.traccia-voce:nth-of-type(2)');
+  await page.click('.traccia-voce:nth-of-type(2) .traccia-usa');                           // senza assegnazioni a mano: nessun avviso
+  await aspetta(600);
+  verifica(valoreTesto(await leggi(`verifiche/${vid}`), 'tracciaDefault') === 't1', 'ripristinato: B di tutti, nessuno con una traccia a mano');
+  await page.selectOption('[aria-label="Traccia di anna@isarome.it"]', 't0');            // Anna di nuovo a mano su A, come richiede il passo seguente
+
   // 5d) una traccia assegnata a mano non si elimina
   await page.click('.traccia-nome:has-text("Versione A")');
   await page.click('button:has-text("Elimina")');

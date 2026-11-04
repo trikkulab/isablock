@@ -202,13 +202,16 @@ export function montaVerifiche({ toast }) {
 
     async function usaPerTutti(id) {
       try {
-        // Se la traccia è già assegnata a mano a qualcuno, probabilmente non è fatta per tutti: si avvisa
-        // (solo in quel caso, e solo se qualcun altro la riceverebbe davvero).
+        // Se la traccia è già assegnata a mano a qualcuno, probabilmente non è fatta per tutti: si avvisa, SEMPRE
+        // in quel caso (anche se oggi nessun altro la riceverebbe: ci sono gli iscritti che arriveranno e chi non ha
+        // una traccia scelta). Negli altri casi la stella funziona senza domande.
         const { amano, riceveranno } = await vd.impattoUsaPerTutti(vid, id);
-        if (amano > 0 && riceveranno > 0) {
+        if (amano > 0) {
           const t = tracce.find((x) => x.id === id);
           const chi = amano === 1 ? '1 studente' : `${amano} studenti`;
-          const altri = riceveranno === 1 ? 'la riceverà anche 1 altro studente' : `la riceveranno anche gli altri ${riceveranno} studenti`;
+          const altri = riceveranno === 0
+            ? 'la riceveranno gli studenti che non hanno una traccia scelta (oggi nessuno)'
+            : riceveranno === 1 ? 'la riceverà anche 1 altro studente' : `la riceveranno anche gli altri ${riceveranno} studenti`;
           if (!window.confirm(`«${t.titolo}» è assegnata a mano a ${chi}.\nSe diventa la traccia di tutti, ${altri}.\n\nVuoi usarla per tutti?`)) return;
         }
         await vd.impostaTracciaDefault(vid, id);
