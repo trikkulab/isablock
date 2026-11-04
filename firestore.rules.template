@@ -9,8 +9,8 @@ rules_version = '2';
 // proprietario; il docente di un corso legge solo quelli che l'autore ha
 // condiviso con quel corso), CORSI e ISCRIZIONI (i docenti creano e gestiscono
 // i corsi dall'app; lo studente si iscrive con il codice o lo aggiunge il
-// docente), VERIFICHE e TRACCE (lavori e consegne arrivano nei passi successivi:
-// finché non ci sono, sono negati come tutto il resto).
+// docente), VERIFICHE, TRACCE e LAVORI (le consegne arrivano nel passo successivo:
+// finché non ci sono, sono negate come tutto il resto).
 //
 // Ruoli: "docente" = esiste docenti/{email}, documento creato SOLO da console
 // (mai da client). Chiunque altro con un account ammesso è studente. Il ruolo
@@ -28,6 +28,8 @@ service cloud.firestore {
     function maxTitoloVerifica() { return @@VERIFICA_maxTitoloVerifica@@; }
     function maxVersioniConsegna() { return @@VERIFICA_maxVersioniConsegna@@; }
     function maxCampioni() { return @@VERIFICA_maxCampioni@@; }
+    function maxProgramma() { return @@VERIFICA_maxProgramma@@; }
+    function maxBlocchi() { return @@VERIFICA_maxBlocchi@@; }
 
     function dominioIstituzionale() {
       return '@@DOMINIO@@';
@@ -373,6 +375,91 @@ service cloud.firestore {
           && tracciaValida(request.resource.data)
           && request.resource.data.rev == resource.data.rev + 1;
         allow delete: if docenteDelCorsoVer(verificaTr().corsoId) && verificaTr().stato == 'bozza';
+      }
+
+      // Lavori: il documento PERSONALE di ogni studente in una verifica, id = email minuscola
+      // (il docente lo crea prima del login dello studente, e dell'uid non sa niente).
+      //   Del docente:  tracciaId (la traccia assegnata), scadenza (timestamp assoluto: fine
+      //                 prevista o tempo aggiuntivo; nessun motivo scritto, mai).
+      //   Dello studente: studenteNome, programma (testo JSON) + programmaHash, nBlocchi,
+      //                 esecuzioni {n, esito, quando}, campioni (ultimi N di {t, n}), entrato
+      //                 (ora del primo salvataggio), ultimoSegnale (ora del server a ogni
+      //                 scrittura: serve anche da battito), tracciaRevVista, consegnato.
+      // Traccia e scadenza stanno QUI, non nella verifica, perché la verifica la legge ogni
+      // studente iscritto: da tempo e traccia si dedurrebbe chi ha bisogni particolari.
+      // Il docente crea il documento (in bozza o a verifica aperta) e può cambiare scadenza
+      // sempre, traccia solo finché lo studente non è entrato. Lo studente scrive solo i suoi
+      // campi, a verifica aperta, entro la scadenza personale più la grazia, e finché non ha
+      // consegnato; `consegnato: true` solo insieme alla consegna (batch atomico, existsAfter).
+      match /lavori/{lid} {
+        function verificaLav() {
+          return get(/databases/$(database)/documents/verifiche/$(vid)).data;
+        }
+        function docenteLav() {
+          return docenteDelCorsoVer(verificaLav().corsoId);
+        }
+        function mioLavoro() {
+          return isAmmesso() && emailVer() == lid;
+        }
+        // `$(t)` è sempre UN segmento di percorso: una traccia come 't0/sub/x' non punta altrove.
+        function tracciaEsiste(t) {
+          return exists(/databases/$(database)/documents/verifiche/$(vid)/tracce/$(t));
+        }
+        function lavoroNuovoValido(d) {
+          return d.keys().hasOnly(['studenteEmail', 'tracciaId', 'scadenza', 'entrato', 'consegnato'])
+            && d.keys().hasAll(['studenteEmail', 'tracciaId', 'scadenza', 'entrato', 'consegnato'])
+            && d.studenteEmail == lid
+            && tracciaEsiste(d.tracciaId)
+            && d.scadenza is timestamp
+            && d.entrato == null
+            && d.consegnato == false;
+        }
+        function aggiornamentoDocente() {
+          return docenteLav()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['scadenza', 'tracciaId'])
+            && request.resource.data.scadenza is timestamp
+            && (request.resource.data.tracciaId == resource.data.tracciaId
+                || (resource.data.entrato == null
+                    && verificaLav().stato != 'chiusa'
+                    && tracciaEsiste(request.resource.data.tracciaId)));
+        }
+        function esecuzioniValide(e) {
+          return e.keys().hasOnly(['n', 'esito', 'quando'])
+            && e.n is int && e.n >= 0 && e.n <= 100000
+            && e.esito in ['mai', 'ok', 'errore']
+            && (e.quando == null || e.quando is int);
+        }
+        function aggiornamentoStudente() {
+          let d = request.resource.data;
+          return mioLavoro()
+            && verificaLav().stato == 'aperta'
+            && request.time <= resource.data.scadenza + duration.value(graziaSecondi(), 's')
+            && resource.data.consegnato == false
+            && d.diff(resource.data).affectedKeys().hasOnly(['studenteNome', 'programma', 'programmaHash',
+                 'nBlocchi', 'esecuzioni', 'campioni', 'entrato', 'consegnato', 'ultimoSegnale', 'tracciaRevVista'])
+            // ogni scrittura è un segnale di vita, e il primo salvataggio è l'ingresso
+            && d.ultimoSegnale == request.time
+            && ((resource.data.entrato == null && d.entrato == request.time)
+                || (resource.data.entrato != null && d.entrato == resource.data.entrato))
+            && d.get('studenteNome', '').size() > 0 && d.get('studenteNome', '').size() <= 80
+            && d.get('programma', 'x') is string
+            && d.get('programma', 'x').size() > 0 && d.get('programma', 'x').size() <= maxProgramma()
+            && d.get('programmaHash', 'x') is string && d.get('programmaHash', 'x').size() <= 16
+            && d.get('nBlocchi', 0) is int && d.get('nBlocchi', 0) >= 0 && d.get('nBlocchi', 0) <= maxBlocchi()
+            && esecuzioniValide(d.get('esecuzioni', {'n': 0, 'esito': 'mai', 'quando': null}))
+            && d.get('campioni', []) is list && d.get('campioni', []).size() <= maxCampioni()
+            && d.get('tracciaRevVista', 0) is int && d.get('tracciaRevVista', 0) >= 0
+            && (d.consegnato == false
+                || existsAfter(/databases/$(database)/documents/verifiche/$(vid)/consegne/$(lid + '_1')));
+        }
+
+        allow read: if docenteLav() || (mioLavoro() && verificaLav().stato != 'bozza');
+        allow create: if docenteLav()
+          && verificaLav().stato in ['bozza', 'aperta']
+          && exists(/databases/$(database)/documents/iscrizioni/$(verificaLav().corsoId + '_' + lid))
+          && lavoroNuovoValido(request.resource.data);
+        allow update: if aggiornamentoDocente() || aggiornamentoStudente();
+        allow delete: if docenteLav() && resource.data.entrato == null;
       }
     }
 

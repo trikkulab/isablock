@@ -22,6 +22,9 @@ export const verificaConfig = Object.freeze({
     maxVersioniConsegna: 9,
     // Campioni (ora, nBlocchi) tenuti nel lavoro: l'ultimo spinge fuori il più vecchio.
     maxCampioni: 12,
+    // Programma di uno studente (JSON come testo, stesso tetto degli sketch) e suo numero di blocchi.
+    maxProgramma: 200000,
+    maxBlocchi: 5000,
   }),
   client: Object.freeze({
     // Attesa dopo l'ultima modifica prima di scrivere il lavoro (si scrive solo se il contenuto è cambiato).

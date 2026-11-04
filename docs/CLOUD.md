@@ -309,8 +309,8 @@ contorno CSS `blocco-commentato`, non l'icona di commento di Blockly (che finire
 
 ## Modalità verifica (in costruzione)
 
-Non ancora utilizzabile: per ora ci sono i dati e le regole di **verifiche e tracce** (passo 2 di 13);
-lavori, consegne e tutte le schermate arrivano nei passi successivi. Il piano e le decisioni
+Non ancora utilizzabile: per ora ci sono i dati e le regole di **verifiche, tracce e lavori** (passi 2-3 di 13);
+le consegne e tutte le schermate arrivano nei passi successivi. Il piano e le decisioni
 sono nella nota di progetto «Verifica: struttura approvata».
 
 ### Verifiche e tracce (dati e regole)
@@ -348,6 +348,32 @@ Codice: `src/cloud/verifiche.js` (dati; `ErroreVerifica`); test `verifiche-rules
 `verifiche.test.mjs`. Il bundle Firebase ora esporta anche `Timestamp`, `onSnapshot` e
 `writeBatch`. Un documento che non esiste dà «negato» e non «assente»: le regole non vedono
 i suoi dati.
+
+### Lavori (dati e regole)
+
+**Lavoro** `verifiche/<id>/lavori/<email minuscola>`: il documento personale dello studente in una
+verifica. L'id è l'**email** (non l'uid): il docente lo crea prima del login dello studente.
+- *Del docente*: `tracciaId` e `scadenza` (timestamp assoluto: la fine prevista o il tempo
+  aggiuntivo; **nessun motivo viene mai scritto**). Il docente crea il lavoro in bozza o a verifica
+  aperta, solo per chi è iscritto al corso; la scadenza si cambia in ogni stato, la traccia solo
+  finché lo studente non è entrato. Si toglie solo il lavoro di chi non è mai entrato.
+- *Dello studente*: `studenteNome`, `programma` (+ `programmaHash`), `nBlocchi`, `esecuzioni`
+  (`{n, esito: mai|ok|errore, quando}`: niente riga raggiunta né valori), `campioni` (al massimo 12),
+  `entrato`, `ultimoSegnale`, `tracciaRevVista`, `consegnato`. Ogni scrittura porta
+  `ultimoSegnale = request.time` (è anche il battito); la prima fissa `entrato` e poi non cambia.
+- *Quando scrive lo studente*: solo il proprio lavoro, a verifica **aperta**, entro la scadenza
+  personale più la grazia (20 s), e finché non ha consegnato. `consegnato: true` solo insieme alla
+  consegna (batch con `existsAfter`: la verifica positiva arriva con le regole delle consegne).
+- *Lettura*: il docente del corso legge tutti i lavori (una `list`); lo studente solo il proprio, e non
+  in bozza. L'elenco non è consultabile dagli studenti.
+- Limiti in `verifica-config.js`: `maxProgramma`, `maxBlocchi`, `maxCampioni`. La forma interna dei
+  campioni non è verificata dalle regole (le regole non hanno cicli): al peggio sporca il documento
+  dello studente stesso.
+
+Codice: `src/cloud/lavori.js` (`creaLavoriDocente`, `creaLavoroStudente`); test
+`lavori-rules.test.mjs` e `lavori.test.mjs`. Mutation check: ogni condizione del blocco spenta a mano,
+tutte fermate tranne i `hasAll` (tenuti apposta) e il ramo positivo di `consegnato`, che si prova
+nel passo 4.
 
 ### Parametri
 
