@@ -436,6 +436,24 @@ solo alla prima resa; è un file locale, quindi funziona offline. `npm run vendo
   `markdown.test.mjs` (script, attributi iniettati, link `javascript:`, immagini remote, testo
   alternativo; mutation check: tutte le difese spente a mano, una sola mutazione non osservabile).
 
+### Editor del testo di una traccia (`editor-markdown.js`, `formato-testo.js`)
+
+Campo di testo Markdown con l'**anteprima accanto** (la stessa resa di `markdown.js`, aggiornata dopo
+150 ms), barra dei formati e contatore dei caratteri (rosso oltre `maxTestoTraccia`; `valido()` dice
+se si può salvare). Su schermo stretto (≤ 800 px) diventano due schede «Scrivi / Anteprima».
+- **Barra**: grassetto, corsivo, barrato, apice, pedice | titolo, elenco puntato, elenco numerato,
+  citazione | codice, blocco di codice, tabella (schema da compilare, con «Colonna 1» già selezionata).
+  Ctrl/Cmd+B e Ctrl/Cmd+I per grassetto e corsivo, Ctrl/Cmd+S chiama `onSalva`. Premere due volte lo
+  stesso pulsante toglie la formattazione; senza selezione si inserisce un segnaposto selezionato.
+- **Elenchi**: Invio dentro un elenco (o una citazione) continua la voce e numera; su una voce vuota
+  chiude l'elenco lasciando una riga vuota (senza, il testo dopo si attaccherebbe all'ultima voce).
+- **Annulla** (Ctrl/Cmd+Z) funziona anche dopo un formato: le modifiche passano da `execCommand`; se il
+  browser non lo permette il testo è giusto ma si perde l'annulla.
+- I formati sono **funzioni pure** `(testo, inizio, fine) → {testo, inizio, fine}` in `formato-testo.js`,
+  provate senza browser (`formato-testo.test.mjs`, mutation check fatto). Il widget non conosce Firebase.
+  Verificato a mano in Chromium (Playwright) con pulsanti, scorciatoie, annulla, elenchi, tabella, contatore
+  e anteprima con tentativi di iniezione.
+
 ### Parametri
 
 Il file `src/cloud/verifica-config.js` raccoglie
