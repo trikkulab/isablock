@@ -5,6 +5,9 @@
     "@firebase/rules-unit-testing": "^5.0.2",
     "esbuild": "^0.28.2",
     "firebase": "^12.19.0",
+    "markdown-it": "^15.0.3",
+    "markdown-it-sub": "^2.0.0",
+    "markdown-it-sup": "^2.0.0",
     "playwright": "^1.63.0"
   },
   "scripts": {
@@ -17,6 +20,7 @@
     "emulators": "node scripts/emulators.mjs",
     "test:cloud": "node scripts/build-rules.mjs test && firebase emulators:exec --only firestore --project demo-isablock \"node --test --test-concurrency=1 test/cloud/\"",
     "codice": "node scripts/codice.mjs",
-    "deploy:test": "node scripts/deploy-test.mjs"
+    "deploy:test": "node scripts/deploy-test.mjs",
+    "vendor:markdown": "node scripts/bundle-markdown.mjs"
   }
 }

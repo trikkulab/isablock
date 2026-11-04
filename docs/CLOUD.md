@@ -420,6 +420,22 @@ apri → tempo aggiuntivo / iscritti tardivi → chiudi (+ raccogli) → riapri*
   `tempoAggiuntivo` sposta la scadenza attuale (anche all'indietro). **Nessun motivo viene scritto mai.**
 - `raccogli` si rilancia: crea la versione successiva solo se il lavoro è cambiato dall'ultima consegna.
 
+### Markdown delle tracce (`markdown.js`)
+
+Il testo di una traccia è Markdown. **Un solo modulo** (`rendiMarkdown`) lo trasforma in HTML per
+anteprima del docente, scheda «Traccia» dello studente e stampa, così si vede sempre allo stesso modo.
+La libreria (markdown-it con i plugin per apice e pedice, ~100 KB) sta in `vendor/markdown/` e si carica
+solo alla prima resa; è un file locale, quindi funziona offline. `npm run vendor:markdown` la rigenera.
+- *Si rende*: titoli, grassetto, corsivo, barrato (`~~x~~`), apice (`x^2^`), pedice (`H~2~O`), elenchi
+  puntati e numerati, citazioni, codice (in riga e a blocco), tabelle, righe orizzontali.
+- *Non si rende, volutamente*: HTML scritto a mano (mostrato come testo), **link** (non cliccabili:
+  «testo (indirizzo)») e **immagini** (resta «[immagine: testo alternativo]»). Le immagini si potranno
+  aggiungere in seguito, senza servizi a pagamento (ridotte e salvate come dati nel database): le tracce
+  già scritte resteranno valide.
+- Il risultato è l'unico HTML assegnato a `innerHTML` nell'interfaccia cloud. Test:
+  `markdown.test.mjs` (script, attributi iniettati, link `javascript:`, immagini remote, testo
+  alternativo; mutation check: tutte le difese spente a mano, una sola mutazione non osservabile).
+
 ### Parametri
 
 Il file `src/cloud/verifica-config.js` raccoglie
