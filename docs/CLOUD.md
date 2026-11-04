@@ -309,7 +309,7 @@ contorno CSS `blocco-commentato`, non l'icona di commento di Blockly (che finire
 
 ## Modalità verifica (in costruzione)
 
-Non ancora utilizzabile: per ora ci sono i dati e le regole di **verifiche, tracce e lavori** (passi 2-3 di 13);
+Non ancora utilizzabile: per ora ci sono i dati e le regole di **verifiche, tracce e lavori** (passi 2-4 di 13);
 le consegne e tutte le schermate arrivano nei passi successivi. Il piano e le decisioni
 sono nella nota di progetto «Verifica: struttura approvata».
 
@@ -374,6 +374,35 @@ Codice: `src/cloud/lavori.js` (`creaLavoriDocente`, `creaLavoroStudente`); test
 `lavori-rules.test.mjs` e `lavori.test.mjs`. Mutation check: ogni condizione del blocco spenta a mano,
 tutte fermate tranne i `hasAll` (tenuti apposta) e il ramo positivo di `consegnato`, che si prova
 nel passo 4.
+
+### Consegne (dati e regole)
+
+**Consegna** `verifiche/<id>/consegne/<email>_<n>`, n da 1 a 9 (`maxVersioniConsegna`): la copia
+**immutabile** del lavoro. Si crea e basta (`update` e `delete` sono sempre negati, per tutti);
+l'ultima versione è quella valida. Campi: `studenteEmail`, `studenteNome`, `corsoId`, `titolo`
+(della verifica: servono all'elenco dello studente), `versione`, `origine`, `tracciaId`, `programma`,
+`creato` (= ora del server), più `docenteEmail` per raccolta e file.
+- **studente / automatica** (solo v1): un **batch atomico** {aggiorna il lavoro con `consegnato: true`,
+  crea la consegna}. Le due regole si richiamano a vicenda (`existsAfter` nel lavoro, `getAfter` nella
+  consegna): né l'una né l'altra da sole. Il contenuto della consegna è quello del lavoro DOPO il batch
+  (quindi l'ultimo salvataggio ne fa parte), la traccia quella assegnata. Stato `aperta` e scadenza con la
+  grazia li impone l'update del lavoro. **Lo studente non riconsegna mai** (id esistente = nessuna
+  scrittura possibile; la riconsegna dopo una riapertura individuale è una decisione ancora rimandata).
+- **raccolta** (docente, a verifica **chiusa**): dal lavoro com'è; chi non è mai entrato non ha niente
+  da raccogliere. Una v>1 richiede la precedente: rilanciata dopo una riapertura, il client crea la
+  versione successiva solo se il lavoro è cambiato.
+- **file** (docente, a verifica chiusa): il file di emergenza di uno studente (anche mai entrato, ma con
+  un lavoro assegnato): `impronta`, `offlineDa`, `nBlocchiSincronizzati`, `nomeFile`. L'impronta la
+  verifica il client all'importazione, non le regole.
+- **Lettura**: lo studente le proprie (query `studenteEmail == <email>` dentro la verifica), il docente
+  del corso tutte.
+- Mutation check: condizioni tenute apposta anche se ridondanti: i `hasAll`, `d.versione is int` (protegge
+  da un decimale inviato via API; il client non può provarlo, l'SDK manda sempre interi) e i controlli di
+  identità del ramo studente.
+
+Codice: `src/cloud/consegne.js` (`creaConsegneStudente`: `mie`, `miaUltima`, `consegna`;
+`creaConsegneDocente`: `elenca`, `raccogli`, `caricaFile`); test `consegne-rules.test.mjs` e
+`consegne.test.mjs`.
 
 ### Parametri
 

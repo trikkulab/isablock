@@ -9,8 +9,7 @@ rules_version = '2';
 // proprietario; il docente di un corso legge solo quelli che l'autore ha
 // condiviso con quel corso), CORSI e ISCRIZIONI (i docenti creano e gestiscono
 // i corsi dall'app; lo studente si iscrive con il codice o lo aggiunge il
-// docente), VERIFICHE, TRACCE e LAVORI (le consegne arrivano nel passo successivo:
-// finché non ci sono, sono negate come tutto il resto).
+// docente), VERIFICHE, TRACCE, LAVORI e CONSEGNE.
 //
 // Ruoli: "docente" = esiste docenti/{email}, documento creato SOLO da console
 // (mai da client). Chiunque altro con un account ammesso è studente. Il ruolo
@@ -460,6 +459,98 @@ service cloud.firestore {
           && lavoroNuovoValido(request.resource.data);
         allow update: if aggiornamentoDocente() || aggiornamentoStudente();
         allow delete: if docenteLav() && resource.data.entrato == null;
+      }
+
+      // Consegne: la copia IMMUTABILE del lavoro. Id `<email>_<n>`, n da 1 a maxVersioniConsegna
+      // (la versione valida è l'ultima). Si creano e basta: update e delete sono sempre negati.
+      //   studenteEmail, studenteNome, corsoId, titolo (della verifica: servono all'elenco dello
+      //   studente), versione, origine, tracciaId, programma, creato (= request.time).
+      // Quattro origini:
+      //   studente / automatica: solo v1, scritta dallo studente a verifica aperta, entro la scadenza
+      //     personale più la grazia, in un BATCH con l'update del suo lavoro (consegnato: true). Il
+      //     contenuto è quello del lavoro DOPO il batch (getAfter), la traccia quella assegnata.
+      //     Le due regole (lavoro e consegna) si richiamano a vicenda: né l'una né l'altra da sole.
+      //   raccolta: la crea un docente del corso a verifica CHIUSA, dal lavoro com'è (contenuto
+      //     identico). Una v>1 vuole la precedente. Chi non è mai entrato non ha niente da raccogliere.
+      //   file: la crea un docente a verifica chiusa caricando il file di emergenza dello studente
+      //     (docenteEmail, impronta, offlineDa, nBlocchiSincronizzati, nomeFile). L'impronta non la
+      //     verificano le regole, ma il client all'importazione.
+      // La riconsegna dello studente dopo una riapertura individuale NON c'è (decisione rimandata):
+      // v2 e successive solo dal docente.
+      match /consegne/{cid} {
+        function verificaCon() {
+          return get(/databases/$(database)/documents/verifiche/$(vid)).data;
+        }
+        function lavoroPrima(email) {
+          return get(/databases/$(database)/documents/verifiche/$(vid)/lavori/$(email)).data;
+        }
+        function lavoroDopo(email) {
+          return getAfter(/databases/$(database)/documents/verifiche/$(vid)/lavori/$(email)).data;
+        }
+        function campiBase() {
+          return ['studenteEmail', 'studenteNome', 'corsoId', 'titolo', 'versione', 'origine', 'tracciaId',
+                  'programma', 'creato'];
+        }
+        function campiFile() {
+          return ['studenteEmail', 'studenteNome', 'corsoId', 'titolo', 'versione', 'origine', 'tracciaId',
+                  'programma', 'creato', 'docenteEmail', 'impronta', 'offlineDa', 'nBlocchiSincronizzati', 'nomeFile'];
+        }
+        // Valido per ogni origine: id coerente col contenuto, versione ammessa e consecutiva,
+        // intestazione uguale a quella della verifica.
+        function consegnaValida(d) {
+          // `is int` protegge da un decimale (1.0) arrivato da un'API diretta: l'SDK invia sempre interi
+          return d.versione is int && d.versione <= maxVersioniConsegna()
+            && cid == d.studenteEmail + '_' + string(d.versione)
+            && (d.versione == 1
+                || exists(/databases/$(database)/documents/verifiche/$(vid)/consegne/$(d.studenteEmail + '_' + string(d.versione - 1))))
+            && d.creato == request.time
+            && d.corsoId == verificaCon().corsoId
+            && d.titolo == verificaCon().titolo
+            && d.programma.size() > 0 && d.programma.size() <= maxProgramma();
+        }
+        function consegnaDelloStudente() {
+          let d = request.resource.data;
+          return isAmmesso()
+            && d.keys().hasOnly(campiBase()) && d.keys().hasAll(campiBase())
+            && d.origine in ['studente', 'automatica']
+            && d.versione == 1
+            && d.studenteEmail == emailVer()
+            // Lo stato `aperta` e la scadenza (con la grazia) li impone l'update del lavoro, che deve
+            // stare nello stesso batch: qui non si ripetono (due copie dello stesso conto divergerebbero).
+            // Identità (isAmmesso, studenteEmail) e forma, invece, restano scritte anche qui.
+            && lavoroPrima(d.studenteEmail).consegnato == false
+            && lavoroDopo(d.studenteEmail).consegnato == true
+            && d.programma == lavoroDopo(d.studenteEmail).programma
+            && d.studenteNome == lavoroDopo(d.studenteEmail).studenteNome
+            && d.tracciaId == lavoroPrima(d.studenteEmail).tracciaId
+            && consegnaValida(d);
+        }
+        function consegnaDelDocente() {
+          let d = request.resource.data;
+          return docenteDelCorsoVer(verificaCon().corsoId)
+            && verificaCon().stato == 'chiusa'
+            && d.docenteEmail == emailVer()
+            && d.tracciaId == lavoroPrima(d.studenteEmail).tracciaId
+            && consegnaValida(d)
+            && ((d.origine == 'raccolta'
+                 && d.keys().hasOnly(campiBase().concat(['docenteEmail']))
+                 && d.keys().hasAll(campiBase().concat(['docenteEmail']))
+                 && d.programma == lavoroPrima(d.studenteEmail).programma
+                 && d.studenteNome == lavoroPrima(d.studenteEmail).studenteNome)
+                || (d.origine == 'file'
+                    && d.keys().hasOnly(campiFile()) && d.keys().hasAll(campiFile())
+                    && d.studenteNome.size() > 0 && d.studenteNome.size() <= 80
+                    && d.impronta.size() > 0 && d.impronta.size() <= 64
+                    && d.nomeFile.size() > 0 && d.nomeFile.size() <= 120
+                    && (d.offlineDa == null || (d.offlineDa is string && d.offlineDa.size() <= 40))
+                    && (d.nBlocchiSincronizzati == null
+                        || (d.nBlocchiSincronizzati is int && d.nBlocchiSincronizzati >= 0 && d.nBlocchiSincronizzati <= maxBlocchi()))));
+        }
+
+        allow read: if (isAmmesso() && resource.data.studenteEmail == emailVer())
+          || docenteDelCorsoVer(verificaCon().corsoId);
+        allow create: if consegnaDelloStudente() || consegnaDelDocente();
+        allow update, delete: if false;
       }
     }
 
