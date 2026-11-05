@@ -211,6 +211,23 @@ try {
   await page.waitForSelector('.traccia-aggiornata', { timeout: 10000 });
   verifica(/Traccia aggiornata alle \d\d:\d\d/.test(await page.textContent('.traccia-aggiornata')), 'se il docente corregge la traccia compare «Traccia aggiornata alle hh:mm»');
   verifica((await page.textContent('#tracciaBox')).includes('Testo nuovo della traccia'), 'e il testo mostrato è quello nuovo');
+  {
+    const misure = () => page.evaluate(() => {
+      const px = (sel) => parseFloat(getComputedStyle(document.querySelector(sel)).fontSize);
+      return { testo: px('#tracciaBox .traccia-md'), titoletto: px('#tracciaBox .traccia-md h2'), avviso: px('.traccia-aggiornata'), titolo: px('.traccia-pannello-titolo'), pulsante: px('.traccia-zoom button') };
+    });
+    const prima = await misure();
+    await page.click('.traccia-zoom button[aria-label="Testo più grande"]');
+    await page.click('.traccia-zoom button[aria-label="Testo più grande"]');
+    const dopo = await misure();
+    verifica(dopo.testo > prima.testo && dopo.titoletto > prima.titoletto, `A+ ingrandisce il testo della traccia, titoli compresi (${prima.testo} → ${dopo.testo} px)`);
+    verifica(dopo.avviso === prima.avviso && dopo.titolo === prima.titolo && dopo.pulsante === prima.pulsante, 'e non l\'avviso, il titolo né i pulsanti');
+    await page.click('.traccia-zoom button[aria-label="Testo più piccolo"]');
+    await page.click('.traccia-zoom button[aria-label="Testo più piccolo"]');
+    await page.click('.traccia-zoom button[aria-label="Testo più piccolo"]');
+    verifica((await misure()).testo < prima.testo, 'A− lo rimpicciolisce');
+    await page.click('.traccia-zoom button[aria-label="Testo più grande"]');
+  }
   verifica(await finche(page, async () => (await lavoro('ve')).fields?.tracciaRevVista?.integerValue === '1', 8000), 'la revisione vista è scritta nel lavoro (per il docente)');
   await schermata(page, 's-6b-traccia-aggiornata');
   await page.click('.banda-verifica button:has-text("Consegna")');

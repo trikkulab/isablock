@@ -256,7 +256,8 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
     else corpo.append(el('p', {}, T.tracciaNonDisponibile));
     let zoom = 100;
     try { zoom = Math.min(200, Math.max(80, Number(window.localStorage.getItem(ZOOM_KEY)) || 100)); } catch { /* storage non disponibile */ }
-    const applica = () => { box.style.fontSize = `${zoom}%`; try { window.localStorage.setItem(ZOOM_KEY, String(zoom)); } catch { /* idem */ } };
+    const applica = () => { corpo.style.fontSize = `${zoom / 100}rem`;     // solo il testo della traccia: avviso, titolo e pulsanti restano fissi
+      try { window.localStorage.setItem(ZOOM_KEY, String(zoom)); } catch { /* idem */ } };
     const ora = info && info.modificata ? info.modificata.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '';
     box.append(
       ...(info && info.aggiornata ? [el('div', { class: 'traccia-aggiornata', role: 'status' }, T.tracciaAggiornata(ora))] : []),

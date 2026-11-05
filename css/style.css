@@ -1087,10 +1087,10 @@ button.commento-blocco { cursor: pointer; }
 .traccia-md { font-size: 1rem; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; }
 .traccia-md > :first-child { margin-top: 0; }
 .traccia-md > :last-child { margin-bottom: 0; }
-.traccia-md h1 { font-size: 1.5rem; margin: 1.1rem 0 0.5rem; }
-.traccia-md h2 { font-size: 1.25rem; margin: 1rem 0 0.4rem; }
-.traccia-md h3 { font-size: 1.1rem; margin: 0.9rem 0 0.3rem; }
-.traccia-md h4, .traccia-md h5, .traccia-md h6 { font-size: 1rem; margin: 0.8rem 0 0.3rem; }
+.traccia-md h1 { font-size: 1.5em; margin: 1.1rem 0 0.5rem; }
+.traccia-md h2 { font-size: 1.25em; margin: 1rem 0 0.4rem; }
+.traccia-md h3 { font-size: 1.1em; margin: 0.9rem 0 0.3rem; }
+.traccia-md h4, .traccia-md h5, .traccia-md h6 { font-size: 1em; margin: 0.8rem 0 0.3rem; }
 .traccia-md p { margin: 0.5rem 0; }
 .traccia-md ul, .traccia-md ol { margin: 0.5rem 0; padding-left: 1.5rem; }
 .traccia-md blockquote { margin: 0.6rem 0; padding: 0.2rem 0.9rem; border-left: 4px solid var(--border); color: #3e4c59; background: #f4f6f8; }
