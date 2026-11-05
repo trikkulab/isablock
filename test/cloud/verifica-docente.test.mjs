@@ -263,6 +263,8 @@ test('eliminaTraccia: non si elimina se è assegnata a mano (il messaggio dice q
   await d.verifiche.nuovaTraccia(vid, TR('Traccia 3'));                            // t2
   await d.verifiche.modifica(vid, { tracciaDefault: 't1' });
   await d.assegna(vid, ANNA, { tracciaId: 't2' });
+  assert.deepEqual(await d.studentiConTraccia(vid, 't2'), [ANNA]);
+  assert.deepEqual(await d.studentiConTraccia(vid, 't0'), []);
   await assert.rejects(d.eliminaTraccia(vid, 't2'), (e) => e.codice === 'assegnata' && e.message === '1 studente ha questa traccia: riassegnalo prima.' && e.studenti.join() === ANNA);
   await d.assegna(vid, BRUNO, { tracciaId: 't2' });
   await assert.rejects(d.eliminaTraccia(vid, 't2'), (e) => e.message === '2 studenti hanno questa traccia: riassegnali prima.');

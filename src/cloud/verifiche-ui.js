@@ -295,7 +295,23 @@ export function montaVerifiche({ toast }) {
       }
       salvaBtn.addEventListener('click', salva);
 
+      // Avviso nella scheda (non solo una notifica): resta finché non si cambia traccia.
+      const avvisoElimina = el('p', { class: 'sketch-nota verifica-avviso verifica-avviso-errore', role: 'alert' });
+      avvisoElimina.hidden = true;
+
       async function elimina() {
+        // Prima si controlla: se la traccia è assegnata a mano non si chiede nemmeno conferma, si spiega perché non si può.
+        let usate;
+        try { usate = await vd.studentiConTraccia(vid, esistente.id); } catch (err) { toast(messaggio(err), 'error'); return; }
+        if (usate.length) {
+          const chi = usate.length === 1 ? '1 studente' : `${usate.length} studenti`;
+          avvisoElimina.textContent = '';
+          avvisoElimina.append(`Non si può eliminare «${esistente.titolo}»: è assegnata a mano a ${chi}. ${usate.length === 1 ? 'Riassegnalo' : 'Riassegnali'} prima.`,
+            el('button', { type: 'button', class: 'avviso-link', onclick: () => { if (!assAperta) toggleAss.click(); } }, 'Mostra le assegnazioni'));
+          avvisoElimina.hidden = false;
+          return;
+        }
+        avvisoElimina.hidden = true;
         if (!window.confirm(`Eliminare la traccia «${esistente.titolo}»?`)) return;
         try {
           // il modulo rifiuta se la traccia è assegnata a mano a qualcuno e, se era quella di tutti, la sposta
@@ -314,6 +330,7 @@ export function montaVerifiche({ toast }) {
       colonnaEditor.append(
         campo('Titolo della traccia', titoloTraccia, 'Lo vedrà lo studente: usa un nome neutro (per esempio «Versione A»), senza note personali.'),
         editor.elemento,
+        avvisoElimina,
         el('div', { class: 'modal-actions' },
           salvaBtn,
           esistente && bozza() ? el('button', { type: 'button', class: 'modal-btn secondary', onclick: elimina }, 'Elimina') : ''));

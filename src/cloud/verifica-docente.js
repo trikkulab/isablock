@@ -179,11 +179,17 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
   }
 
   // ── Tracce, «per tutti» ed eliminazioni (bozza) ───────────────────────────
+  // Le email di chi ha la traccia assegnata a mano (chi segue «di tutti» non conta). Serve a dire PRIMA di chiedere
+  // conferma che una traccia non si può eliminare.
+  async function studentiConTraccia(vid, tid) {
+    return (await lavori.elenca(vid)).filter((l) => l.tracciaId === tid).map((l) => l.email);
+  }
+
   // Elimina una traccia: non si può se è assegnata a mano a qualcuno (il messaggio dice quanti). Se era quella di
   // tutti, la traccia di tutti passa alla prima rimasta (o a nessuna: senza, non si apre).
   async function eliminaTraccia(vid, tid) {
     const v = await verifiche.leggi(vid);
-    const usate = (await lavori.elenca(vid)).filter((l) => l.tracciaId === tid);
+    const usate = (await studentiConTraccia(vid, tid)).map((email) => ({ email }));
     if (usate.length) {
       const errore = vuoto('assegnata', usate.length === 1
         ? '1 studente ha questa traccia: riassegnalo prima.'
@@ -245,6 +251,6 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
     verifiche, lavori, consegne,
     // operazioni composte
     crea, cambiaFine, assegna, apri, aggiungiIscritti, tempoAggiuntivo, chiudi, raccogli, riapri, caricaFile, situazione,
-    eliminaTraccia, impattoUsaPerTutti, impostaTracciaDefault, riepilogoEliminazione, eliminaVerifica, assegnazioni,
+    eliminaTraccia, studentiConTraccia, impattoUsaPerTutti, impostaTracciaDefault, riepilogoEliminazione, eliminaVerifica, assegnazioni,
   };
 }

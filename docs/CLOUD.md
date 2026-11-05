@@ -492,10 +492,16 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
   lo studente non entra): menu della traccia («Per tutti (Versione A)» o una traccia) e minuti in più; si salva
   alla modifica. «Per i selezionati» applica traccia e/o minuti a più studenti. Chi ha già iniziato non cambia
   traccia, chi ha consegnato non si tocca. Nessun campo «motivo». Aprendola, la finestra scorre fino a lì.
-- **Eliminare una traccia** assegnata a mano è rifiutato con il numero di studenti. **«Elimina verifica»**
+- **Eliminare una traccia** assegnata a mano: il controllo avviene **prima** di chiedere conferma. Se la traccia è
+  assegnata, compare un avviso nella scheda («Non si può eliminare «…»: è assegnata a mano a 1 studente.
+  Riassegnalo prima.», con il pulsante «Mostra le assegnazioni»), senza nessuna conferma generica e **senza email**
+  (la finestra può essere proiettata). **«Elimina verifica»**
   (solo in bozza) chiede conferma con i numeri («Elimino la verifica «…», la sua traccia e le assegnazioni di 3
   studenti? Non si può annullare»).
 - A verifica chiusa la scheda è di sola lettura. Non ci sono ancora: «Apri verifica» e archivia (6e), tabella live (9).
+- **Le notifiche («toast») stanno sopra le finestre** (livello 3000 contro 2000 delle finestre): prima un messaggio
+  che usciva mentre una finestra era aperta finiva nascosto dietro l'oscuramento e non lo vedeva nessuno (valeva
+  per tutti gli errori e le conferme dentro le finestre del cloud).
 - **Esc chiude solo la finestra in cima** (prima chiudeva tutte quelle impilate): `dom.js` tiene una pila.
   `apriFinestra` ha le opzioni `larga` e `puoChiudere` (può rifiutare la chiusura).
 - Testo dei titoli di traccia: il suggerimento chiede un nome neutro, «senza note personali».
@@ -510,7 +516,8 @@ gira anche accanto all'emulatore dev. Un
 piccolo server statico (`server.mjs`) serve il progetto accendendo al volo l'interruttore del cloud, senza
 toccare il working tree. L'accesso usa una credenziale Google finta via SDK (deterministico; il popup
 dell'emulatore in Chromium senza interfaccia perdeva il clic a volte). Con `E2E_SCHERMATE=<cartella>` salva
-le schermate. `verifiche.mjs` copre i passi 6c e 6d in 38 controlli; i passi successivi con interfaccia
+le schermate. `verifiche.mjs` copre i passi 6c e 6d in 52 controlli (i controlli sul database attendono la condizione fino a 5 s
+invece di fare pause fisse, che sotto carico non bastano); i passi successivi con interfaccia
 aggiungeranno i loro. Il bundle Firebase esporta per questo `signInWithCredential`.
 
 ### Parametri

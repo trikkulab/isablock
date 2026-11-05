@@ -689,7 +689,9 @@ body {
   font-size: 0.85rem;
   font-weight: 600;
   text-align: center;
-  z-index: 1000;
+  /* sopra le finestre (.modal ha 2000): altrimenti un messaggio che esce mentre una finestra è aperta
+     finisce nascosto dietro l'oscuramento e non lo vede nessuno */
+  z-index: 3000;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease, transform 0.2s ease;
@@ -1149,3 +1151,6 @@ button.commento-blocco { cursor: pointer; }
   .assegnazioni-riga .assegnazioni-traccia, .assegnazioni-riga .assegnazioni-minuti { grid-column: 2; width: 100%; }
   .assegnazioni-riga .assegnazioni-min-etichetta { display: none; }
 }
+
+.verifica-avviso-errore { background: #fde8e6; color: #7a1d12; }
+.avviso-link { margin-left: 0.4rem; padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: var(--accent); text-decoration: underline; cursor: pointer; }
