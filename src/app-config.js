@@ -22,5 +22,5 @@ export const appConfig = Object.freeze({
   // docs/CLOUD.md). Con enabled: false l'app è identica a prima: non compare
   // il pulsante "Accedi" e non si carica nulla da src/cloud/ né da
   // vendor/firebase/.
-  cloud: Object.freeze({ enabled: true }),
+  cloud: Object.freeze({ enabled: false }),
 });
