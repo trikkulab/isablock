@@ -7,6 +7,7 @@ import { initializeTestEnvironment } from '@firebase/rules-unit-testing';
 import * as sdk from 'firebase/firestore';
 import { creaSessione, creaVerificheStudente, hashProgramma } from '../../src/cloud/verifica-studente.js';
 import { verificaConfig } from '../../src/cloud/verifica-config.js';
+import { creaBackupVerifica } from '../../src/verifica-backup.js';
 
 sdk.setLogLevel('silent');
 const C = verificaConfig.client;
@@ -415,5 +416,183 @@ test('una consegna che fallisce non lascia un\'origine finta', async () => {
   await assert.rejects(s.consegna({ origine: 'studente' }), (e) => e.codice === 'rete');
   assert.equal(s.stato(), 'in-corso');
   assert.equal(s.origine(), null);
+  s.termina();
+});
+
+// ── Copia locale e traccia ──────────────────────────────────────────────────
+function storageFinto() {
+  const m = new Map();
+  return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k), key: (i) => [...m.keys()][i], get length() { return m.size; } };
+}
+const copiaDi = (st, email = ANNA) => creaBackupVerifica({ uid: 'u-' + email, vid: 'v1', email, getStorage: () => st });
+const modificaTraccia = (dati) => admin((db) => sdk.updateDoc(sdk.doc(db, 'verifiche/v1/tracce/t0'), { modificato: sdk.Timestamp.now(), ...dati }));
+
+test('copia locale: si scrive poco dopo la modifica (prima del database) e dopo la scrittura sul database ne ricorda l\'hash', async () => {
+  const st = storageFinto();
+  const { s, tempo } = nuovaSessione(ANNA, { backup: copiaDi(st) });
+  await s.avvia();
+  s.aggiorna({ programma: P(1), nBlocchi: 1 });
+  await tempo.avanza(C.backupLocaleMs + 100, s);
+  const b = copiaDi(st).leggi();
+  assert.equal(b.programma, P(1));
+  assert.equal(b.hash, hashProgramma(P(1)));
+  assert.notEqual(b.hashBase, b.hash, 'il database non ha ancora questo programma');
+  assert.equal((await leggiLavoro()).programma ?? null, null);
+  await tempo.avanza(C.debounceSalvataggioMs + 100, s);
+  assert.equal(copiaDi(st).leggi().hashBase, hashProgramma(P(1)), 'scritto sul database: la base si allinea');
+  s.termina();
+});
+
+test('ripresa: la copia ha modifiche che il database non ha e il database è fermo → si riparte dalla copia e si scrive', async () => {
+  const st = storageFinto();
+  const a = nuovaSessione(ANNA, { backup: copiaDi(st) });
+  await a.s.avvia();
+  a.s.aggiorna({ programma: P(1), nBlocchi: 1 });
+  await a.tempo.avanza(C.debounceSalvataggioMs + 100, a.s);          // sul database c'è P(1)
+  a.s.aggiorna({ programma: P(2), nBlocchi: 2 });
+  await a.tempo.avanza(C.backupLocaleMs + 100, a.s);                  // la copia ha P(2), il database no
+  a.s.termina();                                                      // la rete cade / si ricarica: P(2) non è partito
+  assert.equal((await leggiLavoro()).programma, P(1));
+  const b = nuovaSessione(ANNA, { backup: copiaDi(st) });
+  await b.s.avvia();
+  assert.equal(b.s.ripresa(), 'locale');
+  assert.equal(b.s.programmaSalvato(), P(2));
+  assert.equal((await leggiLavoro()).programma, P(2), 'l\'ingresso scrive il programma della copia');
+  b.s.termina();
+});
+
+test('ripresa: il database è cambiato dopo la copia (altra scheda o PC) → vince il database', async () => {
+  const st = storageFinto();
+  copiaDi(st).salva({ finoA: Date.now() + 3600_000, programma: P(5), hash: hashProgramma(P(5)), hashBase: hashProgramma(P(0)), nBlocchi: 5 });
+  await modifica(ANNA, { programma: P(1), programmaHash: hashProgramma(P(1)), nBlocchi: 1, entrato: sdk.Timestamp.now() });
+  const { s } = nuovaSessione(ANNA, { backup: copiaDi(st) });
+  await s.avvia();
+  assert.equal(s.ripresa(), 'server');
+  assert.equal(s.programmaSalvato(), P(1));
+  assert.equal((await leggiLavoro()).programma, P(1));
+  s.termina();
+});
+
+test('ripresa: copia uguale al database → nessuna scrittura del programma', async () => {
+  const st = storageFinto();
+  const h = hashProgramma(P(3));
+  copiaDi(st).salva({ finoA: Date.now() + 3600_000, programma: P(3), hash: h, hashBase: h, nBlocchi: 3 });
+  await modifica(ANNA, { programma: P(3), programmaHash: h, nBlocchi: 3, entrato: sdk.Timestamp.now() });
+  const { s, scritture } = nuovaSessione(ANNA, { backup: copiaDi(st) });
+  await s.avvia();
+  assert.equal(s.ripresa(), 'uguali');
+  assert.equal('programma' in scritture[0], false);
+  s.termina();
+});
+
+test('ripresa: primo ingresso con una copia mai sincronizzata e il database vuoto → si usa la copia', async () => {
+  const st = storageFinto();
+  copiaDi(st).salva({ finoA: Date.now() + 3600_000, programma: P(4), hash: hashProgramma(P(4)), hashBase: null, nBlocchi: 4 });
+  const { s } = nuovaSessione(ANNA, { backup: copiaDi(st) });
+  await s.avvia();
+  assert.equal(s.ripresa(), 'locale');
+  assert.equal((await leggiLavoro()).programma, P(4));
+  s.termina();
+});
+
+test('la copia di un altro studente non viene usata', async () => {
+  const st = storageFinto();
+  copiaDi(st, BRUNO).salva({ finoA: Date.now() + 3600_000, programma: P(9), hash: 'x', hashBase: null });
+  const { s } = nuovaSessione(ANNA, { backup: copiaDi(st, ANNA) });
+  await s.avvia();
+  assert.equal(s.ripresa(), null);
+  s.termina();
+});
+
+test('consegna: la copia locale si elimina', async () => {
+  const st = storageFinto();
+  const { s, tempo } = nuovaSessione(ANNA, { backup: copiaDi(st) });
+  await s.avvia();
+  s.aggiorna({ programma: P(1), nBlocchi: 1 });
+  await tempo.avanza(C.backupLocaleMs + 100, s);
+  assert.ok(copiaDi(st).leggi());
+  await s.consegna();
+  assert.equal(copiaDi(st).leggi(), null);
+  s.termina();
+});
+
+test('verifica terminata con modifiche mai arrivate al database: la copia NON si elimina in silenzio', async () => {
+  const st = storageFinto();
+  const { s, tempo } = nuovaSessione(ANNA, { backup: copiaDi(st) });
+  await s.avvia();
+  s.aggiorna({ programma: P(1), nBlocchi: 1 });
+  await tempo.avanza(C.backupLocaleMs + 100, s);
+  await admin((db) => sdk.updateDoc(sdk.doc(db, 'verifiche/v1'), { stato: 'chiusa', chiusaIl: sdk.Timestamp.now() }));
+  assert.ok(await finche(() => s.stato() === 'terminata'));
+  assert.equal(s.senzaSalvare(), true);
+  assert.equal(copiaDi(st).leggi().programma, P(1));
+  s.termina();
+});
+
+test('verifica terminata con tutto già sul database: la copia si elimina', async () => {
+  const st = storageFinto();
+  const { s, tempo } = nuovaSessione(ANNA, { backup: copiaDi(st) });
+  await s.avvia();
+  s.aggiorna({ programma: P(1), nBlocchi: 1 });
+  await tempo.avanza(C.debounceSalvataggioMs + 100, s);
+  await admin((db) => sdk.updateDoc(sdk.doc(db, 'verifiche/v1'), { stato: 'chiusa', chiusaIl: sdk.Timestamp.now() }));
+  assert.ok(await finche(() => s.stato() === 'terminata'));
+  assert.equal(copiaDi(st).leggi(), null);
+  s.termina();
+});
+
+test('traccia: al primo ingresso arriva senza avviso e la revisione vista viaggia con l\'ingresso (nessuna scrittura in più)', async () => {
+  await modificaTraccia({ rev: 3 });
+  const viste = [];
+  const { s, scritture } = nuovaSessione(ANNA, { onTraccia: (x) => viste.push(x) });
+  await s.avvia();
+  assert.equal(viste.length, 1);
+  assert.equal(viste[0].aggiornata, false);
+  assert.equal(viste[0].traccia.rev, 3);
+  assert.equal(scritture.length, 1);
+  assert.equal(scritture[0].tracciaRevVista, 3);
+  assert.equal((await leggiLavoro()).tracciaRevVista, 3);
+  s.termina();
+});
+
+test('traccia modificata dal docente durante la verifica: avviso con l\'ora e revisione vista scritta nel lavoro', async () => {
+  const viste = [];
+  const { s } = nuovaSessione(ANNA, { onTraccia: (x) => viste.push(x) });
+  await s.avvia();
+  await modificaTraccia({ rev: 1, testoMd: 'testo corretto' });
+  assert.ok(await finche(() => viste.length === 2));
+  assert.equal(viste[1].aggiornata, true);
+  assert.equal(viste[1].traccia.testoMd, 'testo corretto');
+  assert.ok(viste[1].modificata instanceof Date);
+  assert.ok(await finche(async () => (await leggiLavoro()).tracciaRevVista === 1));
+  s.termina();
+});
+
+test('traccia modificata mentre lo studente era fuori: alla ripresa c\'è l\'avviso', async () => {
+  const a = nuovaSessione(ANNA);
+  await a.s.avvia();
+  a.s.termina();                                                      // ha visto la revisione 0
+  await modificaTraccia({ rev: 2 });
+  const viste = [];
+  const b = nuovaSessione(ANNA, { onTraccia: (x) => viste.push(x) });
+  await b.s.avvia();
+  assert.equal(viste[0].aggiornata, true);
+  assert.equal(viste[0].traccia.rev, 2);
+  b.s.termina();
+});
+
+test('traccia: senza rete (non si legge) si usa quella della copia locale', async () => {
+  const st = storageFinto();
+  copiaDi(st).salva({ finoA: Date.now() + 3600_000, programma: P(1), hash: hashProgramma(P(1)), hashBase: hashProgramma(P(1)),
+    traccia: { id: 't0', titolo: 'Dalla copia', testoMd: 'copia', rev: 0 } });
+  await modifica(ANNA, { programma: P(1), programmaHash: hashProgramma(P(1)), entrato: sdk.Timestamp.now() });
+  const sdkSenzaTraccia = { ...sdk, onSnapshot: (rif, ok, ko) => (rif.path.includes('/tracce/') ? (ko(new Error('rete')), () => {}) : sdk.onSnapshot(rif, ok, ko)) };
+  const viste = [];
+  const tempo = tempoSimulato();
+  const s = creaSessione({ sdk: sdkSenzaTraccia, db: dbDi(ANNA) }, ANNA, 'anna', 'v1', { tempo, calibra: false, backup: copiaDi(st), onTraccia: (x) => viste.push(x) });
+  await s.avvia();
+  assert.equal(viste.length, 1);
+  assert.equal(viste[0].daCopia, true);
+  assert.equal(viste[0].traccia.titolo, 'Dalla copia');
   s.termina();
 });

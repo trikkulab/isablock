@@ -13,11 +13,20 @@
 // `ultimoSegnale = ora del server`, e dal confronto con l'orologio locale (nel momento in cui arriva l'eco dal server)
 // si stima lo scarto. Il timer è «scadenza − ora del server stimata», e non dipende dall'orologio del PC.
 // A fine tempo la consegna parte da sola (origine «automatica»); le regole la accettano fino a scadenza + grazia.
+//
+// Copia locale (opzione `backup`, vedi src/verifica-backup.js): a ogni modifica, dopo `backupLocaleMs`, e dopo ogni
+// scrittura riuscita; costa solo localStorage. All'ingresso, se la copia ha modifiche che il database non ha (e il database
+// non si è mosso dopo di lei) si riparte da quella e il motore la scrive. Si elimina alla consegna; se la verifica finisce
+// con modifiche mai arrivate al database resta, per salvarla su file.
+//
+// Traccia: la sessione ascolta la traccia assegnata e dice a chi la mostra (`onTraccia`) quando il docente la modifica; la
+// revisione vista si scrive nel lavoro (`tracciaRevVista`).
 import { creaLavoroStudente } from './lavori.js';
 import { creaConsegneStudente } from './consegne.js';
 import { creaVerifiche } from './verifiche.js';
 import { verificaConfig } from './verifica-config.js';
 import { hashText } from '../local-backup.js';
+import { scegliPunto } from '../verifica-backup.js';
 
 const C = verificaConfig.client;
 const L = verificaConfig.regole;
@@ -78,7 +87,7 @@ export function creaVerificheStudente({ sdk, db }, emailUtente, nomeUtente) {
 // stato: 'in-corso' | 'consegnato' | 'terminata' (chiusa dal docente o tempo finito senza consegna)
 // `calibra: false` (solo nei test con tempo simulato) lascia lo scarto a zero: con un orologio finto che salta, i campioni
 // dell'eco dal server non sarebbero confrontabili.
-export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo = tempoReale, config = C, onCambio = () => {}, calibra = true } = {}) {
+export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo = tempoReale, config = C, onCambio = () => {}, onTraccia = () => {}, backup = null, calibra = true } = {}) {
   const email = String(emailUtente || '').toLowerCase();
   const lavoro = creaLavoroStudente({ sdk, db }, email, nomeUtente);
   const consegne = creaConsegneStudente({ sdk, db }, email, nomeUtente);
@@ -96,10 +105,14 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
   let ultimoCampione = null;      // ora del server dell'ultimo campione scritto
   let campioni = [];
   const corrente = { programma: null, nBlocchi: 0, esecuzioni: null };   // ultimo stato comunicato dall'interfaccia
-  const salvato = { hash: null, esecuzioni: null };                      // ciò che è già nel database
+  const salvato = { hash: null, esecuzioni: null, revVista: null };                      // ciò che è già nel database
   let timerDebounce = null;
   let timerBattito = null;
   let timerFine = null;
+  let timerBackup = null;
+  let ripresa = null;             // 'locale' | 'server' | 'uguali' | null: da dove si è ripartiti all'ingresso
+  let traccia = null;             // { id, titolo, testoMd, rev } l'ultima vista
+  let entrataNuova = false;       // è il primo ingresso in questa verifica
   let coda = Promise.resolve();   // le scritture una alla volta
   const annullaAscolti = [];
   const stat = { scritture: 0, battiti: 0, consegne: 0 };
@@ -110,13 +123,36 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
 
   function cambiaStato(nuovo) {
     if (stato === nuovo) return;
+    const prima = stato;
     stato = nuovo;
     fermaTimer();
+    if (prima === 'in-corso') chiudiBackup(nuovo);
     notifica();
   }
   function fermaTimer() {
-    for (const t of [timerDebounce, timerBattito, timerFine]) if (t !== null) tempo.annulla(t);
-    timerDebounce = timerBattito = timerFine = null;
+    for (const t of [timerDebounce, timerBattito, timerFine, timerBackup]) if (t !== null) tempo.annulla(t);
+    timerDebounce = timerBattito = timerFine = timerBackup = null;
+  }
+
+  // ── Copia locale ────────────────────────────────────────────────────────
+  function scriviBackup() {
+    if (!backup || corrente.programma === null) return;
+    backup.salva({
+      finoA: (scadenza ? scadenza.getTime() : Date.now()) + 2 * 60 * 60 * 1000,
+      programma: corrente.programma, hash: hashProgramma(corrente.programma), hashBase: salvato.hash,
+      nBlocchi: corrente.nBlocchi, esecuzioni: corrente.esecuzioni, traccia,
+    });
+  }
+  function programmaBackup() {
+    if (!backup || timerBackup !== null || stato !== 'in-corso') return;
+    timerBackup = tempo.timeout(() => { timerBackup = null; scriviBackup(); }, config.backupLocaleMs ?? 1500);
+  }
+  // Consegnata: la copia non serve più. Terminata con tutto già nel database: idem. Terminata con modifiche mai arrivate:
+  // resta (aggiornata), perché lo studente possa salvarla su file e portarla al docente.
+  function chiudiBackup(nuovo) {
+    if (!backup) return;
+    if (nuovo === 'consegnato' || !haDaScrivere()) backup.cancella();
+    else scriviBackup();
   }
 
   // ── Scrittura del lavoro ────────────────────────────────────────────────
@@ -134,6 +170,7 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
       dati.nBlocchi = corrente.nBlocchi;
     }
     if (corrente.esecuzioni && JSON.stringify(corrente.esecuzioni) !== JSON.stringify(salvato.esecuzioni)) dati.esecuzioni = corrente.esecuzioni;
+    if (traccia && traccia.rev !== salvato.revVista) dati.tracciaRevVista = traccia.rev;
     const t = ora();
     if (ultimoCampione === null || t - ultimoCampione >= config.campioneOgniMs) {
       campioni = [...campioni, { t: Math.round(t), n: corrente.nBlocchi }].slice(-L.maxCampioni);
@@ -156,6 +193,8 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
     if (dati.programma !== undefined) salvato.hash = dati.programmaHash;
     if (dati.esecuzioni !== undefined) salvato.esecuzioni = dati.esecuzioni;
     if (dati.campioni !== undefined) ultimoCampione = t;
+    if (dati.tracciaRevVista !== undefined) salvato.revVista = dati.tracciaRevVista;
+    if (stato === 'in-corso') scriviBackup();              // ora il database ha questo programma: la copia lo sa
     programmaBattito();
   }
 
@@ -184,6 +223,7 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
     if (programma !== undefined) corrente.programma = programma;
     if (nBlocchi !== undefined) corrente.nBlocchi = nBlocchi;
     if (esecuzioni !== undefined) corrente.esecuzioni = esecuzioni;
+    programmaBackup();
     if (stato === 'in-corso' && (haDaScrivere() || (corrente.esecuzioni && JSON.stringify(corrente.esecuzioni) !== JSON.stringify(salvato.esecuzioni)))) programmaDebounce();
   }
 
@@ -274,6 +314,31 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
     }, () => {}));
   }
 
+  // ── Traccia ─────────────────────────────────────────────────────────────
+  // Ascolta la traccia assegnata: una lettura all'inizio e una per ogni modifica del docente (di norma nessuna).
+  // `prima` si risolve alla prima risposta (o all'errore), così l'ingresso può già portare la revisione vista.
+  function ascoltaTraccia(tid, visto) {
+    let primaVolta = true;
+    return new Promise((risolvi) => {
+      annullaAscolti.push(sdk.onSnapshot(sdk.doc(db, 'verifiche', vid, 'tracce', tid), (snap) => {
+        if (!snap.exists()) { risolvi(); return; }
+        const d = snap.data();
+        const nuova = { id: tid, titolo: d.titolo, testoMd: d.testoMd, rev: d.rev ?? 0 };
+        const modificata = d.modificato && typeof d.modificato.toDate === 'function' ? d.modificato.toDate() : null;
+        // «Aggiornata» = il docente l'ha cambiata dopo l'ultima revisione che lo studente aveva visto
+        // (mai al primo ingresso: non ha visto niente prima).
+        const aggiornata = visto !== null && nuova.rev > visto && !(primaVolta && entrataNuova);
+        visto = Math.max(visto ?? 0, nuova.rev);
+        traccia = nuova;
+        primaVolta = false;
+        onTraccia({ traccia: nuova, aggiornata, modificata: aggiornata ? (modificata ?? new Date(ora())) : null, daCopia: false });
+        if (stato === 'in-corso' && nuova.rev !== salvato.revVista && entrato()) inBackground(() => scriviOra());
+        risolvi();
+      }, () => { risolvi(); }));
+    });
+  }
+  const entrato = () => lavoro.giaEntrato(vid);
+
   // ── Avvio ───────────────────────────────────────────────────────────────
   // Il primo salvataggio è l'ingresso in verifica (e, a ogni riapertura, serve anche a stimare lo scarto dall'ora del server).
   async function avvia() {
@@ -286,11 +351,36 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
     programmaIniziale = l.programma ?? null;
     if (l.programma) { corrente.programma = l.programma; salvato.hash = l.programmaHash ?? hashProgramma(l.programma); corrente.nBlocchi = l.nBlocchi ?? 0; }
     if (l.esecuzioni) { corrente.esecuzioni = l.esecuzioni; salvato.esecuzioni = l.esecuzioni; }
+    entrataNuova = !l.entrato;
+    riprendiDallaCopia(l);
     ascolta();
+    if (l.tracciaId) {
+      salvato.revVista = l.tracciaRevVista;
+      // Si aspetta la traccia (al massimo qualche secondo) per portare la revisione già nel salvataggio d'ingresso.
+      await Promise.race([ascoltaTraccia(l.tracciaId, l.tracciaRevVista), new Promise((r) => setTimeout(r, 4000).unref?.())]);
+      if (!traccia && backup?.leggi()?.traccia?.id === l.tracciaId) {                 // senza rete: la traccia della copia locale
+        traccia = backup.leggi().traccia;
+        onTraccia({ traccia, aggiornata: false, modificata: null, daCopia: true });
+      }
+    }
     await accoda(() => scriviOra());                        // ingresso
     programmaFine();
     notifica();
     return stato;
+  }
+
+  // Se la copia locale ha modifiche che il database non ha, e il database non si è mosso dopo di lei, si riparte da lei.
+  function riprendiDallaCopia(l) {
+    const b = backup?.leggi();
+    if (!b) return;
+    const hashServer = l.programma ? (l.programmaHash ?? hashProgramma(l.programma)) : null;
+    ripresa = scegliPunto({ hashLocale: hashProgramma(b.programma), hashBase: b.hashBase ?? null, hashServer });
+    if (ripresa !== 'locale') return;
+    programmaIniziale = b.programma;
+    corrente.programma = b.programma;
+    corrente.nBlocchi = b.nBlocchi ?? 0;
+    if (b.esecuzioni && (b.esecuzioni.n ?? 0) >= (corrente.esecuzioni?.n ?? 0)) corrente.esecuzioni = b.esecuzioni;
+    salvato.hash = hashServer;                              // il database ha ancora l'altro: l'ingresso scrive questo
   }
 
   function termina() {
@@ -304,6 +394,10 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
     stato: () => stato, scadenza: () => scadenza, tracciaId: () => tracciaId, offset: () => offset,
     programmaSalvato: () => programmaIniziale,              // se non è null, l'interfaccia lo ricarica nell'editor (ripresa)
     origine: () => origineConsegna,
+    ripresa: () => ripresa,                                 // 'locale' | 'server' | 'uguali' | null
+    salvaBackupOra: () => { if (stato === 'in-corso') scriviBackup(); },   // prima di chiudere la pagina
+    tracciaCorrente: () => traccia,
+    senzaSalvare: () => corrente.programma !== null && haDaScrivere(),     // modifiche mai arrivate al database
     fermo: () => coda,                                      // si risolve quando le scritture in corso sono finite
     statistiche: () => ({ ...stat }),
   };

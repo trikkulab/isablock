@@ -37,6 +37,8 @@ export const verificaConfig = Object.freeze({
     ricontrolloVerificheMs: 60000,
     // Se la consegna automatica a fine tempo non riesce (rete...), ogni quanto si riprova.
     riprovaConsegnaMs: 5000,
+    // Copia locale del lavoro in verifica: attesa dopo l'ultima modifica (costa solo localStorage, nessuna quota).
+    backupLocaleMs: 1500,
     // Segnale di vita, solo se nel frattempo non c'è stata un'altra scrittura.
     battitoMs: 120000,
     // Nessuna conferma dal server da tanto: lo studente è «offline».

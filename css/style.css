@@ -1179,6 +1179,7 @@ button.commento-blocco { cursor: pointer; }
 /* In verifica non si vedono le copie automatiche (il lavoro di prima resta al sicuro, ma fuori vista) */
 body.modo-verifica .autosave-info { display: none; }
 .traccia-pannello { height: 100%; overflow: auto; padding: 0.9rem 1.1rem; background: #fff; color: var(--text); }
+.traccia-aggiornata { margin: 0 0 0.6rem; padding: 0.5rem 0.7rem; border-radius: 8px; border: 1px solid #d9a400; background: #fff6d6; color: #5c4400; font-weight: 600; }
 .traccia-pannello-testa { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-bottom: 0.6rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
 .traccia-pannello-titolo { margin: 0; font-size: 1rem; color: #52606d; }
 .traccia-zoom button { padding: 0.2rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-bg); font: inherit; cursor: pointer; }

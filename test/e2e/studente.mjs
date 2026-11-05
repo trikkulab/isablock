@@ -181,6 +181,46 @@ try {
   await schermata(page, 's-6-ripristino');
   await page.click('#restoreCloseBtn');
 
+  // 7b) copia locale e traccia aggiornata. La rete verso il database si blocca: il lavoro resta solo nella copia locale,
+  // si ricarica la pagina e lo studente lo ritrova (il motore lo scrive); poi il docente corregge la traccia.
+  await apriVerifica('ve', { titolo: 'Verifica con copia locale' });
+  await page.waitForSelector('.modal:not([hidden]) h2:has-text("Verifica aperta")', { timeout: 10000 });
+  await page.getByRole('button', { name: 'Inizia', exact: true }).click();
+  await page.click('button:has-text("Entra in verifica")', { timeout: 2500 }).catch(() => {});
+  await page.waitForSelector('.banda-verifica');
+  await finche(page, async () => !!valoreTesto(await lavoro('ve'), 'programmaHash'), 10000);
+  const hashIngresso = valoreTesto(await lavoro('ve'), 'programmaHash');
+  const verso = new RegExp(`:${(process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8186').split(':')[1]}/`);
+  await page.context().route(verso, (r) => r.abort());                              // niente più rete verso il database
+  await caricaEsempio(page);
+  await page.waitForTimeout(2800);                                                         // la copia locale si scrive dopo ~1,5 s
+  const programmaSoloLocale = await pseudo(page);
+  verifica(valoreTesto(await lavoro('ve'), 'programmaHash') === hashIngresso, 'a rete bloccata il database non ha il nuovo programma');
+  await page.context().unroute(verso);
+  errori.splice(0, errori.length, ...errori.filter((e) => !e.includes('ERR_FAILED')));          // gli errori di rete provocati apposta
+  await page.reload();
+  await page.click('text=Ho capito, iniziamo', { timeout: 1500 }).catch(() => {});
+  await page.waitForSelector('.modal:not([hidden]) h2:has-text("Verifica aperta")', { timeout: 15000 });
+  await page.getByRole('button', { name: 'Riprendi', exact: true }).click();
+  await page.waitForSelector('.banda-verifica');
+  verifica((await pseudo(page)) === programmaSoloLocale, 'ricaricata la pagina si ritrova il lavoro che era solo nella copia locale');
+  verifica(await finche(page, async () => valoreTesto(await lavoro('ve'), 'programmaHash') !== hashIngresso, 10000), 'e il motore lo scrive sul database');
+  verifica((await page.textContent('body')).includes('Ho ripreso il tuo lavoro dalla copia su questo computer'), 'con un messaggio che lo dice');
+  verifica(!(await page.isVisible('.traccia-aggiornata')), 'la traccia non risulta «aggiornata» se non è cambiata');
+  await scrivi('verifiche/ve/tracce/t0', { titolo: S('Versione A'), testoMd: S('## Esercizio corretto\n\nTesto **nuovo** della traccia.'), rev: { integerValue: '1' }, modificato: T(ora()) });
+  await page.waitForSelector('.traccia-aggiornata', { timeout: 10000 });
+  verifica(/Traccia aggiornata alle \d\d:\d\d/.test(await page.textContent('.traccia-aggiornata')), 'se il docente corregge la traccia compare «Traccia aggiornata alle hh:mm»');
+  verifica((await page.textContent('#tracciaBox')).includes('Testo nuovo della traccia'), 'e il testo mostrato è quello nuovo');
+  verifica(await finche(page, async () => (await lavoro('ve')).fields?.tracciaRevVista?.integerValue === '1', 8000), 'la revisione vista è scritta nel lavoro (per il docente)');
+  await schermata(page, 's-6b-traccia-aggiornata');
+  await page.click('.banda-verifica button:has-text("Consegna")');
+  await page.click('.modal:not([hidden]) .modal-actions button:has-text("Consegna")');
+  await page.waitForSelector('h2:has-text("Lavoro consegnato")');
+  await page.getByRole('button', { name: 'Ok', exact: true }).click();
+  verifica(await page.evaluate(() => !Object.keys(localStorage).some((k) => k.startsWith('isablock.verifica.backup.'))), 'consegnata la verifica, la copia locale non c\'è più');
+  await page.waitForSelector('#restoreModal:not([hidden])', { timeout: 8000 }).catch(() => {});
+  await page.click('#restoreCloseBtn', { timeout: 1500 }).catch(() => {});
+
   // 8) il docente chiude la verifica mentre lo studente lavora: giallo, poi «terminata»
   await apriVerifica('vc', { titolo: 'Verifica da chiudere', scadenzaMin: 8, apertaMinFa: 50 });
   await page.waitForSelector('.modal:not([hidden]) h2:has-text("Verifica aperta")', { timeout: 10000 });

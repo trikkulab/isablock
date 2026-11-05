@@ -80,4 +80,7 @@ export const testiStudente = Object.freeze({
   fasciaEtichetta: 'VERIFICA',
   consegnaPulsante: 'Consegna',
   tracciaTab: 'Traccia',
+  tracciaAggiornata: (ora) => `Traccia aggiornata alle ${ora}. Rileggila: il testo che vedi qui sotto è quello nuovo.`,
+  tracciaNonDisponibile: 'La traccia non è disponibile: avvisa il docente.',
+  ripresaLocale: 'Ho ripreso il tuo lavoro dalla copia su questo computer: era più recente di quello salvato online.',
 });

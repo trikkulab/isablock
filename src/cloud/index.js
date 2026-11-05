@@ -12,6 +12,7 @@ import { creaGestione } from './gestione-corsi.js';
 import { creaCommenti } from './commenti.js';
 import { creaVerificaDocente } from './verifica-docente.js';
 import { creaVerificheStudente, creaSessione } from './verifica-studente.js';
+import { creaBackupVerifica, pulisciBackup } from '../verifica-backup.js';
 
 export async function avviaCloud() {
   const config = await caricaConfig();
@@ -40,7 +41,11 @@ export async function avviaCloud() {
     // Lo studente: trovare le verifiche da fare e aprire la sessione di una di esse.
     verificaStudentePer: (email, nome) => ({
       ...creaVerificheStudente(client, email, nome),
-      nuovaSessione: (vid, opzioni) => creaSessione(client, email, nome, vid, opzioni),
+      // La copia locale ha una chiave per studente e verifica (uid dell'account collegato).
+      nuovaSessione: (vid, opzioni) => creaSessione(client, email, nome, vid,
+        { backup: creaBackupVerifica({ uid: client.auth.currentUser?.uid ?? email, vid, email }), ...opzioni }),
+      // Elimina le copie di verifiche finite (le non sincronizzate restano e sono restituite).
+      pulisciCopie: (attive) => pulisciBackup({ uid: client.auth.currentUser?.uid ?? email, attive }),
     }),
   };
 }

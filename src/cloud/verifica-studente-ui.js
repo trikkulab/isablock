@@ -71,6 +71,7 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
       const lista = await api.daFare(corsiIds);
       fallimenti = 0;
       if (!api || sessione || mostrandoFine) return;
+      api.pulisciCopie?.(lista.map((x) => x.verifica.id));        // le copie locali di verifiche finite non servono più
       // Una verifica aperta che non ti viene proposta (nessuna assegnazione, per ora) potrebbe riguardarti tra poco: il
       // docente può aggiungere uno studente dopo l'apertura. Si ricontrolla ogni minuto, finché ce n'è una.
       clearTimeout(timerRicontrollo);
@@ -144,7 +145,7 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
     quandoCambiaModo(true);
     item = x;
     stat.n = 0; stat.esito = 'mai'; stat.quando = null;
-    sessione = api.nuovaSessione(x.verifica.id, { onCambio: quandoCambia });
+    sessione = api.nuovaSessione(x.verifica.id, { onCambio: quandoCambia, onTraccia: mostraTraccia });
     try {
       await sessione.avvia();
     } catch (err) {
@@ -168,8 +169,13 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
     annullaEsecuzione = programma.onEsecuzione(registraEsecuzione);
     comunica();                                                  // contratto del motore: all'ingresso si comunica sempre un programma
     creaBanda(x.verifica.titolo);
-    mostraTraccia(x.verifica.id, sessione.tracciaId());
+    if (!sessione.tracciaCorrente()) mostraTraccia(null);         // né online né dalla copia locale
+    if (sessione.ripresa() === 'locale') toast(T.ripresaLocale, 'success');
+    window.addEventListener('pagehide', salvaCopia);
   }
+
+  // Chiudendo o nascondendo la pagina la copia locale si aggiorna subito, senza aspettare la pausa.
+  const salvaCopia = () => sessione?.salvaBackupOra();
 
   function comunica() {
     if (!sessione) return;
@@ -234,37 +240,36 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
   }
 
   // ── Scheda «Traccia» ────────────────────────────────────────────────────────
-  async function mostraTraccia(vid, tracciaId) {
+  // Chiamata dalla sessione all'ingresso e a ogni modifica del docente (`aggiornata`: la traccia è cambiata mentre si
+  // lavorava). `traccia` è null se non si è riusciti a leggerla.
+  async function mostraTraccia(info) {
     const tab = document.getElementById('tabTraccia');
     const box = document.getElementById('tracciaBox');
     if (!tab || !box) return;
-    box.textContent = '';
-    let titolo = T.tracciaTab;
+    const t = info && info.traccia;
     let html = '';
-    try {
-      const t = await api.verifiche.leggiTraccia(vid, tracciaId);
-      titolo = t.titolo;
-      html = await rendiMarkdown(t.testoMd);
-    } catch {
-      html = '';
-    }
+    if (t) { try { html = await rendiMarkdown(t.testoMd); } catch { html = ''; } }
     if (!sessione) return;                                       // nel frattempo la verifica è finita
+    box.textContent = '';
     const corpo = el('div', { class: 'traccia-md' });
     if (html) corpo.innerHTML = html;                            // output sicuro di markdown.js: niente script, link o immagini
-    else corpo.append(el('p', {}, 'La traccia non è disponibile: avvisa il docente.'));
+    else corpo.append(el('p', {}, T.tracciaNonDisponibile));
     let zoom = 100;
     try { zoom = Math.min(200, Math.max(80, Number(window.localStorage.getItem(ZOOM_KEY)) || 100)); } catch { /* storage non disponibile */ }
     const applica = () => { box.style.fontSize = `${zoom}%`; try { window.localStorage.setItem(ZOOM_KEY, String(zoom)); } catch { /* idem */ } };
+    const ora = info && info.modificata ? info.modificata.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '';
     box.append(
+      ...(info && info.aggiornata ? [el('div', { class: 'traccia-aggiornata', role: 'status' }, T.tracciaAggiornata(ora))] : []),
       el('div', { class: 'traccia-pannello-testa' },
-        el('h3', { class: 'traccia-pannello-titolo' }, titolo),
+        el('h3', { class: 'traccia-pannello-titolo' }, t ? t.titolo : T.tracciaTab),
         el('span', { class: 'traccia-zoom' },
           el('button', { type: 'button', 'aria-label': 'Testo più piccolo', onclick: () => { zoom = Math.max(80, zoom - 10); applica(); } }, 'A−'), ' ',
           el('button', { type: 'button', 'aria-label': 'Testo più grande', onclick: () => { zoom = Math.min(200, zoom + 10); applica(); } }, 'A+'))),
       corpo);
     applica();
     tab.hidden = false;
-    tab.click();                                                 // aperta all'ingresso
+    tab.click();                                                 // aperta all'ingresso, e di nuovo se il docente la cambia
+    if (info && info.aggiornata) toast(T.tracciaAggiornata(ora), 'success');
   }
 
   function nascondiTraccia() {
@@ -292,6 +297,7 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
     annullaEsecuzione?.(); annullaEsecuzione = null;
     banda?.remove(); banda = null;
     nascondiTraccia();
+    window.removeEventListener('pagehide', salvaCopia);
     sessione?.termina();
     sessione = null;
     item = null;
