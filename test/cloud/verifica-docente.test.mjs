@@ -230,6 +230,35 @@ test('riapertura: riprendono tutti, anche con la scadenza già passata; il tempo
   assert.equal((await d.situazione(vid)).ultime[BRUNO].versione, 2);
 });
 
+test('riapertura: i minuti in più sono solo quelli dati a mano; differenze apparenti (dati vecchi) non si trascinano', async () => {
+  const d = docente();
+  const { vid } = await bozza(d);
+  await d.apri(vid, { tracciaDefault: 't0' });
+  await d.assegna(vid, BRUNO, { minutiExtra: 20 });
+  await lavoroDi(ANNA).salva(vid, { programma: prog(1) });
+  // dati di una riapertura vecchia: la scadenza di Anna è 59 minuti oltre la fine, ma nessuno ha dato quei minuti
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const l = (await d.situazione(vid)).lavori.find((x) => x.email === ANNA);
+    await sdk.updateDoc(sdk.doc(ctx.firestore(), `verifiche/${vid}/lavori/${ANNA}`), { scadenza: sdk.Timestamp.fromMillis(l.scadenza.getTime() + 59 * 60_000) });
+  });
+  const righe = Object.fromEntries((await d.assegnazioni(vid)).righe.map((r) => [r.email, r]));
+  assert.equal(righe[ANNA].extraMinuti, 0, 'la casella non inventa minuti');
+  assert.equal(righe[BRUNO].extraMinuti, 20);
+  await d.chiudi(vid);
+  const fine = tra(ORA);
+  await d.riapri(vid, { fine });
+  const lav = Object.fromEntries((await d.situazione(vid)).lavori.map((l) => [l.email, l]));
+  assert.ok(vicino(lav[ANNA].scadenza.getTime(), fine.getTime()), 'Anna: la nuova fine, senza i 59 apparenti');
+  assert.ok(vicino(lav[BRUNO].scadenza.getTime(), fine.getTime() + 20 * 60_000), 'Bruno: nuova fine più i suoi 20');
+  assert.equal(lav[BRUNO].minutiExtra, 20);
+  // e una seconda riapertura (la verifica in due parti) conserva ancora gli stessi 20
+  await d.chiudi(vid);
+  const fine2 = tra(2 * ORA);
+  await d.riapri(vid, { fine: fine2 });
+  const dopo = (await d.situazione(vid)).lavori.find((l) => l.email === BRUNO);
+  assert.ok(vicino(dopo.scadenza.getTime(), fine2.getTime() + 20 * 60_000));
+});
+
 test('riapertura: chi aveva consegnato da solo viene sbloccato e riconsegna (v2); la v1 resta', async () => {
   const d = docente();
   const { vid } = await bozza(d);

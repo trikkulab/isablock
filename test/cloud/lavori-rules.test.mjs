@@ -64,6 +64,24 @@ const semina = (stato = 'aperta', lavoro = {}) => admin(async (db) => {
 // lavoro di Anna con un salvataggio già fatto
 const entrata = (extra = {}) => ({ studenteNome: 'Anna Rossi', programma: '{}', entrato: fisso, ultimoSegnale: fisso, ...extra });
 
+// ── Tempo in più dato a mano (minutiExtra) ────────────────────────────────
+test('lavori: minutiExtra lo scrive il docente (intero, da 0 al tetto); lo studente no', async () => {
+  const tetto = verificaConfig.regole.maxMinutiExtra;
+  await semina('aperta');
+  const d = docente();
+  await assertSucceeds(updateDoc(lav(d), { minutiExtra: 15, scadenza: tra(4_000_000) }));
+  await assertSucceeds(updateDoc(lav(d), { minutiExtra: 0 }));
+  await assertSucceeds(updateDoc(lav(d), { minutiExtra: tetto }));
+  for (const v of [-1, tetto + 1, 1.5, '15', null]) await assertFails(updateDoc(lav(d), { minutiExtra: v }));
+  await assertFails(updateDoc(lav(collega()), { minutiExtra: 5 }));
+  await assertFails(updateDoc(lav(anna()), { minutiExtra: 5 }));
+  await assertFails(updateDoc(lav(anna()), mio({ minutiExtra: 5 })));
+  await admin((db) => deleteDoc(lav(db)));
+  await assertSucceeds(setDoc(lav(d), scheletro(ANNA, { minutiExtra: 20 })));
+  await admin((db) => deleteDoc(lav(db)));
+  await assertFails(setDoc(lav(d), scheletro(ANNA, { minutiExtra: -3 })));
+});
+
 // ── Creazione da parte del docente ────────────────────────────────────────
 test('lavori: il docente (anche codocente) crea il lavoro di uno studente iscritto, in bozza e a verifica aperta', async () => {
   for (const stato of ['bozza', 'aperta']) {

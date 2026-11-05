@@ -29,6 +29,7 @@ service cloud.firestore {
     function maxCampioni() { return @@VERIFICA_maxCampioni@@; }
     function maxProgramma() { return @@VERIFICA_maxProgramma@@; }
     function maxBlocchi() { return @@VERIFICA_maxBlocchi@@; }
+    function maxMinutiExtra() { return @@VERIFICA_maxMinutiExtra@@; }
 
     function dominioIstituzionale() {
       return '@@DOMINIO@@';
@@ -418,8 +419,14 @@ service cloud.firestore {
           return (t == null && verificaLav().stato == 'bozza')
             || (verificaLav().stato != 'chiusa' && tracciaEsiste(t));
         }
+        // Il tempo in più dato a mano (facoltativo: assente = 0). La scadenza è la fine più questo.
+        function extraValido(d) {
+          return d.get('minutiExtra', 0) is int && d.get('minutiExtra', 0) >= 0
+            && d.get('minutiExtra', 0) <= maxMinutiExtra();
+        }
         function lavoroNuovoValido(d) {
-          return d.keys().hasOnly(['studenteEmail', 'tracciaId', 'scadenza', 'entrato', 'consegnato'])
+          return d.keys().hasOnly(['studenteEmail', 'tracciaId', 'scadenza', 'minutiExtra', 'entrato', 'consegnato'])
+            && extraValido(d)
             && d.keys().hasAll(['studenteEmail', 'tracciaId', 'scadenza', 'entrato', 'consegnato'])
             && d.studenteEmail == lid
             && tracciaOk(d.tracciaId)
@@ -430,7 +437,8 @@ service cloud.firestore {
         function aggiornamentoDocente() {
           let cambiate = request.resource.data.diff(resource.data).affectedKeys();
           return docenteLav()
-            && cambiate.hasOnly(['scadenza', 'tracciaId', 'consegnato'])
+            && cambiate.hasOnly(['scadenza', 'minutiExtra', 'tracciaId', 'consegnato'])
+            && extraValido(request.resource.data)
             && request.resource.data.scadenza is timestamp
             && (request.resource.data.tracciaId == resource.data.tracciaId
                 || (resource.data.entrato == null

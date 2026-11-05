@@ -14,6 +14,7 @@ import { creaVerifiche, ErroreVerifica } from './verifiche.js';
 import { creaLavoriDocente } from './lavori.js';
 import { creaConsegneDocente } from './consegne.js';
 import { creaGestione } from './gestione-corsi.js';
+import { verificaConfig } from './verifica-config.js';
 
 const MINUTO = 60_000;
 
@@ -79,14 +80,14 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
     const v = await verifiche.leggi(vid);
     if (v.stato === 'chiusa') throw vuoto('stato', 'La verifica è chiusa.');
     if (!v.fine) throw vuoto('fine', 'Imposta prima la fine prevista della verifica.');
-    if (minutiExtra !== undefined && (!Number.isFinite(minutiExtra) || minutiExtra < 0)) throw vuoto('dati', 'I minuti extra devono essere zero o più.');
+    if (minutiExtra !== undefined && (!Number.isInteger(minutiExtra) || minutiExtra < 0 || minutiExtra > verificaConfig.regole.maxMinutiExtra)) throw vuoto('dati', `I minuti extra sono un numero intero da 0 a ${verificaConfig.regole.maxMinutiExtra}.`);
     const risolta = (t) => (t === null && v.stato === 'aperta' ? v.tracciaDefault : t);
     const esistente = (await lavori.elenca(vid)).find((l) => l.email === e);
     if (!esistente) {
       const t = risolta(tracciaId === undefined ? null : tracciaId);
       if (v.stato === 'aperta' && !t) throw vuoto('traccia', 'Manca la traccia predefinita.');
       const r = await lavori.creaMancanti(vid, [e], {
-        tracciaDefault: t, scadenza: new Date(v.fine.getTime() + (minutiExtra ?? 0) * MINUTO),
+        tracciaDefault: t, scadenza: new Date(v.fine.getTime() + (minutiExtra ?? 0) * MINUTO), minutiExtra: minutiExtra ?? 0,
       });
       if (r.rifiutate.length) throw vuoto('negato', 'Non posso assegnarlo: non è iscritto al corso, o la traccia non esiste.');
       return;
@@ -95,7 +96,7 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
       const t = risolta(tracciaId);
       if (t !== esistente.tracciaId) await lavori.impostaTraccia(vid, e, t);
     }
-    if (minutiExtra !== undefined) await lavori.impostaScadenza(vid, e, new Date(v.fine.getTime() + minutiExtra * MINUTO));
+    if (minutiExtra !== undefined) await lavori.impostaExtra(vid, e, new Date(v.fine.getTime() + minutiExtra * MINUTO), minutiExtra);
   }
 
   // ── Apertura ──────────────────────────────────────────────────────────────
@@ -178,7 +179,7 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
   }
 
   // chiusa -> aperta, PER TUTTI, in un solo batch atomico con la verifica:
-  //   - la scadenza di ognuno diventa la nuova fine più il suo tempo in più (scadenza − vecchia fine, mai negativo);
+  //   - la scadenza di ognuno diventa la nuova fine più il tempo in più che gli hai dato a mano (`minutiExtra`);
   //   - chi aveva consegnato torna a poter lavorare (`consegnato` falso) e riconsegna: la consegna di prima resta.
   // Restituisce quanti lavori ha sbloccato.
   async function riapri(vid, { fine } = {}) {
@@ -190,8 +191,7 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
     const b = sdk.writeBatch(db);
     let sbloccati = 0;
     for (const l of await lavori.elenca(vid)) {
-      const extra = l.scadenza && v.fine ? Math.max(0, l.scadenza.getTime() - v.fine.getTime()) : 0;
-      const campi = { scadenza: sdk.Timestamp.fromDate(new Date(nuovaFine.getTime() + extra)) };
+      const campi = { scadenza: sdk.Timestamp.fromDate(new Date(nuovaFine.getTime() + l.minutiExtra * MINUTO)) };
       if (l.consegnato) { campi.consegnato = false; sbloccati++; }
       b.update(rifLavoro(vid, l.email), campi);
     }
@@ -273,7 +273,7 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
   }
 
   // Una riga per iscritto (e per chi ha il lavoro anche se non è più iscritto), per la tabella delle assegnazioni.
-  // `tracciaId` null = «traccia di tutti»; `extraMinuti` = scadenza personale meno la fine prevista.
+  // `tracciaId` null = «traccia di tutti»; `extraMinuti` = il tempo in più dato a mano (campo `minutiExtra`).
   async function assegnazioni(vid) {
     const [verifica, tracce, elencoLavori] = await Promise.all([verifiche.leggi(vid), verifiche.tracce(vid), lavori.elenca(vid)]);
     const iscritti = await corsi.iscritti(verifica.corsoId);
@@ -281,7 +281,7 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
     const emails = [...new Set([...iscritti, ...elencoLavori.map((l) => l.email)])].sort((a, b) => a.localeCompare(b, 'it'));
     const righe = emails.map((email) => {
       const l = per.get(email) ?? null;
-      const extraMinuti = l && l.scadenza && verifica.fine ? Math.round((l.scadenza.getTime() - verifica.fine.getTime()) / MINUTO) : 0;
+      const extraMinuti = l ? l.minutiExtra : 0;
       return { email, assegnato: !!l, tracciaId: l ? l.tracciaId : null, extraMinuti, entrato: !!(l && l.entrato), consegnato: !!(l && l.consegnato) };
     });
     return { verifica, tracce, righe };

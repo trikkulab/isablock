@@ -25,6 +25,8 @@ export const verificaConfig = Object.freeze({
     // Programma di uno studente (JSON come testo, stesso tetto degli sketch) e suo numero di blocchi.
     maxProgramma: 200000,
     maxBlocchi: 5000,
+    // Minuti in più dati a mano a uno studente (la scadenza è la fine della verifica più questi).
+    maxMinutiExtra: 1000,
   }),
   client: Object.freeze({
     // Apertura e riapertura: durata proposta (minuti dall'apertura) e massimo ammesso.

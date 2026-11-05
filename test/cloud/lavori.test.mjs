@@ -67,7 +67,10 @@ test('tempo aggiuntivo: la scadenza si sposta in avanti, senza alcun motivo scri
   assert.ok(Math.abs(l.scadenza.getTime() - (f.getTime() + 900_000)) < 1000);
   await assert.rejects(d.aggiungiMinuti('v1', ANNA, 0), (e) => e instanceof ErroreLavoro && e.codice === 'dati');
   await assert.rejects(d.aggiungiMinuti('v1', BRUNO, 5), (e) => e.codice === 'assente');
-  assert.deepEqual(Object.keys(await readCampi('v1', ANNA)).sort(), ['consegnato', 'entrato', 'scadenza', 'studenteEmail', 'tracciaId']);
+  assert.equal(l.minutiExtra, 15, 'il tempo in più è un dato a sé');
+  assert.deepEqual(Object.keys(await readCampi('v1', ANNA)).sort(), ['consegnato', 'entrato', 'minutiExtra', 'scadenza', 'studenteEmail', 'tracciaId']);
+  await d.aggiungiMinuti('v1', ANNA, -40);                                                  // più indietro di quanto aveva: il tempo in più non scende sotto zero
+  assert.equal((await d.elenca('v1'))[0].minutiExtra, 0);
 });
 async function readCampi(vid, email) {
   let dati;

@@ -35,6 +35,7 @@ export function lavoroDaDocumento(snap) {
     studenteNome: d.studenteNome ?? null,
     tracciaId: d.tracciaId ?? null,
     scadenza: data(d.scadenza),
+    minutiExtra: d.minutiExtra ?? 0,           // il tempo in più dato a mano; la scadenza è fine + questo
     entrato: data(d.entrato),
     consegnato: d.consegnato === true,
     ultimoSegnale: data(d.ultimoSegnale),
@@ -69,7 +70,7 @@ export function creaLavoriDocente({ sdk, db }) {
   // traccia o un tempo diversi. `tracciaDefault` null (o assente) = «traccia di tutti»: la traccia
   // resta vuota, ammessa solo in bozza, e l'apertura la sostituisce con l'id vero.
   // Restituisce { create, esistenti, rifiutate }.
-  async function creaMancanti(vid, iscritti, { tracciaDefault, scadenza, perStudente = {} }) {
+  async function creaMancanti(vid, iscritti, { tracciaDefault, scadenza, minutiExtra = 0, perStudente = {} }) {
     if (!(scadenza instanceof Date)) throw new ErroreLavoro('dati', 'Manca la fine prevista.');
     const esistenti = new Set((await elenca(vid)).map((l) => l.email));
     const nuovi = iscritti.map((e) => e.toLowerCase()).filter((e) => !esistenti.has(e));
@@ -80,6 +81,7 @@ export function creaLavoriDocente({ sdk, db }) {
           studenteEmail: email,
           tracciaId: p.tracciaId !== undefined ? p.tracciaId : (tracciaDefault ?? null),
           scadenza: sdk.Timestamp.fromDate(p.scadenza ?? scadenza),
+          ...((p.minutiExtra ?? minutiExtra) > 0 ? { minutiExtra: p.minutiExtra ?? minutiExtra } : {}),
           entrato: null,
           consegnato: false,
         });
@@ -103,14 +105,20 @@ export function creaLavoriDocente({ sdk, db }) {
   const impostaScadenza = (vid, email, scadenza) =>
     aggiorna(vid, email, { scadenza: sdk.Timestamp.fromDate(scadenza) }, 'Non posso cambiare la scadenza.');
 
-  // Tempo aggiuntivo: sposta in avanti (o indietro, con minuti negativi) la scadenza attuale.
+  // Scadenza e tempo in più insieme: il tempo in più è un dato a sé (`minutiExtra`), non la differenza tra
+  // scadenza e fine, così sopravvive a una riapertura o a un cambio di fine.
+  const impostaExtra = (vid, email, scadenza, minutiExtra) =>
+    aggiorna(vid, email, { scadenza: sdk.Timestamp.fromDate(scadenza), minutiExtra }, 'Non posso cambiare il tempo in più (massimo ' + L.maxMinutiExtra + ' minuti).');
+
+  // Tempo aggiuntivo: sposta in avanti (o indietro, con minuti negativi) la scadenza attuale; i minuti in più
+  // si aggiornano di conseguenza (mai sotto zero).
   async function aggiungiMinuti(vid, email, minuti) {
     if (!Number.isFinite(minuti) || minuti === 0) throw new ErroreLavoro('dati', 'Indica quanti minuti.');
     try {
       const snap = await sdk.getDoc(doc(vid, email.toLowerCase()));
       if (!snap.exists()) throw new ErroreLavoro('assente', 'Questo studente non ha ancora il lavoro per la verifica.');
       const nuova = new Date(snap.data().scadenza.toDate().getTime() + minuti * 60000);
-      await impostaScadenza(vid, email, nuova);
+      await impostaExtra(vid, email, nuova, Math.max(0, (snap.data().minutiExtra ?? 0) + minuti));
       return nuova;
     } catch (err) { throw traduci(err); }
   }
@@ -126,7 +134,7 @@ export function creaLavoriDocente({ sdk, db }) {
     catch (err) { throw traduci(err, 'Si può togliere solo chi non è ancora entrato.'); }
   }
 
-  return { elenca, creaMancanti, impostaScadenza, aggiungiMinuti, impostaTraccia, togli };
+  return { elenca, creaMancanti, impostaScadenza, impostaExtra, aggiungiMinuti, impostaTraccia, togli };
 }
 
 // ── Studente ─────────────────────────────────────────────────────────────
