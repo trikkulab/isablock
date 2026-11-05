@@ -27,6 +27,10 @@ export const verificaConfig = Object.freeze({
     maxBlocchi: 5000,
   }),
   client: Object.freeze({
+    // Apertura e riapertura: durata proposta (minuti dall'apertura) e massimo ammesso.
+    durataPredefinitaMin: 90,
+    durataRiaperturaMin: 30,
+    durataMaxMin: 600,
     // Attesa dopo l'ultima modifica prima di scrivere il lavoro (si scrive solo se il contenuto è cambiato).
     debounceSalvataggioMs: 25000,
     // Segnale di vita, solo se nel frattempo non c'è stata un'altra scrittura.

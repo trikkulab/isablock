@@ -373,3 +373,33 @@ test('un\'apertura interrotta a metà lascia i lavori «di tutti»: cambiando po
   await d.apri(vid);
   assert.deepEqual((await d.lavori.elenca(vid)).map((l) => l.tracciaId), ['t1', 't1', 't1']);
 });
+
+test('archivia: solo una verifica chiusa; una archiviata non si riapre finché non si ripristina', async () => {
+  const d = docente();
+  const { vid } = await bozza(d);
+  await assert.rejects(d.archivia(vid), (e) => e.codice === 'stato');              // bozza
+  await d.apri(vid, { tracciaDefault: 't0' });
+  await assert.rejects(d.archivia(vid), (e) => e.codice === 'stato');              // aperta
+  await d.chiudi(vid);
+  assert.equal((await d.verifiche.leggi(vid)).archiviata, false);
+  await d.archivia(vid);
+  assert.equal((await d.verifiche.leggi(vid)).archiviata, true);
+  await assert.rejects(d.riapri(vid, { fine: tra(ORA) }), (e) => e.codice === 'negato');   // archiviata: prima si ripristina
+  await d.archivia(vid, false);
+  assert.equal((await d.verifiche.leggi(vid)).archiviata, false);
+  await d.riapri(vid, { fine: tra(ORA) });
+  assert.equal((await d.verifiche.leggi(vid)).stato, 'aperta');
+});
+
+test('riepilogoApertura: studenti, tracce e quanti hanno una traccia o un tempo diversi', async () => {
+  const d = docente();
+  const { vid } = await bozza(d);
+  await d.verifiche.modifica(vid, { tracciaDefault: 't0' });
+  assert.deepEqual(await d.riepilogoApertura(vid), { titolo: 'Verifica di novembre', iscritti: 3, tracce: 2, tracciaPredefinita: 'Traccia 1', diversi: 0 });
+  await d.assegna(vid, ANNA, { tracciaId: 't1' });                                 // traccia diversa
+  await d.assegna(vid, BRUNO, { minutiExtra: 15 });                                // tempo diverso
+  await d.assegna(vid, CARLA, { tracciaId: 't0' });                                // uguale a quella di tutti: non conta
+  assert.equal((await d.riepilogoApertura(vid)).diversi, 2);
+  await d.assegna(vid, ANNA, { minutiExtra: 10 });                                 // traccia E tempo diversi: conta una volta
+  assert.equal((await d.riepilogoApertura(vid)).diversi, 2);
+});

@@ -4,7 +4,7 @@
 // Niente innerHTML: nomi ed email vengono dagli utenti, sempre textContent.
 import { el, apriFinestra } from './dom.js';
 import { contestoCorso } from './corsi.js';
-import { analizzaElencoEmail, annoCorrente, MAX_MATERIA, MAX_CLASSE, MAX_NOME_CORSO } from './gestione-corsi.js';
+import { analizzaElencoEmail, annoCorrente, MAX_MATERIA, MAX_CLASSE, MAX_NOME_CORSO, messaggioVerificheAperte } from './gestione-corsi.js';
 
 const MAX_INCOLLA = 60; // email per volta: oltre, si divide in due giri
 
@@ -210,7 +210,16 @@ export function montaGestione({ toast, dopoCambio }) {
     // Archivia / riattiva
     function disegnaArchivia() {
       boxArchivia.textContent = '';
+      const avvisoArchivia = el('p', { class: 'sketch-nota verifica-avviso verifica-avviso-errore', role: 'alert' });
+      avvisoArchivia.hidden = true;
       const btn = el('button', { type: 'button', class: 'modal-btn secondary', onclick: async () => {
+        if (corso.attivo) {
+          // prima si controlla: con una verifica aperta non si archivia, e non serve nemmeno chiedere conferma
+          let aperte;
+          try { aperte = await gestione.verificheAperte(corso.id); } catch (err) { toast(messaggio(err), 'error'); return; }
+          if (aperte > 0) { avvisoArchivia.textContent = messaggioVerificheAperte(aperte); avvisoArchivia.hidden = false; return; }
+          avvisoArchivia.hidden = true;
+        }
         if (corso.attivo && !window.confirm('Archiviare il corso? Gli studenti non lo vedranno più e tu non vedrai più i loro sketch condivisi. Si può riattivare in ogni momento.')) return;
         const ok = await esegui(async () => { await gestione.impostaAttivo(corso.id, !corso.attivo); await rileggi(); },
           corso.attivo ? 'Corso attivato di nuovo.' : 'Corso archiviato.');
@@ -220,7 +229,7 @@ export function montaGestione({ toast, dopoCambio }) {
         el('p', { class: 'sketch-nota' }, corso.attivo
           ? 'Un corso non si cancella: si archivia, e sparisce dagli elenchi degli studenti.'
           : 'Il corso è archiviato: gli studenti non lo vedono e le iscrizioni col codice non funzionano.'),
-        el('div', { class: 'sketch-azioni' }, btn)));
+        el('div', { class: 'sketch-azioni' }, btn), avvisoArchivia));
     }
 
     disegnaCodice(); disegnaDocenti(); disegnaDati(); disegnaArchivia();

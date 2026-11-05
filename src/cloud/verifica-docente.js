@@ -154,6 +154,22 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
     return raccogli ? consegne.raccogli(vid, await lavori.elenca(vid)) : null;
   }
 
+  // Archivia una verifica CHIUSA (la nasconde dall'elenco del docente; gli studenti vedono ancora la propria consegna)
+  // o la ripristina. Le verifiche aperte si chiudono prima; una archiviata non si riapre finché non si ripristina.
+  async function archivia(vid, archiviata = true) {
+    const v = await verifiche.leggi(vid);
+    if (v.stato !== 'chiusa') throw vuoto('stato', 'Si archivia solo una verifica chiusa.');
+    await verifiche.archivia(vid, archiviata);
+  }
+
+  // Cosa mostrare nella conferma di apertura: quanti studenti, le tracce, e chi ha una traccia o un tempo diversi.
+  async function riepilogoApertura(vid) {
+    const { verifica, tracce, righe } = await assegnazioni(vid);
+    const predefinita = tracce.find((t) => t.id === verifica.tracciaDefault) ?? null;
+    const diversi = righe.filter((r) => r.assegnato && ((r.tracciaId !== null && r.tracciaId !== verifica.tracciaDefault) || r.extraMinuti > 0)).length;
+    return { titolo: verifica.titolo, iscritti: righe.length, tracce: tracce.length, tracciaPredefinita: predefinita?.titolo ?? null, diversi };
+  }
+
   // Raccolta (a verifica chiusa): rilanciabile.
   async function raccogli(vid) {
     const v = await verifiche.leggi(vid);
@@ -251,6 +267,6 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
     verifiche, lavori, consegne,
     // operazioni composte
     crea, cambiaFine, assegna, apri, aggiungiIscritti, tempoAggiuntivo, chiudi, raccogli, riapri, caricaFile, situazione,
-    eliminaTraccia, studentiConTraccia, impattoUsaPerTutti, impostaTracciaDefault, riepilogoEliminazione, eliminaVerifica, assegnazioni,
+    archivia, riepilogoApertura, eliminaTraccia, studentiConTraccia, impattoUsaPerTutti, impostaTracciaDefault, riepilogoEliminazione, eliminaVerifica, assegnazioni,
   };
 }

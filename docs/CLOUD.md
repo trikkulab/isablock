@@ -174,7 +174,10 @@ docente ha «Nuovo corso», «Mostra anche i corsi archiviati» e, per ogni cors
   tolgono tutti tranne il titolare, anche da soli. Per cambiare titolare serve la console.
 - **Dati del corso** modificabili e **Archivia / Riattiva**. Archiviato: sparisce agli
   studenti, le iscrizioni col codice non funzionano, il docente non vede più gli sketch
-  condivisi (riattivando tornano).
+  condivisi (riattivando tornano). **Un corso con una verifica aperta non si archivia**: il controllo avviene
+  PRIMA di chiedere conferma, con un avviso nella sezione («Il corso ha una verifica aperta: chiudila prima di
+  archiviarlo»). Archiviando un corso le sue verifiche non si archiviano (sono già fuori vista: il pulsante
+  «Verifiche» compare solo nei corsi attivi) e tornano com'erano riattivandolo.
 
 **Iscrizioni** `iscrizioni/<CODICE>_<email minuscola>` con `corsoId`, `email`, `creato`.
 - *Con il codice*: lo studente lo digita (`ab-12 cd` vale `AB12CD`) e il documento lo crea
@@ -317,13 +320,18 @@ sono nella nota di progetto «Verifica: struttura approvata».
 
 **Verifica** `verifiche/<id automatico>`: `corsoId`, `titolo` (≤80), `stato` (`bozza`, `aperta`,
 `chiusa`), `fine` (fine prevista, obbligatoria per aprire), `tracciaDefault`, `creataDa`,
-`creato`, `apertaIl`, `chiusaIl` (null finché non succede). **Niente scadenze personali né
+`creato`, `apertaIl`, `chiusaIl` (null finché non succede), `archiviata` (facoltativo, assente = false: vedi
+sotto). **Niente scadenze personali né
 assegnazioni di tracce qui**: stanno nel lavoro di ogni studente (passo 3), perché da tempo e
 traccia si dedurrebbe chi ha bisogni particolari.
 - *Transizioni*: bozza → aperta → chiusa → aperta (la chiusa si riapre, anche con la fine ormai
   passata: ai singoli si dà tempo con la scadenza personale). In bozza non si torna.
 - *Aprire* richiede una `fine` nel futuro e una `tracciaDefault` che esista. A verifica aperta
-  si cambiano solo titolo e fine (se cambia, nel futuro); a chiusa solo il titolo.
+  si cambiano solo titolo e fine (se cambia, nel futuro); a chiusa il titolo e `archiviata`.
+- *Archiviare* (`archiviata: true`) è un riordino del docente, ammesso **solo per le verifiche chiuse** (le regole:
+  archiviata ⇒ chiusa). Nasconde la verifica **solo dall'elenco del docente** (casella «Mostra anche le verifiche
+  archiviate»): gli studenti vedono ancora la propria consegna. **Una archiviata non si riapre finché non si
+  ripristina**, e, come ogni verifica aperta o chiusa, non si elimina.
 - *Chi*: scrive un docente del corso ancora in `docenti` (la verifica nasce solo in un corso
   attivo). Lo studente iscritto legge solo se non è una bozza: la query è `corsoId == X` con
   `stato == 'aperta'` (o `in [...]`), l'unica forma che le regole possono dimostrare.
@@ -430,7 +438,9 @@ apri → tempo aggiuntivo / iscritti tardivi → chiudi (+ raccogli) → riapri*
 - `impattoUsaPerTutti`: quanti l'hanno a mano e quanti la riceverebbero, per l'avviso della stella.
 - `eliminaVerifica` (solo bozza): cancella prima le assegnazioni (altrimenti, tolta la verifica, nessuno
   potrebbe più eliminarle e resterebbero orfane), poi le tracce, poi la verifica. Una verifica aperta o
-  chiusa **non si elimina** (consegne immutabili): si archivierà (passo 6e).
+  chiusa **non si elimina** (consegne immutabili): si archivia (`archivia`, solo se chiusa).
+- `riepilogoApertura`: per la conferma di apertura (studenti, tracce, traccia di tutti, quanti hanno una traccia o
+  un tempo diversi: una traccia scelta a mano uguale a quella di tutti non conta).
 - `assegnazioni`: una riga per iscritto (email, traccia, minuti in più, entrato, consegnato) per la tabella.
 - `raccogli` si rilancia: crea la versione successiva solo se il lavoro è cambiato dall'ultima consegna.
 
@@ -498,7 +508,19 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
   (la finestra può essere proiettata). **«Elimina verifica»**
   (solo in bozza) chiede conferma con i numeri («Elimino la verifica «…», la sua traccia e le assegnazioni di 3
   studenti? Non si può annullare»).
-- A verifica chiusa la scheda è di sola lettura. Non ci sono ancora: «Apri verifica» e archivia (6e), tabella live (9).
+- **Azioni sullo stato** (in alto a destra nella scheda), ognuna con la sua finestra di conferma, i cui testi stanno in
+  `testi-verifica.js` (da rivedere senza toccare il codice, e da riusare nella guida):
+  - **Apri verifica…** (bozza): riepilogo (studenti iscritti, tracce e traccia di tutti, quanti hanno una traccia o
+    un tempo diverso), scelta della fine come **«dura N minuti da adesso»** (proposta 90) oppure **«finisce alle…»**
+    con l'anteprima di quando finirà (calcolata al clic), e l'avvertenza in evidenza **«L'apertura non si
+    annulla: per fermare la verifica dovrai chiuderla»**. Non si apre senza una traccia e una traccia di tutti.
+    Il testo sul blocco dello studente («dovrà scegliere questa verifica e non potrà usare altro…») resta spento
+    (`FUNZIONI.bloccoStudente`) finché non esiste il blocco (passo 7).
+  - **Chiudi verifica…** (aperta): con «Raccogli subito i lavori» già spuntato; dice com'è andata la raccolta.
+  - **Raccogli i lavori**, **Riapri…** (stessa scelta della fine, proposta 30 minuti) e **Archivia…** (chiusa);
+    **Ripristina** (archiviata: è l'unica azione). L'elenco ha la casella «Mostra anche le verifiche archiviate».
+  - La tabella live con il dettaglio per studente arriva con il passo 9.
+- A verifica chiusa la scheda è di sola lettura.
 - **Le notifiche («toast») stanno sopra le finestre** (livello 3000 contro 2000 delle finestre): prima un messaggio
   che usciva mentre una finestra era aperta finiva nascosto dietro l'oscuramento e non lo vedeva nessuno (valeva
   per tutti gli errori e le conferme dentro le finestre del cloud).
@@ -516,7 +538,7 @@ gira anche accanto all'emulatore dev. Un
 piccolo server statico (`server.mjs`) serve il progetto accendendo al volo l'interruttore del cloud, senza
 toccare il working tree. L'accesso usa una credenziale Google finta via SDK (deterministico; il popup
 dell'emulatore in Chromium senza interfaccia perdeva il clic a volte). Con `E2E_SCHERMATE=<cartella>` salva
-le schermate. `verifiche.mjs` copre i passi 6c e 6d in 52 controlli (i controlli sul database attendono la condizione fino a 5 s
+le schermate. `verifiche.mjs` copre i passi 6c, 6d e 6e in 76 controlli (i controlli sul database attendono la condizione fino a 5 s
 invece di fare pause fisse, che sotto carico non bastano); i passi successivi con interfaccia
 aggiungeranno i loro. Il bundle Firebase esporta per questo `signInWithCredential`.
 

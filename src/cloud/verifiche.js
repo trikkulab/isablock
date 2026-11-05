@@ -49,6 +49,7 @@ function verificaDaDocumento(snap) {
     creato: d.creato ? d.creato.toDate() : null,
     apertaIl: d.apertaIl ? d.apertaIl.toDate() : null,
     chiusaIl: d.chiusaIl ? d.chiusaIl.toDate() : null,
+    archiviata: d.archiviata === true,
   };
 }
 
@@ -134,6 +135,10 @@ export function creaVerifiche({ sdk, db }, emailUtente) {
 
   const chiudi = (vid) => aggiorna(vid, { stato: 'chiusa', chiusaIl: sdk.serverTimestamp() });
 
+  // Archivia (nasconde dall'elenco del docente) o ripristina: solo per le verifiche chiuse. Una archiviata non si riapre
+  // finché non si ripristina.
+  const archivia = (vid, archiviata = true) => aggiorna(vid, { archiviata: !!archiviata });
+
   // chiusa -> aperta. La fine può restare nel passato: i singoli studenti hanno la
   // loro scadenza personale (nei lavori).
   async function riapri(vid, { fine } = {}) {
@@ -200,5 +205,5 @@ export function creaVerifiche({ sdk, db }, emailUtente) {
     catch (err) { throw traduci(err, 'Una traccia si elimina solo finché la verifica è in bozza.'); }
   };
 
-  return { crea, leggi, elenca, modifica, apri, chiudi, riapri, elimina, tracce, leggiTraccia, nuovaTraccia, modificaTraccia, eliminaTraccia };
+  return { crea, leggi, elenca, modifica, apri, chiudi, archivia, riapri, elimina, tracce, leggiTraccia, nuovaTraccia, modificaTraccia, eliminaTraccia };
 }

@@ -10,6 +10,10 @@ export const MAX_CLASSE = 20;
 export const MAX_NOME_CORSO = 60;
 export const TENTATIVI_CODICE = 5;
 
+export const messaggioVerificheAperte = (n) => (n === 1
+  ? 'Il corso ha una verifica aperta: chiudila prima di archiviarlo.'
+  : `Il corso ha ${n} verifiche aperte: chiudile prima di archiviarlo.`);
+
 export class ErroreGestione extends Error {
   constructor(codice, messaggio) {
     super(messaggio);
@@ -121,8 +125,23 @@ export function creaGestione({ sdk, db }, emailUtente) {
     try { await sdk.updateDoc(docCorso(id), { iscrizioniAperte: !!aperte }); } catch (err) { throw traduci(err); }
   };
   // I corsi non si cancellano: si archiviano (spariscono dagli elenchi degli studenti).
+  // Quante verifiche aperte ha il corso. Un corso con una verifica aperta non si archivia (resterebbe aperta senza che il
+  // docente possa più raggiungerla): l'interfaccia lo controlla PRIMA di chiedere conferma.
+  async function verificheAperte(id) {
+    try {
+      const aperte = await sdk.getDocs(sdk.query(sdk.collection(db, 'verifiche'),
+        sdk.where('corsoId', '==', id), sdk.where('stato', '==', 'aperta')));
+      return aperte.size;
+    } catch (err) { throw traduci(err); }
+  }
   const impostaAttivo = async (id, attivo) => {
-    try { await sdk.updateDoc(docCorso(id), { attivo: !!attivo }); } catch (err) { throw traduci(err); }
+    try {
+      if (!attivo) {
+        const n = await verificheAperte(id);
+        if (n > 0) throw new ErroreGestione('verifiche-aperte', messaggioVerificheAperte(n));
+      }
+      await sdk.updateDoc(docCorso(id), { attivo: !!attivo });
+    } catch (err) { throw traduci(err); }
   };
 
   // --- Iscritti ---
@@ -184,7 +203,7 @@ export function creaGestione({ sdk, db }, emailUtente) {
   }
 
   return {
-    crea, leggi, modifica, impostaIscrizioniAperte, impostaAttivo,
+    crea, leggi, modifica, impostaIscrizioniAperte, impostaAttivo, verificheAperte,
     iscritti, aggiungiIscritti, togli, aggiungiCodocente, togliCodocente,
   };
 }

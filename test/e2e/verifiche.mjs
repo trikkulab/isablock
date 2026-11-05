@@ -259,6 +259,96 @@ try {
   await page.waitForTimeout(300);
   verifica(await page.isVisible('.editor-md-scheda'), 'su schermo stretto compaiono le schede «Scrivi / Anteprima»');
   await schermata(page, 'v-7-stretto');
+  await page.setViewportSize({ width: 1280, height: 860 });
+
+  // 10) apertura con la durata, chiusura con raccolta, archivia, ripristina, riapertura
+  await page.fill('.tracce-editor input[maxlength="40"]', 'Versione A');
+  await page.fill('.editor-md-testo', 'Scrivi un programma che stampa i numeri da 1 a 10.');
+  await page.click('.tracce-editor button:has-text("Salva")');
+  await page.waitForSelector('.traccia-nome:has-text("Versione A")');
+  const vid2 = (await leggi('verifiche')).documents[0].name.split('/').pop();
+  const stato2 = async () => valoreTesto(await leggi(`verifiche/${vid2}`), 'stato');
+  const vicinoA = (iso, minuti) => Math.abs(new Date(iso).getTime() - (Date.now() + minuti * 60000)) < 3 * 60000;   // tolleranza: il test impiega qualche secondo
+  const toastContiene = (re) => page.waitForFunction((r) => new RegExp(r).test(document.querySelector('.toast.show')?.textContent ?? ''), re.source, { timeout: 6000 }).then(() => true).catch(() => false);
+
+  await page.click('button:has-text("Apri verifica")');
+  await page.waitForSelector('h2:has-text("Aprire la verifica")');
+  const dialogoApertura = await page.textContent('.modal:last-of-type .modal-box');
+  verifica(/La verifica sarà aperta per 3 studenti iscritti/.test(dialogoApertura), 'conferma di apertura: dice per quanti studenti');
+  verifica(/Tracce: 1 \(per tutti: Versione A\)/.test(dialogoApertura), '…quante tracce e quale è per tutti');
+  verifica(/L'apertura non si annulla: per fermare la verifica dovrai chiuderla\./.test(dialogoApertura), '…e avverte che l\'apertura non si annulla');
+  verifica(/Finirà/.test(dialogoApertura), '…e mostra quando finirà');
+  verifica(!/non potrà usare altro/.test(dialogoApertura), 'finché il blocco dello studente non esiste, il testo non lo promette');
+  await schermata(page, 'v-8-apertura');
+  await page.fill('[aria-label="Minuti dall\'apertura"]', '60');
+  await page.click('button:has-text("Apri la verifica")');
+  await page.waitForSelector('.verifica-azioni button:has-text("Chiudi verifica")');
+  verifica(await stato2() === 'aperta', 'la verifica è aperta');
+  const fine2 = (await leggi(`verifiche/${vid2}`)).fields.fine.timestampValue;
+  verifica(vicinoA(fine2, 60), `finisce tra 60 minuti da adesso (${fine2})`);
+  verifica(await finche(async () => ((await leggi(`verifiche/${vid2}/lavori`)).documents ?? []).every((d) => d.fields.tracciaId?.stringValue === 't0') && ((await leggi(`verifiche/${vid2}/lavori`)).documents ?? []).length === 3),
+    'i 3 iscritti hanno la loro assegnazione, con la traccia vera (t0)');
+  verifica(!(await page.isVisible('button:has-text("Archivia")')) && !(await page.isVisible('button:has-text("Apri verifica")')), 'aperta: non si può archiviare né riaprire');
+  await schermata(page, 'v-9-aperta');
+
+  // un corso con una verifica aperta non si archivia: avviso nella sezione, senza conferma generica
+  await page.keyboard.press('Escape');                                                    // la scheda
+  await page.keyboard.press('Escape');                                                    // l'elenco delle verifiche
+  await page.click('button:has-text("Gestisci")');
+  await page.waitForSelector('button:has-text("Archivia il corso")');
+  dialoghi.length = 0;
+  await page.click('button:has-text("Archivia il corso")');
+  await page.waitForSelector('.verifica-avviso-errore:not([hidden])');
+  verifica(/Il corso ha una verifica aperta: chiudila prima di archiviarlo\./.test(await page.textContent('.verifica-avviso-errore:not([hidden])')), 'archiviare il corso con una verifica aperta: avviso nella sezione');
+  verifica(dialoghi.length === 0, '…senza chiedere prima una conferma generica');
+  verifica((await leggi(`corsi/${corsoId}`)).fields.attivo.booleanValue === true, '…e il corso è ancora attivo');
+  await page.keyboard.press('Escape');                                                    // Gestisci
+
+  // chiusura con raccolta
+  await page.click('button:has-text("Verifiche")');
+  await page.click('.sketch-riga:has-text("Verifica per la vista stretta") button:has-text("Apri")');
+  await page.click('button:has-text("Chiudi verifica")');
+  await page.waitForSelector('h2:has-text("Chiudere la verifica")');
+  verifica(await page.isChecked('.modal:last-of-type input[type="checkbox"]'), 'chiusura: «Raccogli subito i lavori» è già spuntato');
+  await page.click('button:has-text("Chiudi la verifica")');
+  verifica(await toastContiene(/Verifica chiusa\. Lavori: raccolti 0, non entrati 3\./), 'chiusura: dice com\'è andata la raccolta (nessuno era entrato)');
+  await page.waitForSelector('.verifica-azioni button:has-text("Archivia")');
+  verifica(await stato2() === 'chiusa', 'la verifica è chiusa');
+  verifica(await page.isVisible('button:has-text("Raccogli i lavori")') && await page.isVisible('button:has-text("Riapri")'), 'chiusa: si può raccogliere, riaprire, archiviare');
+
+  // archivia: sparisce dall'elenco, si ritrova con la casella, si ripristina
+  dialoghi.length = 0;
+  await page.click('.verifica-azioni button:has-text("Archivia")');
+  await finche(async () => (await leggi(`verifiche/${vid2}`)).fields.archiviata?.booleanValue === true);
+  verifica(dialoghi.length === 1 && /Archivio la verifica/.test(dialoghi[0]) && /Mostra anche le archiviate/.test(dialoghi[0]), 'archivia: chiede conferma e spiega dove si ritrova');
+  await page.waitForSelector('text=Nessuna verifica da mostrare');
+  verifica(true, 'archiviata: sparisce dall\'elenco (che dice quante sono nascoste)');
+  await page.check('text=Mostra anche le verifiche archiviate');
+  await page.waitForSelector('.verifica-archiviata');
+  verifica(await page.isVisible('.verifica-archiviata .stato-corso[data-stato="archiviata"]'), 'con la casella si rivede, con il badge «Archiviata»');
+  await schermata(page, 'v-10-archiviate');
+  await page.click('.verifica-archiviata button:has-text("Apri")');
+  await page.waitForSelector('.verifica-azioni button:has-text("Ripristina")');
+  verifica(!(await page.isVisible('button:has-text("Riapri")')) && !(await page.isVisible('button:has-text("Archivia")')), 'archiviata: c\'è solo «Ripristina» (non si riapre)');
+  await page.click('.verifica-azioni button:has-text("Ripristina")');
+  await page.waitForSelector('.verifica-azioni button:has-text("Riapri")');
+  verifica((await leggi(`verifiche/${vid2}`)).fields.archiviata?.booleanValue === false, 'ripristinata');
+
+  // riapertura con la durata proposta (30 minuti)
+  await page.click('.verifica-azioni button:has-text("Riapri")');
+  await page.waitForSelector('h2:has-text("Riaprire la verifica")');
+  verifica(await page.inputValue('[aria-label="Minuti dall\'apertura"]') === '30', 'riapertura: la durata proposta è 30 minuti');
+  await page.click('button:has-text("Riapri la verifica")');
+  await page.waitForSelector('.verifica-azioni button:has-text("Chiudi verifica")');
+  verifica(await stato2() === 'aperta' && vicinoA((await leggi(`verifiche/${vid2}`)).fields.fine.timestampValue, 30), 'riaperta: finisce tra 30 minuti');
+  // chiusa di nuovo, il corso ora si può archiviare
+  await page.click('.verifica-azioni button:has-text("Chiudi verifica")');
+  await page.click('button:has-text("Chiudi la verifica")');
+  await page.waitForSelector('.verifica-azioni button:has-text("Archivia")');
+  await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+  await page.click('button:has-text("Gestisci")');
+  await page.click('button:has-text("Archivia il corso")');
+  verifica(await finche(async () => (await leggi(`corsi/${corsoId}`)).fields.attivo.booleanValue === false), 'senza verifiche aperte il corso si archivia (con la sua conferma)');
 
   verifica(errori.length === 0, `nessun errore nella pagina${errori.length ? `: ${errori.join(' | ')}` : ''}`);
   riuscito = riepilogo();

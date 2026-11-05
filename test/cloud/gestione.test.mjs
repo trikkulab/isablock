@@ -154,3 +154,27 @@ test('codocenti: si aggiunge un docente abilitato, non uno studente; il titolare
   await assert.rejects(g2.leggi(c.id), (e) => e instanceof ErroreGestione);
   await assert.rejects(g.togliCodocente(c.id, 'docente@isarome.it'), (e) => e.codice === 'titolare');
 });
+
+test('un corso con una verifica aperta non si archivia: prima si chiude la verifica', async () => {
+  const g = gestione();
+  const c = await g.crea(DATI);
+  const semina = (id, stato) => env.withSecurityRulesDisabled((ctx) => sdk.setDoc(sdk.doc(ctx.firestore(), `verifiche/${id}`), {
+    corsoId: c.id, titolo: id, stato, fine: null, tracciaDefault: null, creataDa: 'docente@isarome.it',
+    creato: sdk.Timestamp.now(), apertaIl: null, chiusaIl: null,
+  }));
+  await semina('v-bozza', 'bozza');                    // una bozza o una chiusa non impediscono di archiviare
+  await semina('v-chiusa', 'chiusa');
+  await semina('v-aperta', 'aperta');
+  assert.equal(await g.verificheAperte(c.id), 1);
+  await assert.rejects(g.impostaAttivo(c.id, false), (e) => e instanceof ErroreGestione && e.codice === 'verifiche-aperte' && e.message === 'Il corso ha una verifica aperta: chiudila prima di archiviarlo.');
+  assert.equal((await g.leggi(c.id)).attivo, true);    // il corso non è stato toccato
+  await semina('v-aperta2', 'aperta');
+  assert.equal(await g.verificheAperte(c.id), 2);
+  await assert.rejects(g.impostaAttivo(c.id, false), (e) => e.message === 'Il corso ha 2 verifiche aperte: chiudile prima di archiviarlo.');
+  await semina('v-aperta', 'chiusa');
+  await semina('v-aperta2', 'chiusa');
+  await g.impostaAttivo(c.id, false);                  // chiuse tutte: si archivia
+  assert.equal((await g.leggi(c.id)).attivo, false);
+  await g.impostaAttivo(c.id, true);                   // riattivare non ha controlli
+  assert.equal((await g.leggi(c.id)).attivo, true);
+});

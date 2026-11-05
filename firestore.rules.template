@@ -258,7 +258,8 @@ service cloud.firestore {
     // Verifiche (modalità verifica). Un documento per verifica, id automatico.
     //   corsoId, titolo, stato ('bozza' | 'aperta' | 'chiusa'), fine (fine prevista:
     //   obbligatoria per aprire; è il default delle scadenze personali), tracciaDefault
-    //   (id di una traccia), creataDa, creato, apertaIl, chiusaIl (null finché non succede).
+    //   (id di una traccia), creataDa, creato, apertaIl, chiusaIl (null finché non succede),
+    //   archiviata (facoltativo: solo per le chiuse, nasconde la verifica dall'elenco del docente).
     // Niente scadenze personali né assegnazioni di tracce qui: stanno nel lavoro di ogni
     // studente, perché da tempo e traccia si dedurrebbe chi ha bisogni particolari.
     // Transizioni: bozza -> aperta -> chiusa -> aperta (la chiusa si può riaprire); in
@@ -289,12 +290,17 @@ service cloud.firestore {
       // con valori precisi: un controllo di tipo in più sarebbe ridondante.
       function verificaValida(d) {
         return d.keys().hasOnly(['corsoId', 'titolo', 'stato', 'fine', 'tracciaDefault', 'creataDa',
-                                 'creato', 'apertaIl', 'chiusaIl'])
+                                 'creato', 'apertaIl', 'chiusaIl', 'archiviata'])
           && d.keys().hasAll(['corsoId', 'titolo', 'stato', 'fine', 'tracciaDefault', 'creataDa',
                               'creato', 'apertaIl', 'chiusaIl'])
           && d.titolo is string && d.titolo.size() > 0 && d.titolo.size() <= maxTitoloVerifica()
           && (d.fine == null || d.fine is timestamp)
-          && (d.tracciaDefault == null || idTracciaValido(d.tracciaDefault));
+          && (d.tracciaDefault == null || idTracciaValido(d.tracciaDefault))
+          // `archiviata` è facoltativo (assente = false): riordino del docente, ammesso solo per le verifiche
+          // CHIUSE. Una archiviata non si riapre finché non si ripristina (la riapertura la lascerebbe
+          // archiviata e aperta: vietato da qui).
+          && d.get('archiviata', false) is bool
+          && (d.get('archiviata', false) == false || d.stato == 'chiusa');
       }
       function cambiate() {
         return request.resource.data.diff(resource.data).affectedKeys();
@@ -332,8 +338,8 @@ service cloud.firestore {
           || (resource.data.stato == 'aperta' && request.resource.data.stato == 'chiusa'
               && cambiate().hasOnly(['stato', 'chiusaIl'])
               && request.resource.data.chiusaIl == request.time)
-          // chiusa: solo il titolo
-          || (resource.data.stato == 'chiusa' && cambiate().hasOnly(['titolo']))
+          // chiusa: il titolo, e archiviare o ripristinare
+          || (resource.data.stato == 'chiusa' && cambiate().hasOnly(['titolo', 'archiviata']))
           // riapertura: la fine può restare nel passato (si riapre per dare tempo a qualcuno)
           || (resource.data.stato == 'chiusa' && request.resource.data.stato == 'aperta'
               && cambiate().hasOnly(['stato', 'apertaIl', 'fine'])

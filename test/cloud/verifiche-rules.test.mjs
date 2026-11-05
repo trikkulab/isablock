@@ -252,6 +252,43 @@ test('verifiche: aperta, si cambiano titolo e fine (se cambia, nel futuro); chiu
   await assertFails(agg(d, { tracciaDefault: 't1' }));
 });
 
+test('verifiche: archiviare e ripristinare, solo per le verifiche chiuse', async () => {
+  const d = docente();
+  await semina('chiusa');
+  await assertSucceeds(agg(d, { archiviata: true }));
+  await assertSucceeds(agg(codocente(), { archiviata: false }));
+  await assertSucceeds(agg(d, { archiviata: true, titolo: 'Vecchia verifica' }));          // titolo e archiviata insieme
+  await assertFails(agg(d, { archiviata: 'si' }));
+  await assertFails(agg(d, { archiviata: null }));
+  await assertFails(agg(d, { archiviata: true, fine: futuro() }));                          // altri campi no
+  await assertFails(agg(d, { archiviata: true, tracciaDefault: 't1' }));
+  await assertFails(agg(anna(), { archiviata: true }));
+  await assertFails(agg(collega(), { archiviata: true }));
+  for (const stato of ['bozza', 'aperta']) {
+    await semina(stato);
+    await assertFails(agg(d, { archiviata: true }));                                        // solo le chiuse
+  }
+});
+
+test('verifiche: una verifica archiviata non si riapre finché non si ripristina', async () => {
+  const d = docente();
+  await semina('chiusa', { archiviata: true });
+  await assertFails(agg(d, { stato: 'aperta', apertaIl: serverTimestamp() }));
+  await assertFails(agg(d, { stato: 'aperta', apertaIl: serverTimestamp(), archiviata: false }));   // due cambi insieme: il ripristino va prima
+  await assertSucceeds(agg(d, { archiviata: false }));
+  await assertSucceeds(agg(d, { stato: 'aperta', apertaIl: serverTimestamp() }));
+  await semina('chiusa', { archiviata: true });
+  await assertSucceeds(agg(d, { titolo: 'Ancora archiviata' }));                             // si può rinominare
+  await assertFails(deleteDoc(doc(d, 'verifiche/v1')));                                      // e non si elimina
+});
+
+test('verifiche: nasce sempre non archiviata', async () => {
+  const d = docente();
+  await assertSucceeds(crea(d, 'a', ver({ archiviata: false })));
+  await assertFails(crea(d, 'b', ver({ archiviata: true })));                                // una bozza non può essere archiviata
+  await assertFails(crea(d, 'c', ver({ archiviata: 1 })));
+});
+
 test('verifiche: si butta via solo una bozza', async () => {
   await semina('bozza');
   await assertFails(deleteDoc(doc(anna(), 'verifiche/v1')));

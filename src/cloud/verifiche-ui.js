@@ -11,13 +11,60 @@ import { creaEditorMarkdown } from './editor-markdown.js';
 import { rendiMarkdown } from './markdown.js';
 import { verificaConfig } from './verifica-config.js';
 import { perCampo, daCampo, finePredefinita, formatoDataOra } from './data-ora.js';
+import { testoApertura, testoChiusura, testoRiapertura, testoArchivia, esitoRaccolta } from './testi-verifica.js';
 
 const L = verificaConfig.regole;
-const STATI = { bozza: 'Bozza', aperta: 'Aperta', chiusa: 'Chiusa' };
+const C = verificaConfig.client;
+const STATI = { bozza: 'Bozza', aperta: 'Aperta', chiusa: 'Chiusa', archiviata: 'Archiviata' };
+
+// Scelta della fine di una verifica che si apre (o si riapre): «dura N minuti da adesso» oppure «finisce alle...».
+// Il calcolo si fa al momento del clic (calcola()), non quando si apre la finestra: «da adesso» deve voler dire adesso.
+function scegliFine({ durataMin }) {
+  const nome = `fine-${Math.random().toString(36).slice(2)}`;
+  const rDurata = el('input', { type: 'radio', name: nome, 'aria-label': 'Durata in minuti' });
+  const rOra = el('input', { type: 'radio', name: nome, 'aria-label': 'Ora di fine' });
+  rDurata.checked = true;
+  const durata = el('input', { type: 'number', min: '5', max: String(C.durataMaxMin), step: '5', class: 'sketch-nome scegli-fine-num', value: String(durataMin),
+    'aria-label': 'Minuti dall\'apertura' });
+  const ora = el('input', { type: 'datetime-local', class: 'sketch-nome', value: perCampo(finePredefinita(new Date(), 2)), 'aria-label': 'Data e ora di fine' });
+  const anteprima = el('p', { class: 'sketch-nota scegli-fine-anteprima', 'aria-live': 'polite' });
+
+  function calcola() {
+    if (rDurata.checked) {
+      const n = Number(durata.value);
+      if (!Number.isInteger(n) || n < 5 || n > C.durataMaxMin) return { errore: `La durata va da 5 a ${C.durataMaxMin} minuti.` };
+      return { fine: new Date(Date.now() + n * 60000), durataMin: n };
+    }
+    const d = daCampo(ora.value);
+    if (!d) return { errore: 'Indica data e ora della fine.' };
+    if (d.getTime() <= Date.now()) return { errore: 'La fine deve essere nel futuro.' };
+    return { fine: d, durataMin: null };
+  }
+  const aggiorna = () => {
+    const r = calcola();
+    anteprima.textContent = r.errore ?? `Finirà ${formatoDataOra.format(r.fine)}.`;
+  };
+  durata.addEventListener('input', () => { rDurata.checked = true; aggiorna(); });
+  durata.addEventListener('focus', () => { rDurata.checked = true; aggiorna(); });
+  ora.addEventListener('input', () => { rOra.checked = true; aggiorna(); });
+  ora.addEventListener('focus', () => { rOra.checked = true; aggiorna(); });
+  rDurata.addEventListener('change', aggiorna);
+  rOra.addEventListener('change', aggiorna);
+
+  const elemento = el('div', { class: 'scegli-fine' },
+    el('label', { class: 'scegli-fine-riga' }, rDurata, ' Dura ', durata, ' minuti da adesso'),
+    el('label', { class: 'scegli-fine-riga' }, rOra, ' Finisce alle ', ora),
+    anteprima);
+  aggiorna();
+  // «da adesso» si sposta col tempo: l'anteprima si aggiorna finché la finestra è aperta
+  const giro = setInterval(() => { if (!elemento.isConnected) clearInterval(giro); else aggiorna(); }, 20000);
+  return { elemento, calcola };
+}
 
 export function montaVerifiche({ toast }) {
   let vd = null;                 // oggetto di verifica-docente.js, valido solo da docenti loggati
   let finestre = new Set();
+  let mostraArchiviate = false;  // casella dell'elenco, come «Mostra anche i corsi archiviati»
 
   const messaggio = (err) => (err && err.message) || 'Qualcosa è andato storto. Riprova.';
   const apri = (titolo, onChiudi, opzioni) => {
@@ -34,10 +81,14 @@ export function montaVerifiche({ toast }) {
   function elenco(corso) {
     const f = apri(`Verifiche: ${corso.nome}`);
     const lista = el('div', { class: 'corsi-lista' });
+    const casellaArchiviate = el('input', { type: 'checkbox' });
+    casellaArchiviate.checked = mostraArchiviate;
+    casellaArchiviate.addEventListener('change', () => { mostraArchiviate = casellaArchiviate.checked; ricarica(); });
     f.corpo.append(
       el('p', { class: 'sketch-nota' }, 'Qui prepari le verifiche del corso: scrivi le tracce, e quando è il momento apri la verifica.'),
       el('div', { class: 'sketch-riga corsi-docente-barra' },
-        el('button', { type: 'button', class: 'modal-btn', onclick: () => nuova(corso, ricarica) }, 'Nuova verifica')),
+        el('button', { type: 'button', class: 'modal-btn', onclick: () => nuova(corso, ricarica) }, 'Nuova verifica'),
+        el('label', { class: 'sketch-data' }, casellaArchiviate, ' Mostra anche le verifiche archiviate')),
       el('h3', { class: 'corsi-titolo' }, 'Verifiche'), lista);
 
     async function ricarica() {
@@ -48,15 +99,19 @@ export function montaVerifiche({ toast }) {
       }
       if (!finestre.has(f)) return;
       lista.textContent = '';
+      const nascoste = verifiche.filter((v) => v.archiviata).length;
+      if (!mostraArchiviate) verifiche = verifiche.filter((v) => !v.archiviata);
       if (verifiche.length === 0) {
-        lista.append(el('p', { class: 'sketch-nota' }, 'Nessuna verifica ancora. Creane una con «Nuova verifica».'));
+        lista.append(el('p', { class: 'sketch-nota' }, nascoste
+          ? `Nessuna verifica da mostrare (${nascoste} archiviat${nascoste === 1 ? 'a' : 'e'}: spunta «Mostra anche le verifiche archiviate»).`
+          : 'Nessuna verifica ancora. Creane una con «Nuova verifica».'));
         return;
       }
       for (const v of verifiche) {
-        lista.append(el('div', { class: 'sketch-riga' },
+        lista.append(el('div', { class: `sketch-riga${v.archiviata ? ' verifica-archiviata' : ''}` },
           el('div', { class: 'sketch-info' },
             el('strong', {}, v.titolo),
-            el('span', { class: 'sketch-data' }, badge(v.stato),
+            el('span', { class: 'sketch-data' }, badge(v.stato), v.archiviata ? ' ' : '', v.archiviata ? badge('archiviata') : '',
               v.fine ? ` · fine prevista ${formatoDataOra.format(v.fine)}` : '')),
           el('button', { type: 'button', class: 'modal-btn', onclick: () => scheda(corso, v.id, ricarica) }, 'Apri')));
       }
@@ -161,14 +216,118 @@ export function montaVerifiche({ toast }) {
     });
     const avviso = {
       aperta: 'Verifica aperta: le modifiche alle tracce sono visibili subito agli studenti (che vedranno un avviso di traccia aggiornata).',
-      chiusa: 'Verifica chiusa: le tracce si possono solo leggere.',
+      chiusa: verifica.archiviata
+        ? 'Verifica chiusa e archiviata: non compare nell\'elenco finché non la ripristini. Le tracce si possono solo leggere.'
+        : 'Verifica chiusa: le tracce si possono solo leggere.',
     }[stato()];
     f.corpo.append(
       el('div', { class: 'verifica-testata' },
         campo('Titolo', titolo),
         campo(bozza() ? 'Fine prevista (provvisoria)' : 'Fine prevista', fine),
-        el('div', { class: 'verifica-stato' }, badge(stato()), esito)),
+        el('div', { class: 'verifica-stato' }, badge(stato()), verifica.archiviata ? badge('archiviata') : '', esito)),
       avviso ? el('p', { class: 'sketch-nota verifica-avviso' }, avviso) : '');
+
+    // --- Azioni sullo stato: aprire, chiudere (e raccogliere), riaprire, archiviare ------
+    // Ogni cambio di stato passa da una finestra di conferma con il testo che il docente deve leggere (testi-verifica.js).
+    // La tabella live con i dettagli per studente arriva con il passo 9.
+    const azioni = el('div', { class: 'verifica-azioni' });
+    const bottone = (testo, fn, primario = false) => el('button', { type: 'button', class: `modal-btn${primario ? '' : ' secondary'}`, onclick: fn }, testo);
+    if (bozza()) azioni.append(bottone('Apri verifica…', () => dialogoApertura(), true));
+    else if (stato() === 'aperta') azioni.append(bottone('Chiudi verifica…', () => dialogoChiusura(), true));
+    else if (verifica.archiviata) azioni.append(bottone('Ripristina', () => ripristinaVerifica()));
+    else azioni.append(bottone('Raccogli i lavori', () => raccogliLavori()), bottone('Riapri…', () => dialogoRiapertura()), bottone('Archivia…', () => archiviaVerifica()));
+    f.corpo.append(azioni);
+
+    // Dopo un cambio di stato la scheda si richiude e si riapre aggiornata.
+    function riapriScheda() {
+      modificata = () => false;
+      f.chiudi();
+      scheda(corso, vid, dopo);
+    }
+
+    // Finestra di conferma: paragrafi, avvertenza in evidenza, contenuto extra, e [azione] [Annulla].
+    function dialogo({ titolo: titoloDialogo, righe = [], avvertenza = null, extra = [], etichetta, impedimento = null, onConferma }) {
+      const d = apri(titoloDialogo);
+      const conferma = el('button', { type: 'button', class: 'modal-btn' }, etichetta);
+      conferma.disabled = !!impedimento;
+      conferma.addEventListener('click', async () => {
+        conferma.disabled = true;
+        try { await onConferma(d); } catch (err) { toast(messaggio(err), 'error'); conferma.disabled = false; }
+      });
+      d.corpo.append(
+        ...righe.map((t) => el('p', {}, t)),
+        ...extra,
+        avvertenza ? el('p', { class: 'verifica-avviso verifica-avviso-forte', role: 'note' }, avvertenza) : '',
+        impedimento ? el('p', { class: 'verifica-avviso verifica-avviso-errore', role: 'alert' }, impedimento) : '',
+        el('div', { class: 'modal-actions' }, conferma, el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => d.chiudi() }, 'Annulla')));
+      return d;
+    }
+
+    async function dialogoApertura() {
+      if (modificata() && !window.confirm('Ci sono modifiche non salvate a una traccia: l\'apertura userà solo le tracce salvate. Continuare?')) return;
+      let r;
+      try { r = await vd.riepilogoApertura(vid); } catch (err) { toast(messaggio(err), 'error'); return; }
+      const quando = scegliFine({ durataMin: C.durataPredefinitaMin });
+      const { righe, avvertenza } = testoApertura(r);
+      dialogo({
+        titolo: `Aprire la verifica «${verifica.titolo}»?`, righe, avvertenza, extra: [quando.elemento], etichetta: 'Apri la verifica',
+        impedimento: r.tracce === 0 || !r.tracciaPredefinita ? 'Prima di aprire serve almeno una traccia, e una traccia di tutti.' : null,
+        async onConferma(d) {
+          const c = quando.calcola();
+          if (c.errore) throw new Error(c.errore);
+          await vd.apri(vid, { fine: c.fine });
+          d.chiudi();
+          toast(`Verifica aperta: finisce ${formatoDataOra.format(c.fine)}.`, 'success');
+          riapriScheda();
+        },
+      });
+    }
+
+    function dialogoChiusura() {
+      const raccogli = el('input', { type: 'checkbox' });
+      raccogli.checked = true;
+      dialogo({
+        titolo: `Chiudere la verifica «${verifica.titolo}»?`, righe: testoChiusura.righe, etichetta: 'Chiudi la verifica',
+        extra: [el('label', { class: 'scegli-fine-riga' }, raccogli, ` ${testoChiusura.raccogli}`)],
+        async onConferma(d) {
+          const esitoChiusura = await vd.chiudi(vid, { raccogli: raccogli.checked });
+          d.chiudi();
+          toast(esitoChiusura ? `Verifica chiusa. Lavori: ${esitoRaccolta(esitoChiusura)}.` : 'Verifica chiusa.', 'success');
+          riapriScheda();
+        },
+      });
+    }
+
+    function dialogoRiapertura() {
+      const quando = scegliFine({ durataMin: C.durataRiaperturaMin });
+      dialogo({
+        titolo: `Riaprire la verifica «${verifica.titolo}»?`, righe: testoRiapertura.righe, extra: [quando.elemento], etichetta: 'Riapri la verifica',
+        async onConferma(d) {
+          const c = quando.calcola();
+          if (c.errore) throw new Error(c.errore);
+          await vd.riapri(vid, { fine: c.fine });
+          d.chiudi();
+          toast(`Verifica riaperta: finisce ${formatoDataOra.format(c.fine)}.`, 'success');
+          riapriScheda();
+        },
+      });
+    }
+
+    async function raccogliLavori() {
+      try { toast(`Lavori: ${esitoRaccolta(await vd.raccogli(vid))}.`, 'success'); } catch (err) { toast(messaggio(err), 'error'); }
+    }
+    async function archiviaVerifica() {
+      if (!window.confirm(`Archivio la verifica «${verifica.titolo}»?\n${testoArchivia}`)) return;
+      try {
+        await vd.archivia(vid);
+        toast('Verifica archiviata.', 'success');
+        modificata = () => false;
+        f.chiudi();
+      } catch (err) { toast(messaggio(err), 'error'); }
+    }
+    async function ripristinaVerifica() {
+      try { await vd.archivia(vid, false); toast('Verifica ripristinata.', 'success'); riapriScheda(); } catch (err) { toast(messaggio(err), 'error'); }
+    }
 
     // --- Tracce: elenco a sinistra, editor a destra ------------------------
     const colonnaElenco = el('div', { class: 'tracce-elenco' });
