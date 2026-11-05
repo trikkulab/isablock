@@ -542,6 +542,33 @@ le schermate. `verifiche.mjs` copre i passi 6c, 6d e 6e in 76 controlli (i contr
 invece di fare pause fisse, che sotto carico non bastano); i passi successivi con interfaccia
 aggiungeranno i loro. Il bundle Firebase esporta per questo `signInWithCredential`.
 
+### La parte dello studente: il motore (`verifica-studente.js`, passo 7a)
+
+Senza interfaccia (quella è il 7b): trova le verifiche da fare e tiene la **sessione** mentre lo studente ne svolge una.
+- `creaVerificheStudente`: `daFare(corsiIds)` (le verifiche **aperte** con un'assegnazione, non consegnate e con il tempo non
+  finito) e `ascoltaAperte` (avvisa quando una verifica si apre o si chiude: una lettura per cambiamento).
+- `creaSessione(...)`: `avvia`, `aggiorna({programma, nBlocchi, esecuzioni})` (l'interfaccia lo chiama a ogni modifica: costa un
+  confronto), `salvaOra`, `consegna`, `termina`, `ora`/`restanteMs`/`stato`. Gli stati: `in-corso`, `consegnato`, `terminata`
+  (chiusa dal docente, o tempo finito senza consegna).
+- **Salvataggio** (parametri in `verifica-config.js`, sezione `client`, da cui dipendono le quote Spark): il programma si
+  scrive **solo se è cambiato** (hash) e al massimo una volta ogni 25 s; se per 120 s non si scrive altro esce un **battito**
+  (solo `ultimoSegnale`); ogni 5 minuti la scrittura che capita porta anche un **campione** {ora, blocchi} in un anello di 12.
+  Una scrittura sbagliata per la rete non perde niente (il programma resta in memoria, si riprova al battito); una rifiutata
+  dalle regole (chiusa, o tempo finito oltre la grazia) termina la sessione.
+- **Ora del server**: la prima scrittura è l'ingresso, e dal confronto tra `ultimoSegnale` (ora del server) e l'orologio locale
+  quando arriva l'eco si stima lo scarto (si tiene il campione con la latenza minore). Il timer è «scadenza − ora del server
+  stimata»: un PC sbagliato di 5 minuti non cambia il tempo che resta (c'è un test).
+- **Consegna**: a mano (porta con sé anche l'ultima versione non ancora salvata) o **automatica** a fine tempo; se la
+  automatica non riesce (rete, o altro) **si riprova ogni 5 s** finché le regole la accettano (scadenza + grazia), poi la verifica
+  è terminata e vale l'ultimo lavoro salvato (lo raccoglie il docente). Se il docente dà **tempo aggiuntivo** la fine slitta.
+- Contratto con l'interfaccia: all'ingresso va comunicato **sempre** un programma (anche quello vuoto): senza, non c'è niente da
+  consegnare.
+- Test (`verifica-studente.test.mjs`, 19) con un **tempo simulato** (pausa, battito, campioni e consegna automatica senza
+  aspettare); mutation check: 20 mutazioni, due ridondanti per costruzione (l'anello dei campioni è tagliato anche da `lavori.js`;
+  lo slittamento della fine si ricontrolla anche allo scattare del timer).
+  **Attenzione ai test con timer veri**: un test che fallisce senza spegnere la sessione tiene vivo il processo all'infinito
+  (si spegne sempre in un `finally`).
+
 ### Parametri
 
 Il file `src/cloud/verifica-config.js` raccoglie

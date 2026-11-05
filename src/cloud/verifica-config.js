@@ -33,6 +33,8 @@ export const verificaConfig = Object.freeze({
     durataMaxMin: 600,
     // Attesa dopo l'ultima modifica prima di scrivere il lavoro (si scrive solo se il contenuto è cambiato).
     debounceSalvataggioMs: 25000,
+    // Se la consegna automatica a fine tempo non riesce (rete...), ogni quanto si riprova.
+    riprovaConsegnaMs: 5000,
     // Segnale di vita, solo se nel frattempo non c'è stata un'altra scrittura.
     battitoMs: 120000,
     // Nessuna conferma dal server da tanto: lo studente è «offline».
