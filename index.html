@@ -55,6 +55,7 @@
         <button class="tab-btn active" data-tab="pseudocode" type="button" role="tab" aria-selected="true">Pseudocodice</button>
         <button class="tab-btn" data-tab="c" type="button" role="tab" aria-selected="false">C</button>
         <button class="tab-btn" data-tab="python" type="button" role="tab" aria-selected="false">Python</button>
+        <button id="tabTraccia" class="tab-btn" data-tab="traccia" type="button" role="tab" aria-selected="false" hidden>Traccia</button>
       </div>
       <div class="code-body">
         <div class="code-panel active" data-tab="pseudocode">
@@ -68,6 +69,9 @@
         <div class="code-panel" data-tab="python">
           <button class="copy-btn" data-copy-target="outputPython" type="button">Copia</button>
           <pre id="outputPython" class="output-code"></pre>
+        </div>
+        <div class="code-panel" data-tab="traccia">
+          <div id="tracciaBox" class="traccia-pannello"></div>
         </div>
       </div>
       <div id="runSplitter" class="splitter splitter-horizontal" role="separator" aria-orientation="horizontal" aria-label="Ridimensiona l'area di esecuzione" tabindex="0" hidden></div>

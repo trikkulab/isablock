@@ -274,11 +274,11 @@ try {
   await page.click('button:has-text("Apri verifica")');
   await page.waitForSelector('h2:has-text("Aprire la verifica")');
   const dialogoApertura = await page.textContent('.modal:last-of-type .modal-box');
-  verifica(/La verifica sarà aperta per 3 studenti iscritti/.test(dialogoApertura), 'conferma di apertura: dice per quanti studenti');
+  verifica(/Gli studenti iscritti \(3\) la vedranno subito/.test(dialogoApertura), 'conferma di apertura: dice per quanti studenti e che la vedranno subito');
   verifica(/Tracce: 1 \(per tutti: Versione A\)/.test(dialogoApertura), '…quante tracce e quale è per tutti');
   verifica(/L'apertura non si annulla: per fermare la verifica dovrai chiuderla\./.test(dialogoApertura), '…e avverte che l\'apertura non si annulla');
   verifica(/Finirà/.test(dialogoApertura), '…e mostra quando finirà');
-  verifica(!/non potrà usare altro/.test(dialogoApertura), 'finché il blocco dello studente non esiste, il testo non lo promette');
+  verifica(/dovrà scegliere questa verifica e non potrà usare altro in IsaBlock finché non consegna o non scade il tempo/.test(dialogoApertura), '…e dice cosa succede allo studente (il blocco ora esiste)');
   await schermata(page, 'v-8-apertura');
   await page.fill('[aria-label="Minuti dall\'apertura"]', '60');
   await page.click('button:has-text("Apri la verifica")');

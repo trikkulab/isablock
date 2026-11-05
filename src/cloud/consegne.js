@@ -78,7 +78,8 @@ export function creaConsegneStudente({ sdk, db }, emailUtente, nomeUtente) {
   // Consegna: aggiorna il lavoro (con l'ultimo contenuto) e crea la v1 in UN batch. `dati` è l'ultimo
   // stato, come per salva(): { programma, programmaHash, nBlocchi, esecuzioni, campioni, tracciaRevVista }.
   // `origine`: 'studente' (pulsante) o 'automatica' (scaduto il tempo).
-  async function consegna(vid, dati = {}, { origine = 'studente' } = {}) {
+  // `giaEntrato: true` (lo sa il chiamante) evita di rimandare `entrato`: vedi lavori.js. Senza, si decide dalla lettura.
+  async function consegna(vid, dati = {}, { origine = 'studente', giaEntrato = null } = {}) {
     if (origine !== 'studente' && origine !== 'automatica') throw new ErroreConsegna('dati', 'Origine non valida.');
     const rifLavoro = sdk.doc(db, 'verifiche', vid, 'lavori', mia);
     try {
@@ -96,7 +97,7 @@ export function creaConsegneStudente({ sdk, db }, emailUtente, nomeUtente) {
       const b = sdk.writeBatch(db);
       b.update(rifLavoro, {
         ...campi, programma, studenteNome: nome,
-        entrato: l.entratoTs ?? sdk.serverTimestamp(),
+        ...((giaEntrato ?? !!l.entratoTs) ? {} : { entrato: sdk.serverTimestamp() }),   // solo se non era mai entrato
         ultimoSegnale: sdk.serverTimestamp(),
         consegnato: true,
       });

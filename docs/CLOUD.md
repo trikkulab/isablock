@@ -538,7 +538,7 @@ gira anche accanto all'emulatore dev. Un
 piccolo server statico (`server.mjs`) serve il progetto accendendo al volo l'interruttore del cloud, senza
 toccare il working tree. L'accesso usa una credenziale Google finta via SDK (deterministico; il popup
 dell'emulatore in Chromium senza interfaccia perdeva il clic a volte). Con `E2E_SCHERMATE=<cartella>` salva
-le schermate. `verifiche.mjs` copre i passi 6c, 6d e 6e in 76 controlli (i controlli sul database attendono la condizione fino a 5 s
+le schermate. `verifiche.mjs` copre i passi 6c, 6d e 6e in 76 controlli, `studente.mjs` il passo 7b in 50 (i controlli sul database attendono la condizione fino a 5 s
 invece di fare pause fisse, che sotto carico non bastano); i passi successivi con interfaccia
 aggiungeranno i loro. Il bundle Firebase esporta per questo `signInWithCredential`.
 
@@ -568,6 +568,44 @@ Senza interfaccia (quella è il 7b): trova le verifiche da fare e tiene la **ses
   lo slittamento della fine si ricontrolla anche allo scattare del timer).
   **Attenzione ai test con timer veri**: un test che fallisce senza spegnere la sessione tiene vivo il processo all'infinito
   (si spegne sempre in un `finally`).
+
+### La parte dello studente: l'interfaccia (`verifica-studente-ui.js`, passo 7b)
+
+**Il percorso.** All'accesso (e al ricaricamento, e quando il docente apre una verifica mentre lo studente è dentro) compare, se c'è
+una verifica aperta da svolgere, la finestra **«Verifica aperta»**: **non si chiude** (niente ✕, né Esc, né clic fuori: opzione
+`bloccante` di `apriFinestra`) e l'app sotto non è utilizzabile. Mostra titolo, corso e fine, con «Inizia» o «Riprendi». Si propone
+solo una verifica con un'assegnazione, non consegnata e col tempo non finito; chi è iscritto senza assegnazione non vede niente.
+- **Avviso sul lavoro non salvato**: se l'editor non è vuoto, prima di entrare compare «Il tuo lavoro attuale non è vuoto: l'editor parte
+  vuoto, ne resta una copia automatica su questo computer e finita la verifica potrai riprenderlo». «Annulla» torna alla scelta senza
+  toccare niente. **Nessun obbligo di salvare a mano.**
+- **In verifica**: fascia blu in alto (etichetta, titolo, **timer** verde / giallo sotto il 25% del tempo / rosso sotto 5 minuti,
+  e «Consegna»). L'editor è vuoto (o riprende il lavoro già salvato, se si è ricaricata la pagina). Spenti: Apri, Salva su file, esempi,
+  menu del cloud (sketch, corsi, esci), copie automatiche. Restano: Nuovo (azzera il programma senza toccare la copia di prima), Esegui/Passo,
+  le schede Pseudocodice, C e Python. C'è la scheda **«Traccia»** (Markdown reso dal modulo sicuro, con A−/A+ per il testo), aperta
+  all'ingresso e nascosta a fine verifica.
+- **Consegna**: conferma («Dopo la consegna non potrai più modificarlo», con il tempo rimasto) e poi «Lavoro consegnato». Allo scadere
+  del tempo parte da sola: «Tempo scaduto». Se il docente chiude la verifica: «Verifica terminata». Poi si **torna al lavoro che c'era
+  prima** (se c'era) e, se ne resta un'altra da fare, ricompare la scelta.
+- **Ricaricare a metà verifica**: la scelta ricompare con «Riprendi» e il lavoro salvato torna nell'editor. Intanto la proposta di
+  ripristinare vecchie copie **aspetta** (un indizio «verifica in corso» nel localStorage, `src/verifica-locale.js`, scade da solo dopo
+  scadenza + 2 ore; se il cloud non risponde in 30 s l'avvio riparte lo stesso) e parte a verifica finita, come sempre.
+
+**Come è fatta.** `main.js` ha pochi ganci (`modoVerifica.entra / esci / nessuna`, `onModifica`, `onEsecuzione`, `nBlocchi`, `correnteCompatto`):
+all'ingresso salva subito l'ultima versione del lavoro di prima, la sua copia automatica va **in pausa** (non deve mai essere sovrascritta
+da quella della verifica), all'uscita ricarica il lavoro di prima. I testi stanno in `testi-verifica.js` (`testiStudente`).
+
+**Cose imparate (e corrette) con la prova nel browser:**
+- Il campo `entrato` si manda **solo nell'ingresso**, mai «per sicurezza»: una rilettura subito dopo una scrittura può dare la copia locale con la
+  scrittura «in attesa» (entrato vuoto), e rimandarlo faceva rifiutare il salvataggio successivo (e terminare a torto la verifica). Vale anche per la consegna.
+- «Consegnato» conta solo se confermato dal server (non da una scrittura locale in attesa), e l'**origine** (a mano / automatica) si registra
+  *prima* di scrivere, così il messaggio è giusto («Tempo scaduto» e non «Lavoro consegnato»).
+- Un **errore nel controllo delle verifiche non è «nessuna verifica»**: si propaga, si riprova dopo 5 s (e dopo circa 30 s di insuccessi si
+  rinuncia a bloccare l'avvio, ma si continua piano). Un avviso arrivato **durante** un controllo ne fa ripartire uno subito dopo (prima si perdeva).
+- Un ricontrollo ogni minuto finché c'è una verifica aperta che non gli è stata proposta (il docente può aggiungere uno studente dopo l'apertura).
+
+Prova nel browser: `test/e2e/studente.mjs` (50 controlli: scelta non chiudibile, avviso, fascia e timer, comandi spenti, traccia, salvataggio e battito,
+consegna, ritorno al lavoro di prima, ricaricamento a metà con ripristino rinviato, chiusura da parte del docente, consegna automatica), dentro
+`npm run test:e2e` insieme alla prova del docente. Il server di prova riduce i tempi di salvataggio (1,5 s di pausa, 5 s di battito).
 
 ### Parametri
 

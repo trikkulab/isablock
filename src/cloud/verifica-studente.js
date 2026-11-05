@@ -40,14 +40,18 @@ export function creaVerificheStudente({ sdk, db }, emailUtente, nomeUtente) {
 
   // Le verifiche aperte, nei corsi indicati, che lo studente deve ancora fare: ha un'assegnazione, non ha consegnato
   // e il suo tempo non è finito (qui si usa l'orologio del PC solo per questo filtro; il timer vero parte dopo l'ingresso).
+  // Se non si riesce a controllare (rete, accesso) lancia l'errore: «non lo so» non è «non c'è niente».
   async function daFare(corsiIds, { adesso = Date.now() } = {}) {
     const trovate = [];
     for (const corsoId of corsiIds) {
-      let aperte;
-      try { aperte = await verifiche.elenca(corsoId, { soloAperte: true }); } catch { continue; }
+      // Un errore (rete, accesso non ancora pronto) NON è «nessuna verifica»: si propaga, e chi chiama riprova.
+      const aperte = await verifiche.elenca(corsoId, { soloAperte: true });
       for (const v of aperte) {
         let l;
-        try { l = await lavoro.mio(v.id); } catch { continue; }        // senza assegnazione non partecipa
+        try { l = await lavoro.mio(v.id); } catch (err) {
+          if (err && err.codice === 'assente') continue;                  // senza assegnazione non partecipa
+          throw err;
+        }
         if (l.consegnato) continue;
         if (l.scadenza && l.scadenza.getTime() + L.graziaSecondi * 1000 < adesso) continue;
         trovate.push({ verifica: v, lavoro: l });
@@ -80,6 +84,8 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
   const consegne = creaConsegneStudente({ sdk, db }, email, nomeUtente);
 
   let stato = 'in-corso';
+  let origineConsegna = null;     // 'studente' o 'automatica', dopo la consegna
+  let programmaIniziale = null;   // il programma già salvato nel database all'ingresso (per riprendere dopo un ricaricamento)
   let scadenza = null;            // Date
   let tracciaId = null;
   let offset = 0;                 // ora del server meno orologio locale (ms)
@@ -100,7 +106,7 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
 
   const ora = () => tempo.adesso() + offset;                              // ora del server stimata
   const restanteMs = () => (scadenza ? scadenza.getTime() - ora() : null);
-  const notifica = () => onCambio({ stato, scadenza, tracciaId, restanteMs: restanteMs() });
+  const notifica = () => onCambio({ stato, scadenza, tracciaId, restanteMs: restanteMs(), origine: origineConsegna });
 
   function cambiaStato(nuovo) {
     if (stato === nuovo) return;
@@ -215,13 +221,17 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
     if (stato !== 'in-corso') return null;
     clearAndNull('debounce');
     ultimoInvio = tempo.adesso();
+    // L'origine si registra PRIMA di scrivere: il server può confermare (e l'ascolto accorgersene) prima che questa funzione finisca,
+    // e chi legge lo stato deve già poter dire se è stata una consegna a mano o allo scadere del tempo.
+    origineConsegna = origine;
     let fatta;
     try {
       fatta = await consegne.consegna(vid, {
         programma: corrente.programma ?? undefined, programmaHash: corrente.programma !== null ? hashProgramma(corrente.programma) : undefined,
         nBlocchi: corrente.nBlocchi, esecuzioni: corrente.esecuzioni ?? undefined, campioni,
-      }, { origine });
+      }, { origine, giaEntrato: lavoro.giaEntrato(vid) });
     } catch (err) {
+      origineConsegna = null;
       if (err && err.codice === 'gia') { cambiaStato('consegnato'); return null; }       // consegnato da un'altra scheda
       if (err && err.codice === 'negato') cambiaStato('terminata');                       // chiusa, o tempo finito
       throw err;
@@ -254,7 +264,9 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
       const cambiata = (nuova && !scadenza) || (nuova && scadenza && nuova.getTime() !== scadenza.getTime());
       if (nuova) scadenza = nuova;
       tracciaId = d.tracciaId ?? null;
-      if (d.consegnato === true) { cambiaStato('consegnato'); return; }
+      // «Consegnato» conta solo se lo ha confermato il server: una scrittura locale ancora in attesa non basta (se poi
+      // fallisse, lo studente crederebbe di aver consegnato). Nel caso normale lo stato cambia quando consegna() ha finito.
+      if (d.consegnato === true && !snap.metadata.hasPendingWrites) { cambiaStato('consegnato'); return; }
       if (cambiata) { programmaFine(); notifica(); }
     }, () => {}));
     annullaAscolti.push(sdk.onSnapshot(sdk.doc(db, 'verifiche', vid), (snap) => {
@@ -271,6 +283,7 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
     campioni = l.campioni ?? [];
     ultimoCampione = campioni.length ? campioni[campioni.length - 1].t : null;
     if (l.consegnato) { cambiaStato('consegnato'); return stato; }
+    programmaIniziale = l.programma ?? null;
     if (l.programma) { corrente.programma = l.programma; salvato.hash = l.programmaHash ?? hashProgramma(l.programma); corrente.nBlocchi = l.nBlocchi ?? 0; }
     if (l.esecuzioni) { corrente.esecuzioni = l.esecuzioni; salvato.esecuzioni = l.esecuzioni; }
     ascolta();
@@ -289,6 +302,8 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
     avvia, aggiorna, salvaOra, consegna, termina,
     ora, restanteMs,
     stato: () => stato, scadenza: () => scadenza, tracciaId: () => tracciaId, offset: () => offset,
+    programmaSalvato: () => programmaIniziale,              // se non è null, l'interfaccia lo ricarica nell'editor (ripresa)
+    origine: () => origineConsegna,
     fermo: () => coda,                                      // si risolve quando le scritture in corso sono finite
     statistiche: () => ({ ...stat }),
   };

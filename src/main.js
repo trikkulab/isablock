@@ -10,6 +10,7 @@ import { appConfig } from './app-config.js';
 import { changelog, isUnseenNews as isUnseen, indiceNovitaDaMostrare } from './changelog.js';
 import { saveWorkspaceToFile, saveWorkspaceWithPicker, hasNativeSavePicker, loadWorkspaceFromFile, loadWorkspaceState, serializeWorkspace, isWorkspaceBlank, FileFormatError } from './persistence.js';
 import { createLocalBackup, createDebouncedSaver } from './local-backup.js';
+import { leggiVerificaInCorso } from './verifica-locale.js';
 import { examples } from './examples.js';
 import { runProgram, ExecutionError } from './runtime/interpreter.js';
 import { updateEditorWarnings } from './blocks/editor-checks.js';
@@ -294,6 +295,16 @@ const autosaver = createDebouncedSaver(() => {
   reportAutosave(localBackup.save(compactJson(), { isEmpty: isWorkspaceBlank(workspace), info: copyInfo() }));
 }, 1000);
 
+// --- Modalità verifica (la decide il cloud: src/cloud/verifica-studente-ui.js) ---------------
+// In verifica: la copia automatica è in PAUSA (non deve mai sovrascrivere il lavoro di prima con quello della verifica),
+// l'editor parte vuoto, e sono spenti i comandi che porterebbero lavoro dall'esterno (Apri, esempi, Salva su file).
+// All'uscita si torna al lavoro che c'era prima, e la copia automatica riprende.
+let inVerifica = false;
+let lavoroPrimaDellaVerifica = null; // { json, fileName } del programma che c'era all'ingresso (null se l'editor era vuoto)
+let startupDeferred = false;         // all'avvio c'era una verifica in corso: la proposta di ripristino aspetta la fine
+const modificaListeners = new Set();    // il cloud ascolta le modifiche del programma per salvare il lavoro
+const esecuzioneListeners = new Set();  // e le esecuzioni, per le statistiche
+
 workspace.addChangeListener((event) => {
   if (event.type === Blockly.Events.SELECTED && !(codePointerDown && !event.newElementId)) {
     const selected = event.newElementId && workspace.getBlockById(event.newElementId);
@@ -304,7 +315,8 @@ workspace.addChangeListener((event) => {
   }
   if (event.isUiEvent) return;
   scheduleUpdate();
-  autosaver.schedule();
+  if (!inVerifica) autosaver.schedule();
+  modificaListeners.forEach((cb) => cb());
 });
 
 enforceProgramBlock();
@@ -483,6 +495,61 @@ function markCommentedBlocks(ids) {
   }
 }
 
+// Entrata e uscita dalla modalità verifica (chiamate dal cloud, con la verifica già scelta).
+function entraVerifica() {
+  if (inVerifica) return;
+  autosaver.flush(); // l'ultima versione del lavoro di prima finisce nella copia automatica, prima di svuotare l'editor
+  lavoroPrimaDellaVerifica = isWorkspaceBlank(workspace) ? null : { json: compactJson(), fileName: currentFileName };
+  inVerifica = true;
+  autosaver.cancel();
+  if (execGenerator) stopExecution();
+  restoreModal.hidden = true;
+  document.body.classList.add('modo-verifica');
+  document.getElementById('btnSave').disabled = true;
+  setWorkspaceLocked(false);
+  currentFileName = null;
+  workspace.clear();
+  enforceProgramBlock();
+  updateOutputs();
+  resetRunStrip();
+}
+
+function esciVerifica() {
+  if (!inVerifica) return;
+  if (execGenerator) stopExecution();
+  inVerifica = false;
+  document.body.classList.remove('modo-verifica');
+  document.getElementById('btnSave').disabled = false;
+  setWorkspaceLocked(false);
+  // Si torna al lavoro che c'era prima della verifica (se c'era): è lo stesso che sta nella copia automatica.
+  workspace.clear();
+  const prima = lavoroPrimaDellaVerifica;
+  lavoroPrimaDellaVerifica = null;
+  if (prima) {
+    try { loadWorkspaceState(Blockly, workspace, JSON.parse(prima.json)); } catch { /* copia illeggibile: resta quella automatica */ }
+    currentFileName = prima.fileName;
+  }
+  enforceProgramBlock();
+  updateOutputs();
+  resetRunStrip();
+  if (startupDeferred) {
+    // Ricaricato nel mezzo della verifica: ora si propone, come sempre, di riprendere i lavori salvati (anche quello di prima).
+    startupDeferred = false;
+    startAutosave({ ignoraVerifica: true });
+  } else {
+    reportAutosave('saved');
+    if (prima) autosaver.schedule();
+  }
+}
+
+// Il cloud non ha trovato nessuna verifica da svolgere: se l'avvio aspettava, si riparte.
+function nessunaVerifica() {
+  if (startupDeferred && !inVerifica) {
+    startupDeferred = false;
+    startAutosave({ ignoraVerifica: true });
+  }
+}
+
 // Strato cloud opzionale: con l'interruttore spento non si importa nulla.
 let cloudUi = null; // lo sketch cloud aperto va "scollegato" quando il programma viene sostituito
 if (appConfig.cloud.enabled) {
@@ -517,6 +584,12 @@ if (appConfig.cloud.enabled) {
           return true;
         },
         marcaBlocchi: markCommentedBlocks,
+        // Modalità verifica: il cloud decide quando, qui si svuota l'editor e si spengono i comandi.
+        correnteCompatto: compactJson, // il JSON del file senza rientri: è ciò che si salva in verifica
+        nBlocchi: () => workspace.getAllBlocks(false).filter((b) => b.type !== 'program').length,
+        onModifica: (cb) => { modificaListeners.add(cb); return () => modificaListeners.delete(cb); },
+        onEsecuzione: (cb) => { esecuzioneListeners.add(cb); return () => esecuzioneListeners.delete(cb); },
+        modoVerifica: { entra: entraVerifica, esci: esciVerifica, nessuna: nessunaVerifica },
       },
     });
   });
@@ -591,6 +664,7 @@ btnClearCopy.addEventListener('click', () => {
 // Finestra con l'elenco delle copie riprendibili, dalla più recente. Le copie
 // restano finché non vengono riprese o scartate. Se non ce ne sono, si chiude.
 function openRestoreDialog() {
+  if (inVerifica) return; // in verifica non si riprende altro lavoro
   const copies = localBackup.listCopies();
   if (copies.length === 0) {
     restoreModal.hidden = true;
@@ -679,7 +753,15 @@ function finishAutosaveStartup() {
 // cosa riprendere (mai ripristino silenzioso). Fino alla risposta il
 // salvataggio automatico resta spento, così la pagina appena aperta (vuota)
 // non può toccare le copie esistenti.
-function startAutosave() {
+function startAutosave({ ignoraVerifica = false } = {}) {
+  // Una verifica in corso su questo computer (ricaricamento a metà): la proposta di riprendere vecchie copie aspetta
+  // la fine, così non si accavalla con la finestra di scelta della verifica e non porta altro lavoro dentro. Se il
+  // cloud non risponde in tempo, riparte lo stesso.
+  if (!ignoraVerifica && appConfig.cloud.enabled && leggiVerificaInCorso()) {
+    startupDeferred = true;
+    setTimeout(() => { if (startupDeferred && !inVerifica) { startupDeferred = false; startAutosave({ ignoraVerifica: true }); } }, 30000);
+    return;
+  }
   if (!localBackup.available()) {
     autosaveUnavailable = true;
     reportAutosave('unavailable');
@@ -698,11 +780,11 @@ function startAutosave() {
 // debounce e libera il posto per altre schede. visibilitychange copre i
 // browser (soprattutto da mobile) che non sempre lanciano pagehide.
 window.addEventListener('pagehide', () => {
-  autosaver.flush();
+  if (!inVerifica) autosaver.flush();
   localBackup.release();
 });
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') autosaver.flush();
+  if (document.visibilityState === 'hidden' && !inVerifica) autosaver.flush();
 });
 
 startAutosave();
@@ -710,6 +792,15 @@ startAutosave();
 // --- Barra dei comandi ------------------------------------------------
 document.getElementById('btnNew').addEventListener('click', () => {
   if (!window.confirm('Cancellare il programma corrente e ricominciare da zero?')) return;
+  if (inVerifica) {
+    // In verifica si ricomincia da zero senza toccare la copia automatica (che conserva il lavoro di prima).
+    workspace.clear();
+    enforceProgramBlock();
+    updateOutputs();
+    resetRunStrip();
+    showToast('Programma azzerato', 'success');
+    return;
+  }
   autosaver.cancel();
   localBackup.remove(); // la copia di questa scheda
   currentFileName = null;
@@ -739,6 +830,7 @@ function saveWithPrompt() {
 }
 
 document.getElementById('btnSave').addEventListener('click', async () => {
+  if (inVerifica) return;
   if (hasNativeSavePicker) {
     try {
       const saved = await saveWorkspaceWithPicker(Blockly, workspace, `${DEFAULT_FILE_NAME}.json`);
@@ -760,7 +852,7 @@ document.getElementById('btnLoad').addEventListener('click', () => fileInput.cli
 fileInput.addEventListener('change', () => {
   const file = fileInput.files[0];
   fileInput.value = '';
-  if (!file) return;
+  if (!file || inVerifica) return;
   loadWorkspaceFromFile(Blockly, workspace, file)
     .then(() => {
       enforceProgramBlock();
@@ -813,7 +905,7 @@ for (const example of examples) {
 exampleSelect.addEventListener('change', () => {
   const example = examples.find((e) => e.id === exampleSelect.value);
   exampleSelect.value = '';
-  if (!example) return;
+  if (!example || inVerifica) return;
   if (!window.confirm(`Caricare l’esempio "${example.title}"? Il programma corrente andrà perso.`)) return;
   workspace.clear();
   Blockly.serialization.workspaces.load(example.workspaceState, workspace);
@@ -867,8 +959,8 @@ function appendConsoleLine(text, className) {
 function setWorkspaceLocked(locked) {
   blocklyDiv.classList.toggle('exec-locked', locked);
   document.getElementById('btnNew').disabled = locked;
-  document.getElementById('btnLoad').disabled = locked;
-  exampleSelect.disabled = locked;
+  document.getElementById('btnLoad').disabled = locked || inVerifica;
+  exampleSelect.disabled = locked || inVerifica;
 }
 
 function updateExecButtons() {
@@ -1057,6 +1149,7 @@ function startExecution() {
   execGenerator = runProgram(programBlock, execIo);
   prevVarsSnapshot = new Map();
   setWorkspaceLocked(true);
+  esecuzioneListeners.forEach((cb) => cb('avvio'));
 }
 
 // Fa avanzare l'interprete di un passo (un solo yield). inputValue viene
@@ -1071,6 +1164,7 @@ function advance(inputValue) {
     appendConsoleLine(err.message, 'run-error');
     showToast(err.message, 'error');
     stopExecution('Interrotto');
+    esecuzioneListeners.forEach((cb) => cb('errore'));
     // Selezionato (non evidenziato come passo): resta visibile mentre lo
     // studente corregge, e sparisce da solo al primo clic altrove. In
     // Blockly 13 la selezione segue il focus: block.select() da solo non
@@ -1089,6 +1183,7 @@ function advance(inputValue) {
 
   if (result.done) {
     stopExecution('Esecuzione terminata');
+    esecuzioneListeners.forEach((cb) => cb('fine'));
     return;
   }
 

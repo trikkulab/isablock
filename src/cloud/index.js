@@ -11,6 +11,7 @@ import { creaCondivisi } from './condivisi.js';
 import { creaGestione } from './gestione-corsi.js';
 import { creaCommenti } from './commenti.js';
 import { creaVerificaDocente } from './verifica-docente.js';
+import { creaVerificheStudente, creaSessione } from './verifica-studente.js';
 
 export async function avviaCloud() {
   const config = await caricaConfig();
@@ -36,5 +37,10 @@ export async function avviaCloud() {
     gestionePer: (email) => creaGestione(client, email),
     commentiPer: (profilo) => creaCommenti(client, profilo),
     verificaDocentePer: (email) => creaVerificaDocente(client, email),
+    // Lo studente: trovare le verifiche da fare e aprire la sessione di una di esse.
+    verificaStudentePer: (email, nome) => ({
+      ...creaVerificheStudente(client, email, nome),
+      nuovaSessione: (vid, opzioni) => creaSessione(client, email, nome, vid, opzioni),
+    }),
   };
 }

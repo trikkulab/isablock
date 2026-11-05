@@ -24,6 +24,14 @@ export const riepilogo = () => { console.log(`\n${esiti.ok} controlli riusciti, 
 export const leggi = async (percorso) => (await fetch(`${REST}/${percorso}`, { headers: intestazioni })).json();
 export const scrivi = (percorso, campi) => fetch(`${REST}/${percorso}`, { method: 'PATCH', headers: intestazioni, body: JSON.stringify({ fields: campi }) });
 export const abilitaDocente = (email) => scrivi(`docenti/${email}`, { attivo: { booleanValue: true } });
+
+// Valori tipizzati per scrivere nel database dalla prova (formato REST di Firestore)
+export const S = (x) => ({ stringValue: x });
+export const B = (x) => ({ booleanValue: x });
+export const T = (ms) => ({ timestampValue: new Date(ms).toISOString() });
+export const N = () => ({ nullValue: null });
+export const A = (...x) => ({ arrayValue: { values: x.map(S) } });
+export const campi = (o) => o;
 export const valoreTesto = (doc, campo) => doc?.fields?.[campo]?.stringValue;
 
 export const avviaBrowser = () => chromium.launch();
@@ -33,7 +41,8 @@ export const avviaBrowser = () => chromium.launch();
 // popup dell'emulatore l'ho provata a mano, ma in Chromium senza interfaccia il clic su «Sign in»
 // a volte non ha effetto, e per una prova ripetibile non serve.
 // Restituisce { page, errori } (gli errori della pagina raccolti finora).
-export async function accedi(browser, email, { nome = 'Utente Prova', larghezza = 1280, altezza = 860 } = {}) {
+// `prima(page)` (facoltativo) gira dopo aver aperto l'app e PRIMA dell'accesso: serve a preparare lo stato dell'editor.
+export async function accedi(browser, email, { nome = 'Utente Prova', larghezza = 1280, altezza = 860, prima = null } = {}) {
   const ctx = await browser.newContext({ viewport: { width: larghezza, height: altezza } });
   const page = await ctx.newPage();
   const errori = [];
@@ -41,6 +50,7 @@ export async function accedi(browser, email, { nome = 'Utente Prova', larghezza 
   page.on('console', (m) => { if (m.type() === 'error') errori.push(`console: ${m.text()}`); });
   await page.goto('http://localhost:8123/');
   await page.click('text=Ho capito, iniziamo', { timeout: 5000 }).catch(() => {});      // finestra di benvenuto
+  if (prima) await prima(page);
   await page.click('.cloud-accedi');                                                      // l'app carica il cloud
   await page.waitForSelector('.modal-btn:has-text("Continua con Google")', { timeout: 20000 });
   await page.evaluate(async ({ email, nome }) => {

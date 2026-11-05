@@ -133,7 +133,10 @@ export function creaLavoriDocente({ sdk, db }) {
 export function creaLavoroStudente({ sdk, db }, emailUtente, nomeUtente) {
   const mia = String(emailUtente || '').toLowerCase();
   const doc = (vid) => sdk.doc(db, 'verifiche', vid, 'lavori', mia);
-  // Ultimo `entrato` noto: le regole vogliono che resti uguale dopo il primo salvataggio.
+  // Stato di `entrato` per ogni verifica: undefined = non so, null = sul server è vuoto (la prossima scrittura è l'INGRESSO),
+  // altro = lo studente è già entrato. Si manda `entrato` SOLO nell'ingresso: le regole ricalcolano il documento, e se
+  // non lo si tocca resta com'è. Mai rimandarlo «per sicurezza»: una rilettura fatta subito dopo una scrittura può dare
+  // la copia locale con la scrittura ancora «in attesa» (entrato vuoto) e una nuova scrittura di `entrato` verrebbe rifiutata.
   const noti = new Map();
 
   async function mio(vid) {
@@ -141,7 +144,9 @@ export function creaLavoroStudente({ sdk, db }, emailUtente, nomeUtente) {
       const snap = await sdk.getDoc(doc(vid));
       if (!snap.exists()) throw new ErroreLavoro('assente', 'Il docente non ti ha ancora assegnato questa verifica.');
       const l = lavoroDaDocumento(snap);
-      noti.set(vid, l.entratoTs);
+      // Una lettura non deve far «tornare indietro» chi risulta già entrato (vedi sopra).
+      if (l.entratoTs) noti.set(vid, l.entratoTs);
+      else if (!noti.has(vid)) noti.set(vid, null);
       return l;
     } catch (err) { throw traduci(err, 'Questa verifica non è disponibile.'); }
   }
@@ -164,12 +169,15 @@ export function creaLavoroStudente({ sdk, db }, emailUtente, nomeUtente) {
       await sdk.updateDoc(doc(vid), {
         ...campi,
         studenteNome: String(nomeUtente || mia).slice(0, 80),
-        entrato: primo ? sdk.serverTimestamp() : noti.get(vid),
+        ...(primo ? { entrato: sdk.serverTimestamp() } : {}),       // solo nell'ingresso
         ultimoSegnale: sdk.serverTimestamp(),
       });
     } catch (err) { throw traduci(err, 'Non posso salvare: la verifica è chiusa o il tuo tempo è scaduto.'); }
-    if (primo) await mio(vid);   // rilegge l'ora di ingresso scritta dal server
+    if (primo) noti.set(vid, true);   // entrato: non si rilegge (il valore non serve, e la lettura potrebbe ingannare)
   }
 
-  return { mio, salva };
+  // Lo studente risulta già entrato in questa verifica? (Serve a non rimandare `entrato` neppure nella consegna.)
+  const giaEntrato = (vid) => !!noti.get(vid);
+
+  return { mio, salva, giaEntrato };
 }

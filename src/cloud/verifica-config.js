@@ -33,6 +33,8 @@ export const verificaConfig = Object.freeze({
     durataMaxMin: 600,
     // Attesa dopo l'ultima modifica prima di scrivere il lavoro (si scrive solo se il contenuto è cambiato).
     debounceSalvataggioMs: 25000,
+    // Ogni quanto lo studente ricontrolla le verifiche aperte che non gli erano state proposte (assegnazione arrivata dopo).
+    ricontrolloVerificheMs: 60000,
     // Se la consegna automatica a fine tempo non riesce (rete...), ogni quanto si riprova.
     riprovaConsegnaMs: 5000,
     // Segnale di vita, solo se nel frattempo non c'è stata un'altra scrittura.

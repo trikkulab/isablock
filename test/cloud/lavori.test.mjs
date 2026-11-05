@@ -129,3 +129,18 @@ test('scritture dopo la chiusura o a tempo scaduto: rifiutate con messaggio', as
   await env.withSecurityRulesDisabled((ctx) => sdk.updateDoc(sdk.doc(ctx.firestore(), 'verifiche/v1'), { stato: 'chiusa', chiusaIl: sdk.Timestamp.now() }));
   await assert.rejects(studente().salva('v1', { nBlocchi: 2 }), (e) => e.codice === 'negato');
 });
+
+test('salvataggi ravvicinati: `entrato` si manda solo nell\'ingresso, anche se una rilettura lo mostra ancora «vuoto»', async () => {
+  await docente().creaMancanti('v1', [ANNA], { tracciaDefault: 't0', scadenza: fine() });
+  // Una rilettura subito dopo una scrittura può dare la copia locale con la scrittura «in attesa»: entrato appare vuoto.
+  const sdkVecchio = { ...sdk, getDoc: async (rif) => { const snap = await sdk.getDoc(rif); return { id: snap.id, metadata: snap.metadata, exists: () => snap.exists(), data: () => ({ ...snap.data(), entrato: null }) }; } };
+  const s = creaLavoroStudente({ sdk: sdkVecchio, db: dbDi(ANNA) }, ANNA, 'Anna Rossi');
+  await s.salva('v1', { nBlocchi: 1 });                                   // ingresso
+  await s.mio('v1');                                                      // rilettura «vecchia»: entrato appare vuoto
+  assert.equal(s.giaEntrato('v1'), true);                                  // ma lo studente risulta comunque entrato
+  await s.salva('v1', { nBlocchi: 2 });                                   // senza la correzione rimanderebbe entrato e le regole rifiuterebbero
+  await s.salva('v1', { nBlocchi: 3 });
+  const l = await creaLavoroStudente({ sdk, db: dbDi(ANNA) }, ANNA, 'Anna').mio('v1');
+  assert.equal(l.nBlocchi, 3);
+  assert.ok(l.entrato instanceof Date);
+});

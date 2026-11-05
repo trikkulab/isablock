@@ -1165,3 +1165,22 @@ button.commento-blocco { cursor: pointer; }
 .verifica-avviso-forte { background: #fff0d6; color: #6b3e00; font-weight: 600; border: 1px solid #f0c27a; }
 .verifica-archiviata { opacity: 0.7; }
 .stato-corso[data-stato="archiviata"] { background: #e8ebef; color: #52606d; }
+
+/* ── Modalità verifica dello studente (src/cloud/verifica-studente-ui.js) ── */
+.tab-btn[hidden] { display: none; }
+.banda-verifica { display: flex; align-items: center; gap: 1rem; padding: 0.45rem 1rem; background: #1f3a5f; color: #fff; font-weight: 600; flex: none; }
+.banda-verifica[hidden] { display: none; }
+.banda-verifica-etichetta { letter-spacing: 0.08em; font-size: 0.78rem; opacity: 0.85; }
+.banda-verifica-titolo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.banda-verifica-timer { padding: 0.15rem 0.7rem; border-radius: 999px; font-variant-numeric: tabular-nums; font-size: 1.05rem; background: #2e7d4f; color: #fff; }
+.banda-verifica-timer[data-colore="giallo"] { background: #d9a400; color: #1f2933; }
+.banda-verifica-timer[data-colore="rosso"] { background: #c0392b; color: #fff; }
+.banda-verifica .modal-btn { background: #fff; color: #1f3a5f; border-color: #fff; padding: 0.35rem 1rem; }
+/* In verifica non si vedono le copie automatiche (il lavoro di prima resta al sicuro, ma fuori vista) */
+body.modo-verifica .autosave-info { display: none; }
+.traccia-pannello { height: 100%; overflow: auto; padding: 0.9rem 1.1rem; background: #fff; color: var(--text); }
+.traccia-pannello-testa { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-bottom: 0.6rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+.traccia-pannello-titolo { margin: 0; font-size: 1rem; color: #52606d; }
+.traccia-zoom button { padding: 0.2rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-bg); font: inherit; cursor: pointer; }
+.traccia-pannello .traccia-md { line-height: 1.6; }
+@media (max-width: 800px) { .banda-verifica { flex-wrap: wrap; gap: 0.4rem; } }

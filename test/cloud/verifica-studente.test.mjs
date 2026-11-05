@@ -91,15 +91,17 @@ function nuovaSessione(email = ANNA, extra = {}) {
   const scritture = [];
   const sdkContato = { ...sdk, updateDoc: (rif, dati) => { if (rif.path.includes('/lavori/')) scritture.push(dati); return sdk.updateDoc(rif, dati); } };
   const cambi = [];
+  const notifiche = [];
   // calibra: false: con l'orologio finto che salta, l'eco dal server non permette di stimare lo scarto (c'è un test a parte)
-  const s = creaSessione({ sdk: sdkContato, db: dbDi(email) }, email, email.split('@')[0], 'v1', { tempo, onCambio: (c) => cambi.push(c.stato), calibra: false, ...extra });
-  return { s, tempo, scritture, cambi };
+  const s = creaSessione({ sdk: sdkContato, db: dbDi(email) }, email, email.split('@')[0], 'v1', { tempo, onCambio: (c) => { cambi.push(c.stato); notifiche.push(c); }, calibra: false, ...extra });
+  return { s, tempo, scritture, cambi, notifiche };
 }
 const P = (n) => JSON.stringify({ formatVersion: 6, blocks: { n } });
 
 test('ingresso: la prima scrittura segna entrato e il primo campione; il timer parte dalla scadenza', async () => {
   const { s, scritture } = nuovaSessione();
   assert.equal(await s.avvia(), 'in-corso');
+  assert.ok('entrato' in scritture[0], '`entrato` si manda solo nell\'ingresso');
   const d = await leggiLavoro();
   assert.ok(d.entrato && d.ultimoSegnale && d.studenteNome === 'anna');
   assert.equal(d.campioni.length, 1);
@@ -153,7 +155,7 @@ test('battito: dopo battitoMs senza altre scritture esce un segnale di vita, sen
   const prima = (await leggiLavoro()).ultimoSegnale.toMillis();
   await tempo.avanza(C.battitoMs + 100, s);
   assert.equal(scritture.length, 2);
-  assert.deepEqual(Object.keys(scritture[1]).sort(), ['entrato', 'studenteNome', 'ultimoSegnale']);   // solo il segnale (più i campi fissi)
+  assert.deepEqual(Object.keys(scritture[1]).sort(), ['studenteNome', 'ultimoSegnale']);                // solo il segnale: niente programma, e `entrato` non si rimanda
   assert.ok((await leggiLavoro()).ultimoSegnale.toMillis() > prima);
   assert.equal(s.statistiche().battiti, 1);
   // una scrittura vera sposta il battito in avanti: non ne esce uno a ridosso
@@ -293,7 +295,7 @@ test('verificheDaFare: solo le aperte con assegnazione, non consegnate e con il 
   assert.deepEqual((await per(ANNA).daFare(['AB12CD'])).map((x) => x.verifica.id), ['v1']);
   assert.deepEqual(await per(BRUNO).daFare(['AB12CD']), []);                                    // consegnata
   assert.deepEqual(await per(CARLA).daFare(['AB12CD']), []);                                    // nessuna assegnazione
-  assert.deepEqual(await per(ANNA).daFare(['CH7Z9Q']), []);                                     // un corso non suo: niente
+  await assert.rejects(per(ANNA).daFare(['CH7Z9Q']), (e) => e.codice === 'negato');             // un corso che non vede: è un errore, non «nessuna» (l'interfaccia riprova, poi rinuncia)
 });
 
 test('ascoltaAperte: avvisa quando una verifica si apre o si chiude', async () => {
@@ -367,5 +369,51 @@ test('una scrittura rifiutata dalle regole (verifica chiusa) ferma la sessione, 
   await tempo.avanza(C.debounceSalvataggioMs + 100, s);
   assert.equal(s.stato(), 'terminata');                                                         // la scrittura è stata rifiutata
   assert.equal(tempo.quanti(), 0);                                                              // e non resta niente in programma
+  s.termina();
+});
+
+test('«consegnato» conta solo se confermato dal server: una scrittura locale ancora in attesa non basta', async () => {
+  const ascolti = [];
+  const sdkFinto = { ...sdk, onSnapshot: (rif, cb) => { ascolti.push({ percorso: rif.path, cb }); return () => {}; } };
+  const tempo = tempoSimulato();
+  const s = creaSessione({ sdk: sdkFinto, db: dbDi(ANNA) }, ANNA, 'anna', 'v1', { tempo, calibra: false });
+  await s.avvia();
+  const lavoroListener = ascolti.find((a) => a.percorso.endsWith(`/lavori/${ANNA}`)).cb;
+  const snap = (inAttesa) => ({ exists: () => true, metadata: { hasPendingWrites: inAttesa },
+    data: () => ({ consegnato: true, tracciaId: 't0', scadenza: ts(Date.now() + 60 * MIN), ultimoSegnale: null }) });
+  lavoroListener(snap(true));                                       // la nostra scrittura, ancora non confermata dal server
+  assert.equal(s.stato(), 'in-corso');
+  lavoroListener(snap(false));                                      // ora confermata
+  assert.equal(s.stato(), 'consegnato');
+  s.termina();
+});
+
+test('verificheDaFare: un errore nel controllo non diventa «nessuna verifica»', async () => {
+  const sdkRotto = { ...sdk, getDocs: () => Promise.reject(Object.assign(new Error('rete'), { code: 'unavailable' })) };
+  const per = creaVerificheStudente({ sdk: sdkRotto, db: dbDi(ANNA) }, ANNA, 'anna');
+  await assert.rejects(per.daFare(['AB12CD']), (e) => e.codice === 'rete');                    // non risponde [] come se non ci fosse niente
+});
+
+test('alla consegna automatica chi ascolta vede subito l\'origine «automatica» (anche se il server conferma prima)', async () => {
+  await modifica(ANNA, { scadenza: ts(Date.now() + 90_000) });
+  const { s, tempo, notifiche } = nuovaSessione();
+  await s.avvia();
+  s.aggiorna({ programma: P(1), nBlocchi: 1 });
+  await tempo.avanza(95_000, s);
+  const finale = notifiche.find((c) => c.stato === 'consegnato');
+  assert.ok(finale, 'deve esserci la notifica «consegnato»');
+  assert.equal(finale.origine, 'automatica');                                                   // non null: l'interfaccia dice «Tempo scaduto», non «Lavoro consegnato»
+  s.termina();
+});
+
+test('una consegna che fallisce non lascia un\'origine finta', async () => {
+  const sdkRotto = { ...sdk, writeBatch: () => ({ update() {}, set() {}, commit: async () => { throw Object.assign(new Error('rete'), { code: 'unavailable' }); } }) };
+  const tempo = tempoSimulato();
+  const s = creaSessione({ sdk: sdkRotto, db: dbDi(ANNA) }, ANNA, 'anna', 'v1', { tempo, calibra: false });
+  await s.avvia();
+  s.aggiorna({ programma: P(1), nBlocchi: 1 });
+  await assert.rejects(s.consegna({ origine: 'studente' }), (e) => e.codice === 'rete');
+  assert.equal(s.stato(), 'in-corso');
+  assert.equal(s.origine(), null);
   s.termina();
 });

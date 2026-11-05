@@ -3,8 +3,8 @@
 // riusarli nella guida. Le frasi sono le stesse che si sono concordate: se cambia il comportamento, cambiano qui.
 
 // Funzioni che esistono davvero. Il testo dell'apertura promette solo ciò che c'è: il blocco dello studente
-// (elenco di scelta obbligatorio, niente altro finché non consegna) arriva con il passo 7 e ne accende la frase.
-export const FUNZIONI = Object.freeze({ bloccoStudente: false });
+// (elenco di scelta obbligatorio, niente altro finché non consegna) esiste dal passo 7b, e la sua frase è accesa.
+export const FUNZIONI = Object.freeze({ bloccoStudente: true });
 
 const plurale = (n, uno, molti) => (n === 1 ? uno : molti);
 
@@ -46,3 +46,38 @@ export function esitoRaccolta({ create, giaAggiornati, nonEntrati, rifiutate }) 
   if (rifiutate.length) parti.push(`non raccolti ${rifiutate.length}`);
   return parti.join(', ');
 }
+
+// ── Testi per lo STUDENTE (finestre e fascia della modalità verifica) ─────────
+export const testiStudente = Object.freeze({
+  sceltaTitolo: 'Verifica aperta',
+  sceltaIntroUna: 'C\'è una verifica aperta per te. Per continuare devi svolgerla: finché non consegni, o non finisce il tempo, non puoi usare altro in IsaBlock.',
+  sceltaIntroPiu: 'Ci sono più verifiche aperte per te. Scegli quale svolgere ora: finché non consegni, o non finisce il tempo, non puoi usare altro in IsaBlock.',
+  inizia: 'Inizia',
+  riprendi: 'Riprendi',
+  // Se all'ingresso l'editor non è vuoto
+  lavoroTitolo: 'Il tuo lavoro attuale non è vuoto',
+  lavoroRighe: [
+    'Entrando in verifica l\'editor parte vuoto.',
+    'Il tuo lavoro non va perso: ne resta una copia automatica su questo computer, e finita la verifica potrai riprenderlo.',
+  ],
+  lavoroConferma: 'Entra in verifica',
+  lavoroAnnulla: 'Annulla',
+  // Consegna
+  consegnaTitolo: 'Consegni il lavoro?',
+  consegnaRighe: ['Dopo la consegna non potrai più modificarlo.'],
+  consegnaConferma: 'Consegna',
+  consegnaAnnulla: 'Continua a lavorare',
+  // Fine della verifica per lo studente
+  consegnatoTitolo: 'Lavoro consegnato',
+  consegnatoRiga: 'Il tuo lavoro è stato consegnato. Non serve altro.',
+  scadutoTitolo: 'Tempo scaduto',
+  scadutoRiga: 'Il tempo è finito e il tuo lavoro è stato consegnato.',
+  terminataTitolo: 'Verifica terminata',
+  terminataRiga: 'La verifica è terminata (chiusa dal docente, o tempo finito). Il lavoro che avevi salvato resta a disposizione del docente.',
+  dopoFine: 'Torni al lavoro che avevi prima della verifica, se ne avevi uno.',
+  ok: 'Ok',
+  // Fascia in alto
+  fasciaEtichetta: 'VERIFICA',
+  consegnaPulsante: 'Consegna',
+  tracciaTab: 'Traccia',
+});

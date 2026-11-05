@@ -14,18 +14,19 @@ export function el(tag, attrs = {}, ...figli) {
 }
 
 // Finestra modale semplice, costruita sulle classi .modal già usate dall'app.
-// Opzioni: `larga` (finestra grande, per l'editor delle verifiche) e `puoChiudere` (funzione che può
-// rifiutare la chiusura, per esempio chiedendo conferma se ci sono modifiche non salvate).
+// Opzioni: `larga` (finestra grande, per l'editor delle verifiche), `puoChiudere` (funzione che può rifiutare la
+// chiusura, per esempio chiedendo conferma se ci sono modifiche non salvate) e `bloccante` (niente ✕, né Esc, né clic
+// fuori: si chiude solo da codice, con chiudi(); è la finestra di scelta della verifica).
 const pila = [];   // finestre aperte, l'ultima è quella in cima: Esc chiude solo quella
 
-export function apriFinestra(titolo, onChiudi, { larga = false, puoChiudere = null } = {}) {
+export function apriFinestra(titolo, onChiudi, { larga = false, puoChiudere = null, bloccante = false } = {}) {
   const corpo = el('div');
   const box = el('div', { class: `modal-box wide sketch-box${larga ? ' verifica-box' : ''}` },
-    el('button', { class: 'modal-close', type: 'button', 'aria-label': 'Chiudi', onclick: () => chiudi() }, '✕'),
+    bloccante ? '' : el('button', { class: 'modal-close', type: 'button', 'aria-label': 'Chiudi', onclick: () => chiudi() }, '✕'),
     el('h2', {}, titolo),
     corpo);
-  const modale = el('div', { class: 'modal', onmousedown: (ev) => { if (ev.target === modale) chiudi(); } }, box);
-  const tasti = (ev) => { if (ev.key === 'Escape' && pila[pila.length - 1] === box) chiudi(); };
+  const modale = el('div', { class: 'modal', onmousedown: (ev) => { if (!bloccante && ev.target === modale) chiudi(); } }, box);
+  const tasti = (ev) => { if (!bloccante && ev.key === 'Escape' && pila[pila.length - 1] === box) chiudi(); };
   function chiudi() {
     if (puoChiudere && !puoChiudere()) return;
     const k = pila.indexOf(box);

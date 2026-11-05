@@ -13,6 +13,7 @@
 import { montaSketch } from './sketch-ui.js';
 import { montaCorsi } from './corsi-ui.js';
 import { montaCommenti } from './commenti-ui.js';
+import { montaVerificaStudente } from './verifica-studente-ui.js';
 import { el, apriFinestra } from './dom.js';
 import { titoloAccesso, introAccesso, titoloDati, datiSalvati, notaServizio } from './testi.js';
 
@@ -39,6 +40,8 @@ export function montaCloud({ contenitore, toast, programma }) {
     nuoviEl.hidden = n === 0;
   } });
   const sketchUi = montaSketch({ toast, programma, commentiUi });
+  // In verifica il menu del cloud si spegne (niente sketch, corsi, esci): il resto lo spegne main.js.
+  const verificaStudenteUi = montaVerificaStudente({ toast, programma, quandoCambiaModo: (on) => modoVerifica(on) });
   const corsiUi = montaCorsi({ toast, programma, commentiUi, dopoCaricamento: () => sketchUi.scollega() });
 
   // --- Elementi nella toolbar ---------------------------------------------
@@ -75,6 +78,11 @@ export function montaCloud({ contenitore, toast, programma }) {
       dropdown.style.right = 'auto';
       dropdown.style.left = `${8 - menu.getBoundingClientRect().left}px`;
     }
+  }
+  function modoVerifica(on) {
+    btnMenu.disabled = on;
+    btnMenu.title = on ? 'Durante la verifica il menu non è disponibile' : btnMenu.title;
+    if (on) chiudiMenu();
   }
   function apriMenu() {
     dropdown.hidden = false;
@@ -126,11 +134,14 @@ export function montaCloud({ contenitore, toast, programma }) {
       corsiUi.entra(corsi, utente.ruolo, cloud.condivisi, utente.ruolo === 'docente' ? cloud.gestionePer(utente.email) : null,
         utente.ruolo === 'docente' ? cloud.verificaDocentePer(utente.email) : null);
       commentiUi.entra(cloud.commentiPer({ uid: utente.uid, email: utente.email, nome: utente.nome }), utente.ruolo, utente.email);
+      // Lo studente trova qui le verifiche aperte da svolgere; il docente non ne svolge.
+      if (utente.ruolo === 'docente') { verificaStudenteUi.esci(); } else verificaStudenteUi.entra(cloud.verificaStudentePer(utente.email, utente.nome), corsi);
     } else {
       memo(false);
       sketchUi.esci();
       corsiUi.esci();
       commentiUi.esci();
+      verificaStudenteUi.esci();
     }
     if (errore) toast(errore.message, 'error');
   }

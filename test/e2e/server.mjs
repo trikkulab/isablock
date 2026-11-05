@@ -1,7 +1,7 @@
 // Piccolo server statico per le prove nel browser (test/e2e). Serve la cartella del progetto così
 // com'è, tranne due file, modificati al volo (il working tree non viene toccato): src/app-config.js, dove
-// accende l'interruttore del cloud (nel repository resta false), e src/cloud/env.js, dove mette le porte
-// degli emulatori prese dall'ambiente.
+// accende l'interruttore del cloud (nel repository resta false), src/cloud/env.js, dove mette le porte degli
+// emulatori prese dall'ambiente, e src/cloud/verifica-config.js, dove riduce i tempi di salvataggio dello studente.
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
@@ -28,6 +28,14 @@ export function avviaServer(porta = 8123) {
         const porta = (nome, predefinita) => Number((process.env[nome] ?? '').split(':').pop()) || predefinita;
         corpo = Buffer.from(corpo.toString('utf8').replace(/Object\.freeze\(\{\s*authPort:\s*\d+,\s*firestorePort:\s*\d+\s*\}\)/,
           `Object.freeze({ authPort: ${porta('FIREBASE_AUTH_EMULATOR_HOST', 9199)}, firestorePort: ${porta('FIRESTORE_EMULATOR_HOST', 8186)} })`));
+      }
+      if (percorso === '/src/cloud/verifica-config.js') {
+        // tempi di salvataggio ridotti: la prova non può aspettare 25 secondi a ogni salvataggio dello studente
+        corpo = Buffer.from(corpo.toString('utf8')
+          .replace(/debounceSalvataggioMs:\s*\d+/, 'debounceSalvataggioMs: 1500')
+          .replace(/battitoMs:\s*\d+/, 'battitoMs: 5000')
+          .replace(/campioneOgniMs:\s*\d+/, 'campioneOgniMs: 4000')
+          .replace(/riprovaConsegnaMs:\s*\d+/, 'riprovaConsegnaMs: 1000'));
       }
       if (percorso === '/src/app-config.js') {
         corpo = Buffer.from(corpo.toString('utf8').replace(/cloud:\s*Object\.freeze\(\{\s*enabled:\s*(true|false)\s*\}\)/, 'cloud: Object.freeze({ enabled: true })'));
