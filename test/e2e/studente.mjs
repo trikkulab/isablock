@@ -2,7 +2,7 @@
 // (la sua interfaccia ha la sua prova in verifiche.mjs); lo studente è un utente vero nel browser.
 // Si lancia con `npm run test:e2e` (insieme alla prova del docente) oppure da solo dentro gli emulatori.
 import { avviaServer } from './server.mjs';
-import { avviaBrowser, accedi, leggi, scrivi, abilitaDocente, valoreTesto, verifica, riepilogo, schermata, S, B, T, N, A } from './aiuti.mjs';
+import { avviaBrowser, accedi, leggi, scrivi, aggiorna, abilitaDocente, valoreTesto, verifica, riepilogo, schermata, S, B, T, N, A } from './aiuti.mjs';
 
 const { server } = await avviaServer();
 const browser = await avviaBrowser();
@@ -237,6 +237,39 @@ try {
   verifica(await page.evaluate(() => !Object.keys(localStorage).some((k) => k.startsWith('isablock.verifica.backup.'))), 'consegnata la verifica, la copia locale non c\'è più');
   await page.waitForSelector('#restoreModal:not([hidden])', { timeout: 8000 }).catch(() => {});
   await page.click('#restoreCloseBtn', { timeout: 1500 }).catch(() => {});
+
+  // 7c) riconsegna: Anna consegna, il docente chiude e riapre (sblocca i consegnati): Anna riprende e consegna la v2
+  await apriVerifica('vf', { titolo: 'Verifica da riconsegnare' });
+  await page.waitForSelector('.modal:not([hidden]) h2:has-text("Verifica aperta")', { timeout: 10000 });
+  await page.getByRole('button', { name: 'Inizia', exact: true }).click();
+  await page.click('button:has-text("Entra in verifica")', { timeout: 2500 }).catch(() => {});
+  await page.waitForSelector('.banda-verifica');
+  await caricaEsempio(page);
+  await page.click('.banda-verifica button:has-text("Consegna")');
+  await page.click('.modal:not([hidden]) .modal-actions button:has-text("Consegna")');
+  await page.waitForSelector('h2:has-text("Lavoro consegnato")');
+  await page.getByRole('button', { name: 'Ok', exact: true }).click();
+  await page.click('#restoreCloseBtn', { timeout: 3000 }).catch(() => {});
+  verifica((await consegne('vf')).length === 1, 'Anna ha consegnato la v1');
+  await aggiorna('verifiche/vf', { stato: S('chiusa'), chiusaIl: T(ora()) });
+  await page.waitForTimeout(1500);
+  verifica(!(await page.isVisible('.modal:not([hidden]) h2:has-text("Verifica aperta")')), 'a verifica chiusa non c\'è niente da fare');
+  // riapertura per tutti: la verifica torna aperta, il lavoro di Anna è sbloccato e la sua scadenza è nuova
+  await aggiorna(`verifiche/vf/lavori/${ANNA}`, { consegnato: B(false), scadenza: T(ora() + 20 * MIN) });
+  await aggiorna('verifiche/vf', { stato: S('aperta'), apertaIl: T(ora()), fine: T(ora() + 20 * MIN) });
+  await page.waitForSelector('.modal:not([hidden]) h2:has-text("Verifica aperta")', { timeout: 15000 });
+  verifica(true, 'riaperta la verifica, Anna ritrova la scelta');
+  verifica((await page.textContent('.modal:not([hidden]) .modal-box')).includes('Riprendi'), '…con «Riprendi»');
+  await page.getByRole('button', { name: 'Riprendi', exact: true }).click();
+  await page.waitForSelector('.banda-verifica');
+  verifica((await pseudo(page)).includes('LEGGI'), 'si riparte dal lavoro consegnato');
+  await page.click('.banda-verifica button:has-text("Consegna")');
+  await page.click('.modal:not([hidden]) .modal-actions button:has-text("Consegna")');
+  await page.waitForSelector('h2:has-text("Lavoro consegnato")');
+  await page.getByRole('button', { name: 'Ok', exact: true }).click();
+  await page.click('#restoreCloseBtn', { timeout: 3000 }).catch(() => {});
+  const cf = (await consegne('vf')).map((x) => x.id).sort();
+  verifica(JSON.stringify(cf) === JSON.stringify([`${ANNA}_1`, `${ANNA}_2`]), `la riconsegna è la v2 e la v1 resta: ${JSON.stringify(cf)}`);
 
   // 8) il docente chiude la verifica mentre lo studente lavora: giallo, poi «terminata»
   await apriVerifica('vc', { titolo: 'Verifica da chiudere', scadenzaMin: 8, apertaMinFa: 50 });

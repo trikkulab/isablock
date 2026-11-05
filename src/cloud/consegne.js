@@ -2,7 +2,7 @@
 // Cosa è permesso lo decidono le REGOLE (firestore.rules.template); qui si controlla in
 // anticipo per dare messaggi chiari. Id del documento = `<email>_<versione>`, l'ultima
 // versione è quella valida. Una consegna non si modifica né si cancella mai.
-//   - STUDENTE: consegna (manuale o automatica) = batch atomico {aggiorna il lavoro, crea v1}.
+//   - STUDENTE: consegna (manuale o automatica) = batch atomico {aggiorna il lavoro, crea la versione successiva}.
 //     Mai una riconsegna: v2 e successive le crea solo il docente (decisione rimandata).
 //   - DOCENTE: a verifica chiusa raccoglie dal lavoro com'è, o carica il file di emergenza.
 import { lavoroDaDocumento } from './lavori.js';
@@ -87,6 +87,9 @@ export function creaConsegneStudente({ sdk, db }, emailUtente, nomeUtente) {
       if (!snap.exists()) throw new ErroreConsegna('assente', 'Il docente non ti ha ancora assegnato questa verifica.');
       const l = lavoroDaDocumento(snap);
       if (l.consegnato) throw new ErroreConsegna('gia', 'Hai già consegnato.');
+      // Dopo una riapertura si riconsegna: il numero segue l'ultima consegna che c'è (v1 anche se era una raccolta del docente).
+      const versione = ((ultima(await mie(vid)))?.versione ?? 0) + 1;
+      if (versione > L.maxVersioniConsegna) throw new ErroreConsegna('limite', `Hai già consegnato ${L.maxVersioniConsegna} volte: non si può di più.`);
       const programma = dati.programma ?? l.programma;
       if (!programma) throw new ErroreConsegna('vuoto', 'Non c\'è niente da consegnare.');
       if (programma.length > L.maxProgramma) throw new ErroreConsegna('programma', 'Il programma è troppo grande per essere consegnato.');
@@ -99,10 +102,10 @@ export function creaConsegneStudente({ sdk, db }, emailUtente, nomeUtente) {
         ...campi, programma, studenteNome: nome,
         ...((giaEntrato ?? !!l.entratoTs) ? {} : { entrato: sdk.serverTimestamp() }),   // solo se non era mai entrato
         ultimoSegnale: sdk.serverTimestamp(),
-        consegnato: true,
+        consegnato: true, ultimaConsegna: versione,
       });
-      b.set(sdk.doc(db, 'verifiche', vid, 'consegne', `${mia}_1`), {
-        studenteEmail: mia, studenteNome: nome, corsoId, titolo, versione: 1, origine,
+      b.set(sdk.doc(db, 'verifiche', vid, 'consegne', `${mia}_${versione}`), {
+        studenteEmail: mia, studenteNome: nome, corsoId, titolo, versione, origine,
         tracciaId: l.tracciaId, programma, creato: sdk.serverTimestamp(),
       });
       await b.commit();

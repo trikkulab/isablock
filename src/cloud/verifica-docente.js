@@ -177,8 +177,33 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
     return consegne.raccogli(vid, await lavori.elenca(vid));
   }
 
-  // chiusa -> aperta. Le scadenze personali restano quelle che sono: per chi ne ha bisogno si usa tempoAggiuntivo.
-  const riapri = (vid, opzioni) => verifiche.riapri(vid, opzioni);
+  // chiusa -> aperta, PER TUTTI, in un solo batch atomico con la verifica:
+  //   - la scadenza di ognuno diventa la nuova fine più il suo tempo in più (scadenza − vecchia fine, mai negativo);
+  //   - chi aveva consegnato torna a poter lavorare (`consegnato` falso) e riconsegna: la consegna di prima resta.
+  // Restituisce quanti lavori ha sbloccato.
+  async function riapri(vid, { fine } = {}) {
+    const v = await verifiche.leggi(vid);
+    if (v.stato !== 'chiusa') throw vuoto('stato', 'Si riapre solo una verifica chiusa.');
+    if (v.archiviata) throw vuoto('stato', 'La verifica è archiviata: ripristinala prima di riaprirla.');
+    const nuovaFine = fine ?? v.fine;
+    if (!valida(nuovaFine)) throw vuoto('fine', 'Indica una fine prevista.');
+    const b = sdk.writeBatch(db);
+    let sbloccati = 0;
+    for (const l of await lavori.elenca(vid)) {
+      const extra = l.scadenza && v.fine ? Math.max(0, l.scadenza.getTime() - v.fine.getTime()) : 0;
+      const campi = { scadenza: sdk.Timestamp.fromDate(new Date(nuovaFine.getTime() + extra)) };
+      if (l.consegnato) { campi.consegnato = false; sbloccati++; }
+      b.update(rifLavoro(vid, l.email), campi);
+    }
+    b.update(rifVerifica(vid), { stato: 'aperta', apertaIl: sdk.serverTimestamp(), fine: sdk.Timestamp.fromDate(nuovaFine) });
+    try { await b.commit(); } catch (err) {
+      const c = err && err.code;
+      if (c === 'permission-denied') throw vuoto('negato', 'Non posso riaprire la verifica.');
+      if (c === 'unavailable' || c === 'deadline-exceeded') throw vuoto('rete', 'Rete non disponibile: riprova tra poco.');
+      throw vuoto('altro', 'Qualcosa è andato storto. Riprova.');
+    }
+    return { sbloccati };
+  }
 
   // Carica il file di emergenza di uno studente (a verifica chiusa) come nuova versione.
   async function caricaFile(vid, email, file) {

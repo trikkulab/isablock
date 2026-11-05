@@ -31,8 +31,8 @@ export const testoChiusura = {
 
 export const testoRiapertura = {
   righe: [
-    'Chi ha ancora tempo, secondo la propria scadenza personale, può riprendere a lavorare. Per chi ne ha bisogno puoi dare tempo in più dalle assegnazioni individuali.',
-    'Se qualcuno aveva già consegnato o era stato raccolto, la consegna resta com\'è.',
+    'La riapertura vale per tutti: ognuno riparte dal proprio lavoro e ha tempo fino alla nuova fine (più il tempo in più che gli avevi dato).',
+    'Chi aveva già consegnato può continuare e consegnare di nuovo. La consegna di prima resta nello storico, la valida è l\'ultima.',
   ],
 };
 

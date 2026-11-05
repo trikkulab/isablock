@@ -23,6 +23,8 @@ export const riepilogo = () => { console.log(`\n${esiti.ok} controlli riusciti, 
 
 export const leggi = async (percorso) => (await fetch(`${REST}/${percorso}`, { headers: intestazioni })).json();
 export const scrivi = (percorso, campi) => fetch(`${REST}/${percorso}`, { method: 'PATCH', headers: intestazioni, body: JSON.stringify({ fields: campi }) });
+// Cambia solo i campi indicati (gli altri restano), come un update.
+export const aggiorna = (percorso, campi) => fetch(`${REST}/${percorso}?${Object.keys(campi).map((c) => `updateMask.fieldPaths=${c}`).join('&')}`, { method: 'PATCH', headers: intestazioni, body: JSON.stringify({ fields: campi }) });
 export const abilitaDocente = (email) => scrivi(`docenti/${email}`, { attivo: { booleanValue: true } });
 
 // Valori tipizzati per scrivere nel database dalla prova (formato REST di Firestore)

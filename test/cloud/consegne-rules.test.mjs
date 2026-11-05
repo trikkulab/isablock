@@ -1,4 +1,5 @@
 // Regole delle consegne (copia immutabile del lavoro), emulatore Firestore.
+import assert from 'node:assert/strict';
 import { test, before, after, beforeEach } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
@@ -42,6 +43,7 @@ const cons = (email = ANNA, extra = {}) => ({
   tracciaId: 't0', programma: PROG, creato: serverTimestamp(), ...extra,
 });
 // Consegna del docente (raccolta)
+const admin2 = async () => { let d; await admin(async (db) => { d = (await getDoc(lav(db))).data(); }); return d; };
 const racc = (email = ANNA, extra = {}) => cons(email, { origine: 'raccolta', docenteEmail: 'docente@isarome.it', ...extra });
 const file = (email = ANNA, extra = {}) => cons(email, {
   origine: 'file', docenteEmail: 'docente@isarome.it', impronta: 'a1b2c3', offlineDa: '10:42', nBlocchiSincronizzati: 14,
@@ -50,13 +52,13 @@ const file = (email = ANNA, extra = {}) => cons(email, {
 // Aggiornamento del lavoro che accompagna la consegna dello studente (entrato già fissato)
 const aggLavoro = (extra = {}) => ({
   studenteNome: 'Anna Rossi', programma: PROG, programmaHash: 'abc', nBlocchi: 3, esecuzioni: { n: 0, esito: 'mai', quando: null },
-  campioni: [], entrato: fisso, ultimoSegnale: serverTimestamp(), tracciaRevVista: 0, consegnato: true, ...extra,
+  campioni: [], entrato: fisso, ultimoSegnale: serverTimestamp(), tracciaRevVista: 0, consegnato: true, ultimaConsegna: 1, ...extra,
 });
 // Batch dello studente: update del lavoro + consegna
-const consegna = (db, { email = ANNA, id = `${email}_1`, lavoro = {}, consegna: c = {} } = {}) => {
+const consegna = (db, { email = ANNA, versione = 1, id = `${email}_${versione}`, lavoro = {}, consegna: c = {} } = {}) => {
   const b = writeBatch(db);
-  b.update(lav(db, email), aggLavoro(lavoro));
-  b.set(con(db, id), cons(email, c));
+  b.update(lav(db, email), aggLavoro({ ultimaConsegna: versione, ...lavoro }));
+  b.set(con(db, id), cons(email, { versione, ...c }));
   return b.commit();
 };
 
@@ -183,12 +185,80 @@ test('consegne: il tempo conta: dentro la grazia sì, oltre no, con tempo aggiun
   await assertSucceeds(consegna(anna()));
 });
 
-test('consegne: una consegna esistente non si sovrascrive (lo studente non riconsegna)', async () => {
+test('consegne: una consegna esistente non si sovrascrive, e senza sblocco del docente non si riconsegna', async () => {
   await semina();
   await assertSucceeds(consegna(anna()));
-  await admin((db) => updateDoc(lav(db), { consegnato: false }));                                  // anche forzando il lavoro
-  await assertFails(consegna(anna(), { lavoro: { programma: '{"v2":1}' }, consegna: { programma: '{"v2":1}' } }));
-  await assertFails(consegna(anna(), { consegna: { versione: 2 }, id: `${ANNA}_2` }));
+  await assertFails(consegna(anna(), { versione: 2 }));                                           // lavoro ancora consegnato: nessuna v2
+  await admin((db) => updateDoc(lav(db), { consegnato: false }));                                  // sbloccato (qui forzando il lavoro)
+  await assertFails(consegna(anna(), { lavoro: { programma: '{"v2":1}' }, consegna: { programma: '{"v2":1}' } }));   // la v1 non si riscrive
+});
+
+// ── Riconsegna dopo la riapertura ─────────────────────────────────────────
+// Il docente riapre (chiusa → aperta) e nello STESSO batch rimette `consegnato` a falso.
+const riapriConSblocco = (db, email = ANNA, extra = {}) => {
+  const b = writeBatch(db);
+  b.update(lav(db, email), { consegnato: false, scadenza: tra(3_600_000), ...extra });
+  b.update(doc(db, 'verifiche/v1'), { stato: 'aperta', apertaIl: serverTimestamp(), fine: tra(3_600_000) });
+  return b.commit();
+};
+
+test('riconsegna: il docente sblocca solo riaprendo, nello stesso batch', async () => {
+  await semina();
+  await assertSucceeds(consegna(anna()));
+  await admin((db) => updateDoc(doc(db, 'verifiche/v1'), { stato: 'chiusa', chiusaIl: fisso }));
+  await assertFails(updateDoc(lav(docente()), { consegnato: false }));                              // da solo, a verifica chiusa: no
+  await assertSucceeds(riapriConSblocco(docente()));
+  assert.equal((await admin2()).consegnato, false);
+});
+
+test('riconsegna: lo sblocco non si fa a verifica aperta, né lo studente da sé, né un altro docente', async () => {
+  await semina();
+  await assertSucceeds(consegna(anna()));
+  await assertFails(updateDoc(lav(docente()), { consegnato: false }));                              // aperta: no
+  await assertFails(updateDoc(lav(anna()), { consegnato: false }));                                 // lo studente non si sblocca da solo
+  await admin((db) => updateDoc(doc(db, 'verifiche/v1'), { stato: 'chiusa', chiusaIl: fisso }));
+  await assertFails(riapriConSblocco(collega()));                                                    // docente di un altro corso
+  await assertFails(riapriConSblocco(anna()));
+});
+
+test('riconsegna: dopo lo sblocco lo studente consegna la v2 (e poi la v3 solo con un altro sblocco)', async () => {
+  await semina();
+  await assertSucceeds(consegna(anna()));
+  await admin((db) => updateDoc(doc(db, 'verifiche/v1'), { stato: 'chiusa', chiusaIl: fisso }));
+  await assertSucceeds(riapriConSblocco(docente()));
+  await assertSucceeds(consegna(anna(), { versione: 2, lavoro: { programma: '{"v2":1}' }, consegna: { programma: '{"v2":1}' } }));
+  await assertFails(consegna(anna(), { versione: 3 }));                                              // consegnato di nuovo: serve un altro sblocco
+  await admin((db) => updateDoc(doc(db, 'verifiche/v1'), { stato: 'chiusa', chiusaIl: fisso }));
+  await assertSucceeds(riapriConSblocco(docente()));
+  await assertSucceeds(consegna(anna(), { versione: 3 }));
+});
+
+test('riconsegna: il numero deve essere quello giusto', async () => {
+  await semina();
+  await assertSucceeds(consegna(anna()));
+  await admin((db) => updateDoc(lav(db), { consegnato: false }));
+  await assertFails(consegna(anna(), { versione: 3 }));                                              // salta la v2
+  await assertFails(consegna(anna(), { versione: 2, id: `${ANNA}_3` }));                            // id e versione non coincidono
+  await assertFails(consegna(anna(), { versione: 2, lavoro: { ultimaConsegna: 3 } }));              // lavoro e consegna dicono numeri diversi
+  await assertFails(consegna(anna(), { versione: 1 }));                                              // la v1 c'è già
+  await assertSucceeds(consegna(anna(), { versione: 2 }));
+});
+
+test('riconsegna: consegnato senza una consegna nuova, o ultimaConsegna scritta a vuoto, non passano', async () => {
+  await semina();
+  await assertSucceeds(consegna(anna()));
+  await admin((db) => updateDoc(lav(db), { consegnato: false }));
+  await assertFails(updateDoc(lav(anna()), aggLavoro({ ultimaConsegna: 1 })));                       // dichiara la v1, che esisteva già
+  await assertFails(updateDoc(lav(anna()), { ultimaConsegna: 2, ultimoSegnale: serverTimestamp(), studenteNome: 'Anna Rossi' }));   // senza consegnare
+  await assertFails(updateDoc(lav(anna()), aggLavoro({ ultimaConsegna: 2 })));                       // consegnato ma la v2 non c'è
+});
+
+test('riconsegna: chi era stato raccolto dal docente consegna la v2 dopo la riapertura', async () => {
+  await semina('chiusa');
+  await assertSucceeds(setDoc(con(docente(), `${ANNA}_1`), racc()));
+  await assertSucceeds(riapriConSblocco(docente(), ANNA, { consegnato: false }));                   // non era consegnato: nessun cambio, solo la scadenza
+  await assertFails(consegna(anna(), { versione: 1 }));                                              // la v1 c'è (raccolta)
+  await assertSucceeds(consegna(anna(), { versione: 2 }));
 });
 
 // ── Raccolta del docente ──────────────────────────────────────────────────

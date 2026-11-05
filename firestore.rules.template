@@ -428,12 +428,19 @@ service cloud.firestore {
             && d.consegnato == false;
         }
         function aggiornamentoDocente() {
+          let cambiate = request.resource.data.diff(resource.data).affectedKeys();
           return docenteLav()
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['scadenza', 'tracciaId'])
+            && cambiate.hasOnly(['scadenza', 'tracciaId', 'consegnato'])
             && request.resource.data.scadenza is timestamp
             && (request.resource.data.tracciaId == resource.data.tracciaId
                 || (resource.data.entrato == null
-                    && tracciaOk(request.resource.data.tracciaId)));
+                    && tracciaOk(request.resource.data.tracciaId)))
+            // Sblocco per la riconsegna: `consegnato` torna falso SOLO riaprendo la verifica, cioè nello
+            // stesso batch che la porta da chiusa ad aperta.
+            && (!cambiate.hasAny(['consegnato'])
+                || (resource.data.consegnato == true && request.resource.data.consegnato == false
+                    && verificaLav().stato == 'chiusa'
+                    && getAfter(/databases/$(database)/documents/verifiche/$(vid)).data.stato == 'aperta'));
         }
         function esecuzioniValide(e) {
           return e.keys().hasOnly(['n', 'esito', 'quando'])
@@ -451,7 +458,7 @@ service cloud.firestore {
             && request.time <= resource.data.scadenza + duration.value(graziaSecondi(), 's')
             && resource.data.consegnato == false
             && d.diff(resource.data).affectedKeys().hasOnly(['studenteNome', 'programma', 'programmaHash',
-                 'nBlocchi', 'esecuzioni', 'campioni', 'entrato', 'consegnato', 'ultimoSegnale', 'tracciaRevVista'])
+                 'nBlocchi', 'esecuzioni', 'campioni', 'entrato', 'consegnato', 'ultimaConsegna', 'ultimoSegnale', 'tracciaRevVista'])
             // ogni scrittura è un segnale di vita, e il primo salvataggio è l'ingresso
             && d.ultimoSegnale == request.time
             && ((resource.data.entrato == null && d.entrato == request.time)
@@ -464,8 +471,14 @@ service cloud.firestore {
             && esecuzioniValide(d.get('esecuzioni', {'n': 0, 'esito': 'mai', 'quando': null}))
             && d.get('campioni', []) is list && d.get('campioni', []).size() <= maxCampioni()
             && d.get('tracciaRevVista', 0) is int && d.get('tracciaRevVista', 0) >= 0
-            && (d.consegnato == false
-                || existsAfter(/databases/$(database)/documents/verifiche/$(vid)/consegne/$(lid + '_1')));
+            // `ultimaConsegna` = versione della consegna che questo batch crea. Senza consegnare non si tocca;
+            // consegnando deve esserci una consegna NUOVA con quel numero (create-only: non esisteva prima).
+            && ((d.consegnato == false
+                 && d.get('ultimaConsegna', 0) == resource.data.get('ultimaConsegna', 0))
+                || (d.get('ultimaConsegna', 0) is int
+                    && d.get('ultimaConsegna', 0) >= 1 && d.get('ultimaConsegna', 0) <= maxVersioniConsegna()
+                    && existsAfter(/databases/$(database)/documents/verifiche/$(vid)/consegne/$(lid + '_' + string(d.get('ultimaConsegna', 0))))
+                    && !exists(/databases/$(database)/documents/verifiche/$(vid)/consegne/$(lid + '_' + string(d.get('ultimaConsegna', 0))))));
         }
 
         allow read: if docenteLav() || (mioLavoro() && verificaLav().stato != 'bozza');
@@ -482,7 +495,7 @@ service cloud.firestore {
       //   studenteEmail, studenteNome, corsoId, titolo (della verifica: servono all'elenco dello
       //   studente), versione, origine, tracciaId, programma, creato (= request.time).
       // Quattro origini:
-      //   studente / automatica: solo v1, scritta dallo studente a verifica aperta, entro la scadenza
+      //   studente / automatica: scritta dallo studente a verifica aperta, entro la scadenza
       //     personale più la grazia, in un BATCH con l'update del suo lavoro (consegnato: true). Il
       //     contenuto è quello del lavoro DOPO il batch (getAfter), la traccia quella assegnata.
       //     Le due regole (lavoro e consegna) si richiamano a vicenda: né l'una né l'altra da sole.
@@ -491,8 +504,9 @@ service cloud.firestore {
       //   file: la crea un docente a verifica chiusa caricando il file di emergenza dello studente
       //     (docenteEmail, impronta, offlineDa, nBlocchiSincronizzati, nomeFile). L'impronta non la
       //     verificano le regole, ma il client all'importazione.
-      // La riconsegna dello studente dopo una riapertura individuale NON c'è (decisione rimandata):
-      // v2 e successive solo dal docente.
+      // Riconsegna: riaprendo la verifica il docente sblocca i lavori consegnati (`consegnato` torna
+      // falso, nello stesso batch della riapertura) e lo studente può consegnare di nuovo: v2, v3...
+      // Il numero è `ultimaConsegna` del suo lavoro, e deve seguire l'ultima consegna esistente.
       match /consegne/{cid} {
         function verificaCon() {
           return get(/databases/$(database)/documents/verifiche/$(vid)).data;
@@ -529,7 +543,7 @@ service cloud.firestore {
           return isAmmesso()
             && d.keys().hasOnly(campiBase()) && d.keys().hasAll(campiBase())
             && d.origine in ['studente', 'automatica']
-            && d.versione == 1
+            && d.versione == lavoroDopo(d.studenteEmail).get('ultimaConsegna', 0)
             && d.studenteEmail == emailVer()
             // Lo stato `aperta` e la scadenza (con la grazia) li impone l'update del lavoro, che deve
             // stare nello stesso batch: qui non si ripetono (due copie dello stesso conto divergerebbero).

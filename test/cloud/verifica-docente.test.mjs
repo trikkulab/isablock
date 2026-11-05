@@ -207,24 +207,55 @@ test('durante la verifica: gli studenti lavorano, il docente dà tempo; poi chiu
   assert.deepEqual((await d.raccogli(vid)).create, []);                          // rilanciata: niente di nuovo
 });
 
-test('riapertura: chi ha tempo aggiuntivo riprende, gli altri no; poi nuova raccolta', async () => {
+test('riapertura: riprendono tutti, anche con la scadenza già passata; il tempo in più si conserva; poi nuova raccolta', async () => {
   const d = docente();
   const { vid } = await bozza(d);
   await d.apri(vid, { tracciaDefault: 't0' });
   await lavoroDi(BRUNO).salva(vid, { programma: prog(1) });
   await lavoroDi(CARLA).salva(vid, { programma: prog(1) });
-  await d.chiudi(vid, { raccogli: true });
-  // Bruno e Carla avevano ancora tempo: dopo la riapertura riprendono tutti e due. Per dare tempo a Bruno
-  // la scadenza personale si sposta all'indietro per Carla e in avanti per lui.
-  await d.tempoAggiuntivo(vid, CARLA, -(3 * 60));                                // Carla: scadenza nel passato
-  await d.riapri(vid, { fine: tra(ORA) });
   await d.tempoAggiuntivo(vid, BRUNO, 15);
+  await d.tempoAggiuntivo(vid, CARLA, -(3 * 60));                                // Carla: scadenza nel passato
+  await d.chiudi(vid, { raccogli: true });
+  await assert.rejects(lavoroDi(CARLA).salva(vid, { programma: prog(2) }), (e) => e.codice === 'negato');   // chiusa
+  const fine = tra(ORA);
+  assert.equal((await d.riapri(vid, { fine })).sbloccati, 0);                    // nessuno aveva consegnato da sé: solo raccolti
+  const lav = Object.fromEntries((await d.situazione(vid)).lavori.map((l) => [l.email, l]));
+  assert.ok(vicino(lav[BRUNO].scadenza.getTime(), fine.getTime() + 15 * 60_000), 'Bruno conserva i suoi 15 minuti in più');
+  assert.ok(vicino(lav[CARLA].scadenza.getTime(), fine.getTime()), 'Carla (tempo in meno) riparte dalla nuova fine, non prima');
   await lavoroDi(BRUNO).salva(vid, { programma: prog(2) });
-  await assert.rejects(lavoroDi(CARLA).salva(vid, { programma: prog(2) }), (e) => e.codice === 'negato');
+  await lavoroDi(CARLA).salva(vid, { programma: prog(2) });
   await d.chiudi(vid);
   const esito = await d.raccogli(vid);
-  assert.deepEqual([esito.create, esito.giaAggiornati], [[BRUNO], [CARLA]]);
+  assert.deepEqual([esito.create.sort(), esito.giaAggiornati], [[BRUNO, CARLA].sort(), []]);
   assert.equal((await d.situazione(vid)).ultime[BRUNO].versione, 2);
+});
+
+test('riapertura: chi aveva consegnato da solo viene sbloccato e riconsegna (v2); la v1 resta', async () => {
+  const d = docente();
+  const { vid } = await bozza(d);
+  await d.apri(vid, { tracciaDefault: 't0' });
+  await lavoroDi(ANNA).salva(vid, { programma: prog(1) });
+  await consDi(ANNA).consegna(vid, {});
+  await lavoroDi(BRUNO).salva(vid, { programma: prog(1) });
+  await d.chiudi(vid);
+  await assert.rejects(consDi(ANNA).consegna(vid, {}), (e) => e.codice === 'gia' || e.codice === 'negato');
+  assert.equal((await d.riapri(vid, { fine: tra(ORA) })).sbloccati, 1);
+  assert.equal((await d.situazione(vid)).lavori.find((l) => l.email === ANNA).consegnato, false);
+  await lavoroDi(ANNA).salva(vid, { programma: prog(7) });
+  await consDi(ANNA).consegna(vid, {});
+  const mie = (await d.situazione(vid)).consegne.filter((c) => c.studenteEmail === ANNA);
+  assert.deepEqual(mie.map((c) => [c.versione, c.origine]).sort(), [[1, 'studente'], [2, 'studente']]);
+  assert.equal(mie.find((c) => c.versione === 2).programma, prog(7));
+  assert.equal(mie.find((c) => c.versione === 1).programma, prog(1));
+  assert.equal((await d.situazione(vid)).ultime[ANNA].versione, 2);
+});
+
+test('riapertura: solo una verifica chiusa e non archiviata', async () => {
+  const d = docente();
+  const { vid } = await bozza(d);
+  await assert.rejects(d.riapri(vid, { fine: tra(ORA) }), (e) => e.codice === 'stato');   // bozza
+  await d.apri(vid, { tracciaDefault: 't0' });
+  await assert.rejects(d.riapri(vid, { fine: tra(ORA) }), (e) => e.codice === 'stato');   // aperta
 });
 
 test('file di emergenza: nuova versione dopo la consegna, e per chi non è entrato', async () => {
@@ -384,7 +415,7 @@ test('archivia: solo una verifica chiusa; una archiviata non si riapre finché n
   assert.equal((await d.verifiche.leggi(vid)).archiviata, false);
   await d.archivia(vid);
   assert.equal((await d.verifiche.leggi(vid)).archiviata, true);
-  await assert.rejects(d.riapri(vid, { fine: tra(ORA) }), (e) => e.codice === 'negato');   // archiviata: prima si ripristina
+  await assert.rejects(d.riapri(vid, { fine: tra(ORA) }), (e) => e.codice === 'stato');   // archiviata: prima si ripristina
   await d.archivia(vid, false);
   assert.equal((await d.verifiche.leggi(vid)).archiviata, false);
   await d.riapri(vid, { fine: tra(ORA) });
