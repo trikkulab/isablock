@@ -2,7 +2,7 @@
 
 Stato: **accesso, ruolo (studente/docente), sketch personali, corsi (creati e gestiti dal
 docente nell'app) con iscrizione col codice o a mano, condivisione degli sketch col docente
-del corso, commenti del docente sugli sketch condivisi**. La verifica non esiste ancora. Le decisioni di fondo sono nella nota di progetto
+del corso, commenti del docente sugli sketch condivisi**. La **modalità verifica** è in costruzione (branch `cloud`, spenta con `enabled: false`): fatti il lato docente, il lavoro live dello studente, la consegna e riconsegna, la copia locale; mancano tabella live, offline/file di emergenza, sola lettura, stampa. Le decisioni di fondo sono nella nota di progetto
 "cloud e verifica live"; qui c'è ciò che serve per usare e mantenere il codice.
 
 ## Principi

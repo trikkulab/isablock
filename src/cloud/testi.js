@@ -19,6 +19,10 @@ export const datiSalvati = [
   'I corsi a cui ti iscrivi con il codice. Il docente può anche iscriverti lui: in quel caso la tua email scolastica compare nell’elenco degli iscritti del corso (che vede il docente) anche prima del tuo primo accesso.',
   'Se condividi uno sketch con un corso, il docente di quel corso vede il tuo nome, la tua email e quello sketch (l’ultima versione che hai salvato), finché sei iscritto. Puoi smettere di condividere quando vuoi.',
   'Il docente può scrivere dei commenti sullo sketch che hai condiviso, anche su un singolo blocco: li vedi tu e i docenti del corso. Il docente non modifica mai il tuo sketch, e tu non puoi cancellare i commenti (si cancellano insieme allo sketch, se lo elimini).',
+  'Se il docente ti assegna una verifica: mentre la svolgi, il tuo programma viene salvato online di tanto in tanto (solo se è cambiato), insieme al numero di blocchi, a quante volte l’hai eseguito e con quale esito, a quando sei entrato in verifica, all’ultimo segnale di connessione e, ogni qualche minuto, al numero di blocchi in quel momento (serve a vedere come procede il lavoro). Lo vede il docente del corso, non gli altri studenti.',
+  'Nella verifica il docente può darti una traccia e un tempo diversi da quelli degli altri, senza che sia scritto il motivo; sul server resta anche quale versione della traccia hai già visto.',
+  'Quando consegni (o scade il tempo, o il docente raccoglie i lavori) viene salvata una copia della consegna che nessuno può più modificare. Se la verifica viene riaperta puoi consegnare di nuovo: le consegne precedenti restano e vale l’ultima. Le consegne non si eliminano da IsaBlock.',
+  'Durante una verifica una copia del tuo lavoro e del testo della traccia resta anche nel browser di questo computer, per non perderli se si chiude la pagina o cade la rete. Si cancella quando consegni; se la verifica finisce con modifiche non arrivate al server resta fino a circa una settimana, così puoi salvarla su file e portarla al docente.',
   'Gli altri studenti non vedono i tuoi sketch. Puoi eliminare i tuoi sketch quando vuoi, da «I miei sketch».',
 ];
 
