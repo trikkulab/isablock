@@ -81,7 +81,9 @@ export function connessioneRiga({ lavoro, verifica, ora, consegnato }) {
 
 export function costruisciRighe({ verifica, lavori, ultime = {}, ora }) {
   return lavori.map((lavoro) => {
-    const consegna = ultime[lavoro.email] ?? null;
+    // A verifica APERTA conta solo il lavoro: dopo una riapertura le consegne di prima esistono ancora, ma lo studente
+    // sta lavorando di nuovo (`consegnato` è tornato falso). A verifica chiusa la consegna (anche raccolta) fa fede.
+    const consegna = lavoro.consegnato || verifica.stato !== 'aperta' ? (ultime[lavoro.email] ?? null) : null;
     const consegnato = lavoro.consegnato || !!consegna;
     return {
       email: lavoro.email,

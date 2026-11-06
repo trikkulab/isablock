@@ -89,6 +89,18 @@ prova('righe e riepilogo', () => {
   assert.deepEqual(ordinaRighe(righe).map((r) => r.email), ['a@x.it', 'b@x.it', 'c@x.it', 'd@x.it']);
   assert.deepEqual(ordinaRighe(righe, 'attenzione').map((r) => r.email), ['b@x.it', 'd@x.it', 'a@x.it', 'c@x.it']);
 });
+prova('dopo una riapertura le consegne di prima non fanno «consegnato» chi sta lavorando', () => {
+  const ultime = { 'a@x.it': { versione: 2, origine: 'studente' } };
+  const [aperta] = costruisciRighe({ verifica, lavori: [lavoro()], ultime, ora: ORA });
+  assert.equal(aperta.stato, 'scrive');
+  assert.equal(aperta.versioneConsegna, null);
+  assert.ok(aperta.timer && aperta.connessione);                      // timer e connessione tornano a vedersi
+  const [chiusa] = costruisciRighe({ verifica: { ...verifica, stato: 'chiusa' }, lavori: [lavoro()], ultime, ora: ORA });
+  assert.equal(chiusa.stato, 'consegnato');                           // da chiusa fa fede la consegna (anche raccolta)
+  const [riconsegnata] = costruisciRighe({ verifica, lavori: [lavoro({ consegnato: true })], ultime, ora: ORA });
+  assert.equal(riconsegnata.stato, 'consegnato');
+  assert.equal(riconsegnata.versioneConsegna, 2);
+});
 prova('testo della durata', () => {
   assert.equal(testoDurata(0), '0:00');
   assert.equal(testoDurata(65_000), '1:05');
