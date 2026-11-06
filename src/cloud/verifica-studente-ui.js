@@ -17,7 +17,7 @@ import { rendiMarkdown } from './markdown.js';
 import { verificaConfig } from './verifica-config.js';
 import { testiStudente as T } from './testi-verifica.js';
 import { formatoDataOra } from './data-ora.js';
-import { segnaVerificaInCorso, cancellaVerificaInCorso } from '../verifica-locale.js';
+import { segnaVerificaInCorso, aggiornaVerificaInCorso, leggiVerificaInCorso, cancellaVerificaInCorso } from '../verifica-locale.js';
 import { creaFileEmergenza, oraBreve } from '../verifica-file.js';
 
 const C = verificaConfig.client;
@@ -42,6 +42,8 @@ export function coloreTimer(restanteMs, totaleMs) {
 export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () => {} }) {
   let api = null;                 // oggetto di verifica-studente.js (creaVerificheStudente + nuovaSessione)
   let corsiIds = [];
+  let corsiCaricati = false;      // i corsi sono stati letti con successo almeno una volta
+  let corsiApi = null;            // l'oggetto dei corsi dello studente, per rileggerli se all'ingresso il server non rispondeva
   let nomiCorsi = new Map();
   let smettiDiAscoltare = null;
   let sessione = null;            // la sessione in corso, se c'è
@@ -57,6 +59,10 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
   let banda = null;
   let bandaOffline = null;        // l'avviso «sei offline» sotto la fascia
   let offlineStato = null;        // l'ultimo stato di rete comunicato dalla sessione { offline, offlineDa }
+  let copieProposte = new Set();  // le copie non consegnate già proposte in questa pagina (non si ripropongono a ogni controllo)
+  let finestraCopie = null;
+  let hintScadenza = null;        // ultimi valori scritti nell'indizio «verifica in corso»
+  let hintScarto = null;
   let fileSalvato = false;        // lo studente ha salvato almeno una volta il file di emergenza
   let timer = null;
   let totaleMs = 0;
@@ -66,16 +72,28 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
 
   const messaggio = (err) => (err && err.message) || 'Qualcosa è andato storto. Riprova.';
 
+  // Legge i corsi dello studente e si mette in ascolto delle verifiche che si aprono. Lancia se il server non risponde.
+  async function caricaCorsi() {
+    const elenco = await corsiApi.elenca();
+    if (!api) return;
+    corsiIds = elenco.map((c) => c.id);
+    nomiCorsi = new Map(elenco.map((c) => [c.id, c.nome]));
+    corsiCaricati = true;
+    smettiDiAscoltare?.();
+    smettiDiAscoltare = api.ascoltaAperte(corsiIds, (ids) => { aperteViste = ids; ricontrolla(); });
+  }
+
   // ── Scelta della verifica ───────────────────────────────────────────────────
   async function ricontrolla() {
     if (controllando) { daRifare = true; return; }              // non si perde l'avviso: il controllo in corso potrebbe essere partito prima
     if (!api || sessione || mostrandoFine) return;
     controllando = true;
     try {
+      if (!corsiCaricati && corsiApi) await caricaCorsi();                 // all'ingresso il server non rispondeva: si riprova
       const lista = await api.daFare(corsiIds);
       fallimenti = 0;
       if (!api || sessione || mostrandoFine) return;
-      api.pulisciCopie?.(lista.map((x) => x.verifica.id));        // le copie locali di verifiche finite non servono più
+      proponiCopie(api.pulisciCopie?.(lista.map((x) => x.verifica.id)) ?? []);   // le copie di verifiche finite si eliminano; quelle con modifiche mai arrivate si propongono
       // Una verifica aperta che non ti viene proposta (nessuna assegnazione, per ora) potrebbe riguardarti tra poco: il
       // docente può aggiungere uno studente dopo l'apertura. Si ricontrolla ogni minuto, finché ce n'è una.
       clearTimeout(timerRicontrollo);
@@ -138,18 +156,24 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
   }
 
   // ── Svolgere la verifica ───────────────────────────────────────────────────
-  async function inizia(x) {
+  // `rientro` ({ scartoMs }): la pagina si è ricaricata a verifica in corso senza rete: si riparte dai dati locali.
+  async function inizia(x, { rientro = null } = {}) {
     if (sessione) return;
-    if (!programma.isVuoto() && !(await confermaLavoro())) return;
+    if (!rientro && !programma.isVuoto() && !(await confermaLavoro())) return;
     if (sessione) return;
     scelta?.chiudi();
     scelta = null;
     programma.modoVerifica.entra();                 // l'editor si svuota; la copia automatica va in pausa e conserva il lavoro di prima
-    segnaVerificaInCorso({ vid: x.verifica.id, scadenzaMs: x.lavoro.scadenza?.getTime() });
+    segnaVerificaInCorso({ vid: x.verifica.id, scadenzaMs: x.lavoro.scadenza?.getTime(), titolo: x.verifica.titolo, email: api.email, scartoMs: rientro ? rientro.scartoMs : 0 });
+    hintScadenza = x.lavoro.scadenza?.getTime() ?? null;
+    hintScarto = rientro ? rientro.scartoMs : 0;
     quandoCambiaModo(true);
     item = x;
     stat.n = 0; stat.esito = 'mai'; stat.quando = null;
-    sessione = api.nuovaSessione(x.verifica.id, { onCambio: quandoCambia, onTraccia: mostraTraccia });
+    sessione = api.nuovaSessione(x.verifica.id, {
+      onCambio: quandoCambia, onTraccia: mostraTraccia, titolo: x.verifica.titolo,
+      ...(rientro ? { rientroOffline: { scadenza: x.lavoro.scadenza, scartoMs: rientro.scartoMs } } : {}),
+    });
     try {
       await sessione.avvia();
     } catch (err) {
@@ -173,6 +197,7 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
     annullaEsecuzione = programma.onEsecuzione(registraEsecuzione);
     comunica();                                                  // contratto del motore: all'ingresso si comunica sempre un programma
     creaBanda(x.verifica.titolo);
+    if (sessione.offline()) aggiornaOffline({ offline: true, offlineDa: sessione.datiEmergenza().offlineDa, restanteMs: sessione.restanteMs() });     // rientro senza rete
     if (!sessione.tracciaCorrente()) mostraTraccia(null);         // né online né dalla copia locale
     if (sessione.ripresa() === 'locale') toast(T.ripresaLocale, 'success');
     window.addEventListener('pagehide', salvaCopia);
@@ -216,6 +241,12 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
       timerEl.textContent = formatoTimer(resta);
       timerEl.dataset.colore = coloreTimer(resta, totaleMs);
       consegna.disabled = sessione.stato() !== 'in-corso';
+      const sc = sessione.scadenza()?.getTime() ?? null;
+      const scarto = Math.round(sessione.offset());
+      if (sc !== hintScadenza || Math.abs(scarto - (hintScarto ?? 0)) > 1000) {        // l'indizio per rientrare senza rete resta aggiornato
+        aggiornaVerificaInCorso({ scadenzaMs: sc, scartoMs: scarto });
+        hintScadenza = sc; hintScarto = scarto;
+      }
       if (bandaOffline) bandaOffline.testo.textContent = resta <= 0 ? T.offlineTempoFinito : T.offlineTesto;     // il tempo può finire mentre si è offline
     };
     aggiorna();
@@ -328,6 +359,35 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
     if (era && !c.offline) toast(T.tornataRete, 'success');
   }
 
+  // ── Rientro senza rete ──────────────────────────────────────────────────────
+  // La pagina si è ricaricata (o il browser è stato riaperto) a verifica in corso e il server non risponde. Servono l'indizio
+  // «verifica in corso» (titolo, scadenza, scarto dell'orologio) e la copia locale del lavoro, dello stesso studente. Senza
+  // la copia lo studente non aveva scritto niente: si riparte in modalità normale.
+  async function rientroSenzaRete() {
+    const v = leggiVerificaInCorso();
+    if (!v || !api || v.email !== api.email || typeof v.scadenzaMs !== 'number' || !api.copiaLocale?.(v.vid)) return false;
+    await inizia({ verifica: { id: v.vid, titolo: v.titolo || 'Verifica', apertaIl: null }, lavoro: { scadenza: new Date(v.scadenzaMs) } }, { rientro: { scartoMs: v.scartoMs ?? 0 } });
+    return !!sessione;
+  }
+
+  // Lavori di verifica con modifiche mai arrivate al server, rimasti su questo computer (verifica finita, pagina chiusa): si
+  // propone di salvarli su file, una sola volta per pagina. Sono solo quelli dello studente collegato.
+  function proponiCopie(copie) {
+    const mie = copie.filter((r) => r.email === api?.email && !copieProposte.has(r.vid));
+    if (mie.length === 0 || finestraCopie || sessione || mostrandoFine) return;
+    for (const r of mie) copieProposte.add(r.vid);
+    const f = apriFinestra(T.copieTitolo, () => { finestraCopie = null; });
+    finestraCopie = f;
+    f.corpo.append(el('p', {}, T.copieRiga),
+      ...mie.map((r) => el('div', { class: 'sketch-riga' },
+        el('div', { class: 'sketch-info' }, el('strong', {}, r.titolo || 'Verifica'),
+          el('span', { class: 'sketch-data' }, `${r.nBlocchi ?? 0} blocchi · salvato ${formatoDataOra.format(new Date(r.salvataAlle ?? Date.now()))}`)),
+        el('button', { type: 'button', class: 'modal-btn', onclick: () => salvaFile({
+          verifica: r.vid, studente: r.email, studenteNome: r.nome || r.email, programma: r.programma, nBlocchi: r.nBlocchi ?? 0, nBlocchiSincronizzati: null, offlineDa: null,
+        }, r.titolo) }, T.offlineSalva))),
+      el('div', { class: 'modal-actions' }, el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => f.chiudi() }, T.ok)));
+  }
+
   // ── Fine della verifica ─────────────────────────────────────────────────────
   function quandoCambia(c) {
     if (c.stato === 'consegnato') fine('consegnato', c.origine);
@@ -365,6 +425,7 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
     // ricevuto nulla di suo.
     const dati = tipo === 'terminata' && sessione.senzaSalvare() ? sessione.datiEmergenza() : null;
     const titoloVerifica = item?.verifica.titolo;
+    if (item) copieProposte.add(item.verifica.id);          // la finestra di fine ha già offerto il file: non si ripropone subito
     fileSalvato = false;
     spegni();
     const f = apriFinestra(testo.titolo, () => { mostrandoFine = false; ricontrolla(); }, { bloccante: true });
@@ -378,16 +439,19 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
   // ── Entrata e uscita dell'utente ───────────────────────────────────────────
   return {
     // Chiamata all'accesso di uno studente: `apiStudente` è l'oggetto del cloud, `corsi` quello dei suoi corsi.
-    async entra(apiStudente, corsi) {
+    async entra(apiStudente, corsi, { senzaRete = false } = {}) {
       api = apiStudente;
+      corsiApi = corsi;
+      corsiCaricati = false;
+      let nonRaggiungibile = senzaRete;
       try {
-        const elenco = await corsi.elenca();
-        if (!api) return;
-        corsiIds = elenco.map((c) => c.id);
-        nomiCorsi = new Map(elenco.map((c) => [c.id, c.nome]));
-      } catch { corsiIds = []; }
+        if (!senzaRete) await caricaCorsi();
+      } catch { corsiIds = []; nonRaggiungibile = true; }
       if (!api) return;
-      smettiDiAscoltare = api.ascoltaAperte(corsiIds, (ids) => { aperteViste = ids; ricontrolla(); });
+      // Il server non risponde: se la pagina si è ricaricata a verifica in corso, e c'è la copia, si rientra senza rete.
+      if (nonRaggiungibile && await rientroSenzaRete()) return;
+      if (!api) return;
+      if (!smettiDiAscoltare) smettiDiAscoltare = api.ascoltaAperte(corsiIds, (ids) => { aperteViste = ids; ricontrolla(); });
       ricontrolla();
     },
     esci() {
@@ -396,10 +460,13 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
       clearTimeout(timerRicontrollo);
       timerRicontrollo = null;
       aperteViste = [];
+      finestraCopie?.chiudi(); finestraCopie = null; copieProposte = new Set();
       if (sessione) spegni();
       scelta?.chiudi();
       scelta = null;
       api = null;
+      corsiApi = null;
+      corsiCaricati = false;
       corsiIds = [];
       programma.modoVerifica.nessuna();
     },

@@ -8,8 +8,24 @@ const MARGINE_MS = 2 * 60 * 60 * 1000;
 
 const storage = () => { try { return window.localStorage; } catch { return null; } };
 
-export function segnaVerificaInCorso({ vid, scadenzaMs }) {
-  try { storage()?.setItem(CHIAVE, JSON.stringify({ vid, finoA: (scadenzaMs ?? Date.now()) + MARGINE_MS })); } catch { /* storage non disponibile */ }
+// `titolo`, `email`, `scadenzaMs` e `scartoMs` (ora del server meno orologio del PC) servono a RIENTRARE in verifica quando la
+// pagina si ricarica senza rete (src/cloud/verifica-studente-ui.js): senza il server la scadenza, il titolo e lo scarto
+// dell'orologio non si potrebbero sapere. L'orologio del PC offline è falsabile: limite accettato.
+export function segnaVerificaInCorso({ vid, scadenzaMs, titolo = '', email = '', scartoMs = 0 }) {
+  try {
+    storage()?.setItem(CHIAVE, JSON.stringify({ vid, titolo: String(titolo).slice(0, 80), email: String(email).toLowerCase(), scadenzaMs: scadenzaMs ?? null, scartoMs, finoA: (scadenzaMs ?? Date.now()) + MARGINE_MS }));
+  } catch { /* storage non disponibile */ }
+}
+
+// Aggiorna scadenza e scarto di un indizio già segnato (il docente può dare tempo; lo scarto si calibra dopo l'ingresso).
+export function aggiornaVerificaInCorso({ scadenzaMs, scartoMs }) {
+  try {
+    const v = leggiVerificaInCorso();
+    if (!v) return;
+    if (scadenzaMs !== undefined && scadenzaMs !== null) { v.scadenzaMs = scadenzaMs; v.finoA = scadenzaMs + MARGINE_MS; }
+    if (scartoMs !== undefined) v.scartoMs = scartoMs;
+    storage()?.setItem(CHIAVE, JSON.stringify(v));
+  } catch { /* storage non disponibile */ }
 }
 
 export function cancellaVerificaInCorso() {

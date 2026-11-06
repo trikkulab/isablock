@@ -556,8 +556,20 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
   secondi). A fine tempo offline la consegna aspetta la rete fino a scadenza+grazia, poi la verifica è «terminata» e la
   finestra propone il file (solo se ci sono blocchi non arrivati al server; chiudere senza averlo salvato chiede
   conferma). Una GUARDIA chiude come «terminata» anche una consegna rimasta in sospeso oltre la grazia (rete caduta ma
-  non ancora dichiarata offline). `fermo()` non aspetta le scritture quando la rete è giù. Ancora da fare: riapertura
-  offline della pagina (10c).
+  non ancora dichiarata offline). `fermo()` non aspetta le scritture quando la rete è giù.
+- **Pagina ricaricata senza rete (passo 10c)**: la pagina stessa si apre solo se il browser ha i file (non c'è un service
+  worker: con il computer completamente offline non si riapre); il caso coperto è «il server dati non risponde». Tre
+  pezzi: (1) `auth.js` NON disconnette più chi ha un errore di rete nel leggere il ruolo (prima faceva `signOut`!): se
+  l'account era già entrato riparte con il profilo ricordato nel localStorage (`isablock.cloud.profilo`: solo uid,
+  email, nome, ruolo; le regole del server decidono comunque tutto) e segnala `senzaRete`; (2) l'indizio «verifica in
+  corso» (`verifica-locale.js`) ora ha anche titolo, email, scadenza e scarto dell'orologio server-PC, tenuti aggiornati
+  ogni secondo dalla fascia; (3) se i corsi non si leggono e c'è l'indizio dello stesso studente più la copia locale,
+  `rientroSenzaRete()` avvia la sessione con l'opzione `rientroOffline` del motore: nessuna lettura dal server, già
+  «offline», programma e traccia dalla copia, timer dalla scadenza ricordata, scrittura d'ingresso non attesa. Quando la
+  rete torna l'ascolto la riporta online e le scritture ripartono; i corsi si rileggono al primo controllo utile. Senza
+  copia locale (non aveva scritto niente) si parte in modalità normale. Lavori di verifiche finite con modifiche mai
+  arrivate, rimasti sul computer: all'avvio una finestra propone «Salva su file» (una volta per pagina, solo dello studente
+  collegato). Limite noto e accettato: l'orologio del PC offline è falsabile.
 - A verifica chiusa la scheda è di sola lettura.
 - **Le notifiche («toast») stanno sopra le finestre** (livello 3000 contro 2000 delle finestre): prima un messaggio
   che usciva mentre una finestra era aperta finiva nascosto dietro l'oscuramento e non lo vedeva nessuno (valeva

@@ -44,6 +44,9 @@ export async function avviaCloud() {
       // La copia locale ha una chiave per studente e verifica (uid dell'account collegato).
       nuovaSessione: (vid, opzioni) => creaSessione(client, email, nome, vid,
         { backup: creaBackupVerifica({ uid: client.auth.currentUser?.uid ?? email, vid, email }), ...opzioni }),
+      email: String(email || '').toLowerCase(),
+      // La copia locale (se c'è) di una verifica di questo studente: serve a rientrare quando la pagina si ricarica senza rete.
+      copiaLocale: (vid) => creaBackupVerifica({ uid: client.auth.currentUser?.uid ?? email, vid, email }).leggi(),
       // Elimina le copie di verifiche finite (le non sincronizzate restano e sono restituite).
       pulisciCopie: (attive) => pulisciBackup({ uid: client.auth.currentUser?.uid ?? email, attive }),
     }),

@@ -87,7 +87,7 @@ export function creaVerificheStudente({ sdk, db }, emailUtente, nomeUtente) {
 // stato: 'in-corso' | 'consegnato' | 'terminata' (chiusa dal docente o tempo finito senza consegna)
 // `calibra: false` (solo nei test con tempo simulato) lascia lo scarto a zero: con un orologio finto che salta, i campioni
 // dell'eco dal server non sarebbero confrontabili.
-export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo = tempoReale, config = C, onCambio = () => {}, onTraccia = () => {}, backup = null, calibra = true } = {}) {
+export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo = tempoReale, config = C, onCambio = () => {}, onTraccia = () => {}, backup = null, calibra = true, titolo = '', rientroOffline = null } = {}) {
   const email = String(emailUtente || '').toLowerCase();
   const lavoro = creaLavoroStudente({ sdk, db }, email, nomeUtente);
   const consegne = creaConsegneStudente({ sdk, db }, email, nomeUtente);
@@ -145,7 +145,7 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
     backup.salva({
       finoA: (scadenza ? scadenza.getTime() : Date.now()) + 2 * 60 * 60 * 1000,
       programma: corrente.programma, hash: hashProgramma(corrente.programma), hashBase: salvato.hash,
-      nBlocchi: corrente.nBlocchi, esecuzioni: corrente.esecuzioni, traccia,
+      nBlocchi: corrente.nBlocchi, esecuzioni: corrente.esecuzioni, traccia, titolo, nome: String(nomeUtente || email),
     });
   }
   function programmaBackup() {
@@ -416,8 +416,22 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
 
   // ── Avvio ───────────────────────────────────────────────────────────────
   // Il primo salvataggio è l'ingresso in verifica (e, a ogni riapertura, serve anche a stimare lo scarto dall'ora del server).
+  //
+  // `rientroOffline` ({ scadenza: Date, scartoMs }): la pagina è stata ricaricata a verifica in corso e il server non risponde.
+  // Non si legge nulla dal server: la sessione riparte dai dati locali (scadenza e scarto dell'orologio dall'indizio, programma e
+  // traccia dalla copia), già dichiarata offline. Quando la rete torna, l'ascolto la riporta online e le scritture riprendono.
+  function lavoroOffline() {
+    const b = backup?.leggi();
+    return {
+      scadenza: rientroOffline.scadenza, tracciaId: b?.traccia?.id ?? null, campioni: [], consegnato: false,
+      entrato: rientroOffline.scadenza,                       // era già entrato (altrimenti non ci sarebbe la copia)
+      programma: null, programmaHash: null, nBlocchi: null, esecuzioni: null, tracciaRevVista: b?.traccia?.rev ?? null,
+    };
+  }
+
   async function avvia() {
-    const l = await lavoro.mio(vid);
+    if (rientroOffline) { offset = rientroOffline.scartoMs ?? 0; offline = true; inizioOffline = tempo.adesso(); }
+    const l = rientroOffline ? lavoroOffline() : await lavoro.mio(vid);
     scadenza = l.scadenza;
     tracciaId = l.tracciaId;
     campioni = l.campioni ?? [];
@@ -431,14 +445,18 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
     ascolta();
     if (l.tracciaId) {
       salvato.revVista = l.tracciaRevVista;
-      // Si aspetta la traccia (al massimo qualche secondo) per portare la revisione già nel salvataggio d'ingresso.
-      await Promise.race([ascoltaTraccia(l.tracciaId, l.tracciaRevVista), new Promise((r) => setTimeout(r, 4000).unref?.())]);
+      if (rientroOffline) ascoltaTraccia(l.tracciaId, l.tracciaRevVista);               // si aggancia, ma senza aspettare: parte dalla copia
+      else {
+        // Si aspetta la traccia (al massimo qualche secondo) per portare la revisione già nel salvataggio d'ingresso.
+        await Promise.race([ascoltaTraccia(l.tracciaId, l.tracciaRevVista), new Promise((r) => setTimeout(r, 4000).unref?.())]);
+      }
       if (!traccia && backup?.leggi()?.traccia?.id === l.tracciaId) {                 // senza rete: la traccia della copia locale
         traccia = backup.leggi().traccia;
         onTraccia({ traccia, aggiornata: false, modificata: null, daCopia: true });
       }
     }
-    await accoda(() => scriviOra());                        // ingresso
+    if (rientroOffline) inBackground(() => scriviOra());     // senza server non si aspetta: se la rete torna, la scrittura riparte
+    else await accoda(() => scriviOra());                    // ingresso
     programmaFine();
     notifica();
     return stato;
@@ -448,6 +466,15 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
   function riprendiDallaCopia(l) {
     const b = backup?.leggi();
     if (!b) return;
+    if (rientroOffline) {                                    // il server non si conosce: la copia è l'unica fonte
+      ripresa = 'locale';
+      programmaIniziale = b.programma;
+      corrente.programma = b.programma;
+      corrente.nBlocchi = b.nBlocchi ?? 0;
+      if (b.esecuzioni) corrente.esecuzioni = b.esecuzioni;
+      salvato.hash = b.hashBase ?? null;                     // ciò che il server aveva all'ultima sincronizzazione
+      return;
+    }
     const hashServer = l.programma ? (l.programmaHash ?? hashProgramma(l.programma)) : null;
     ripresa = scegliPunto({ hashLocale: hashProgramma(b.programma), hashBase: b.hashBase ?? null, hashServer });
     if (ripresa !== 'locale') return;

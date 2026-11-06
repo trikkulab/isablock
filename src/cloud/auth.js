@@ -43,6 +43,21 @@ async function profiloDa({ sdk, db }, user) {
   return { uid: user.uid, email, nome: user.displayName || email, ruolo };
 }
 
+// Il profilo dell'ultimo accesso riuscito (uid, email, nome, ruolo), nel localStorage: serve SOLO a rientrare senza rete.
+const CHIAVE_PROFILO = 'isablock.cloud.profilo';
+function ricordaProfilo(utente) {
+  try {
+    if (utente) window.localStorage.setItem(CHIAVE_PROFILO, JSON.stringify({ uid: utente.uid, email: utente.email, nome: utente.nome, ruolo: utente.ruolo }));
+    else window.localStorage.removeItem(CHIAVE_PROFILO);
+  } catch { /* storage non disponibile */ }
+}
+function profiloRicordato(uid) {
+  try {
+    const p = JSON.parse(window.localStorage.getItem(CHIAVE_PROFILO) ?? 'null');
+    return p && p.uid === uid && typeof p.email === 'string' && (p.ruolo === RUOLI.studente || p.ruolo === RUOLI.docente) ? p : null;
+  } catch { return null; }
+}
+
 export function creaAuth(client, config) {
   const { sdk, auth } = client;
   const ascoltatori = new Set();
@@ -53,14 +68,25 @@ export function creaAuth(client, config) {
 
   sdk.onAuthStateChanged(auth, async (user) => {
     const mia = ++generazione;
-    if (!user) { corrente = null; emetti({ utente: null }); return; }
+    if (!user) { corrente = null; ricordaProfilo(null); emetti({ utente: null }); return; }
     try {
       const utente = await profiloDa(client, user);
       if (mia !== generazione) return;
       corrente = utente;
+      ricordaProfilo(utente);
       emetti({ utente });
     } catch (err) {
       if (mia !== generazione) return;
+      // Un errore di RETE non è un account non ammesso: lo studente NON si disconnette (offline non potrebbe più rientrare).
+      // Se questo stesso account era già entrato, si riparte con il profilo ricordato, segnalando che è senza rete: serve a
+      // rientrare in una verifica a pagina ricaricata senza connessione. Le regole del server decidono comunque tutto.
+      if (err && err.codice === 'rete') {
+        const ricordato = profiloRicordato(user.uid);
+        if (ricordato) { corrente = ricordato; emetti({ utente: ricordato, senzaRete: true }); return; }
+        corrente = null;
+        emetti({ utente: null, errore: err });
+        return;
+      }
       await sdk.signOut(auth);
       corrente = null;
       emetti({ utente: null, errore: err });

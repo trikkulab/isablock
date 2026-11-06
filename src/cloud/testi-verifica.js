@@ -84,6 +84,8 @@ export const testiStudente = Object.freeze({
   tornataRete: 'Di nuovo online: il tuo lavoro si sta sincronizzando.',
   terminataConFileRiga: 'La verifica è terminata e il tuo lavoro non è arrivato al server (anche se non hai scritto niente, il file è la prova che c\'eri). Salva il file e consegnalo al docente: è l\'unico modo perché venga contato.',
   terminataConFileConferma: 'Non hai ancora salvato il file. Se chiudi, il tuo lavoro resta solo su questo computer. Chiudere lo stesso?',
+  copieTitolo: 'Lavoro di verifica non consegnato',
+  copieRiga: 'Su questo computer c\'è il lavoro di una verifica che non è arrivato al server. Salvalo su file e consegnalo al docente: è l\'unico modo perché venga contato.',
   dopoFine: 'Torni al lavoro che avevi prima della verifica, se ne avevi uno.',
   ok: 'Ok',
   // Fascia in alto

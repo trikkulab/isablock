@@ -410,6 +410,60 @@ test('offline allo scadere del tempo, ma la rete torna dentro la grazia: la cons
   } finally { await chiudi(s, db); }
 });
 
+// ── Rientro a pagina ricaricata senza rete ─────────────────────────────────
+test('rientro offline: si riparte dalla copia locale (programma, traccia, scadenza), già offline; tornata la rete il lavoro si sincronizza', async () => {
+  const scadenza = new Date(Date.now() + 30 * MIN);
+  await modifica(ANNA, { scadenza: ts(scadenza.getTime()) });
+  const st = storageFinto();
+  // prima sessione, online: lavora, la copia si scrive
+  const prima = nuovaSessione(ANNA, { backup: copiaDi(st) });
+  await prima.s.avvia();
+  prima.s.aggiorna({ programma: P(1), nBlocchi: 3 });
+  await prima.tempo.avanza(C.debounceSalvataggioMs + 1000, prima.s);
+  prima.s.aggiorna({ programma: P(2), nBlocchi: 7 });                                  // quest'ultima modifica resta solo nella copia
+  await prima.tempo.avanza(C.backupLocaleMs + 100, prima.s);
+  prima.s.termina();
+  assert.equal(copiaDi(st).leggi().programma, P(2));
+  // la pagina si ricarica e il server non risponde
+  const db = dbDi(ANNA);
+  await senzaRete(db);
+  const { s, tempo, notifiche } = nuovaSessione(ANNA, { db, backup: copiaDi(st), rientroOffline: { scadenza, scartoMs: 0 } });
+  try {
+    assert.equal(await s.avvia(), 'in-corso', 'parte senza aspettare il server');
+    assert.equal(s.offline(), true, 'è già offline');
+    assert.equal(s.programmaSalvato(), P(2), 'riprende il programma della copia (anche l\'ultima modifica mai arrivata)');
+    assert.equal(s.ripresa(), 'locale');
+    assert.ok(Math.abs(s.restanteMs() - 30 * MIN) < 5000, `il timer parte dalla scadenza ricordata: ${s.restanteMs()}`);
+    assert.equal(s.tracciaId(), copiaDi(st).leggi().traccia?.id ?? null);
+    assert.equal(ultimaNotifica(notifiche).offline, true);
+    s.aggiorna({ programma: P(3), nBlocchi: 8 });
+    await tempo.avanza(C.debounceSalvataggioMs + 1000, s);
+    assert.equal((await leggiLavoro()).programma, P(1), 'il server non ha ricevuto niente di nuovo');
+    assert.equal(s.datiEmergenza().programma, P(3), 'e il file di emergenza ha l\'ultimo programma');
+    await conRete(db);
+    assert.ok(await finche(() => !s.offline(), 15000), 'tornata la rete non è più offline');
+    await tempo.avanza(C.debounceSalvataggioMs + 1000, s);
+    assert.ok(await finche(async () => (await leggiLavoro()).programma === P(3), 15000), 'e il lavoro arriva al server');
+  } finally { await chiudi(s, db); }
+});
+
+test('rientro offline a tempo già scaduto: la verifica è terminata e il file è disponibile', async () => {
+  const scadenza = new Date(Date.now() - 5 * MIN);                                    // scaduta da 5 minuti, oltre la grazia
+  const st = storageFinto();
+  copiaDi(st).salva({ finoA: Date.now() + 2 * 60 * MIN, programma: P(5), hash: hashProgramma(P(5)), hashBase: null, nBlocchi: 5, esecuzioni: null, traccia: null });
+  const db = dbDi(ANNA);
+  await senzaRete(db);
+  const { s, tempo, cambi } = nuovaSessione(ANNA, { db, backup: copiaDi(st), rientroOffline: { scadenza, scartoMs: 0 } });
+  try {
+    await s.avvia();
+    await tempo.avanza(C.riprovaConsegnaMs + 1000, s);
+    assert.equal(s.stato(), 'terminata');
+    assert.ok(cambi.includes('terminata'));
+    assert.deepEqual([s.datiEmergenza().programma, s.datiEmergenza().senzaSalvare], [P(5), true]);
+    assert.equal(copiaDi(st).leggi()?.programma, P(5), 'la copia resta (modifiche mai arrivate)');
+  } finally { await chiudi(s, db); }
+});
+
 test('consegna a mano: porta con sé anche l\'ultima versione non ancora salvata', async () => {
   const { s, cambi } = nuovaSessione();
   await s.avvia();

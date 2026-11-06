@@ -363,6 +363,48 @@ try {
   await page.context().unroute(versoDb);
   errori.splice(0, errori.length, ...errori.filter((e) => !e.includes('ERR_FAILED')));
 
+  // 11) la pagina si ricarica SENZA rete a metà verifica: si rientra dalla copia locale (programma, traccia, tempo)
+  await page.reload();                                                                      // connessione pulita (dopo la lunga caduta di prima l'SDK aspetta prima di riconnettersi)
+  await page.click('text=Ho capito, iniziamo', { timeout: 1500 }).catch(() => {});
+  await page.waitForSelector('.cloud-menu-btn', { timeout: 30000 });
+  await apriVerifica('vr', { titolo: 'Verifica con ricarica senza rete', scadenzaMin: 30 });
+  await page.waitForSelector('.modal:not([hidden]) h2:has-text("Verifica aperta")', { timeout: 10000 });
+  await page.getByRole('button', { name: 'Inizia', exact: true }).click();
+  await page.click('button:has-text("Entra in verifica")', { timeout: 2500 }).catch(() => {});
+  await page.waitForSelector('.banda-verifica');
+  await finche(page, async () => !!valoreTesto(await lavoro('vr'), 'programmaHash'), 10000);
+  await caricaEsempio(page);                                                                // primo programma: arriva al server
+  await finche(page, async () => Number((await lavoro('vr')).fields?.nBlocchi?.integerValue) > 0, 40000);
+  const hashServer = valoreTesto(await lavoro('vr'), 'programmaHash');
+  await page.context().route(versoDb, (r) => r.abort());                                  // la rete verso il database cade
+  await page.evaluate(async () => { const { examples } = await import('/src/examples.js'); window.Blockly.serialization.workspaces.load(examples[1].workspaceState, window.Blockly.getMainWorkspace()); });
+  await page.waitForTimeout(2800);                                                         // la copia locale si scrive dopo ~1,5 s
+  const secondoProgramma = await pseudo(page);
+  verifica(secondoProgramma !== '' && valoreTesto(await lavoro('vr'), 'programmaHash') === hashServer, 'a rete tolta il secondo programma è solo nella copia locale');
+  await page.reload();
+  await page.click('text=Ho capito, iniziamo', { timeout: 1500 }).catch(() => {});
+  await page.waitForSelector('.banda-verifica', { timeout: 60000 });
+  verifica(true, 'ricaricata senza rete, la pagina rientra da sola in verifica (senza passare dalla scelta)');
+  verifica((await page.textContent('.cloud-menu-btn')).includes('Anna'), 'lo studente non è stato disconnesso dall\'errore di rete');
+  verifica((await pseudo(page)) === secondoProgramma, 'ritrova il programma della copia locale (anche l\'ultima modifica mai arrivata)');
+  await page.waitForSelector('.banda-offline', { timeout: 10000 });
+  verifica(/Sei offline/.test(await page.textContent('.banda-offline')), 'è già dichiarato offline, con «Salva su file»');
+  const minuti = await page.textContent('.banda-verifica-timer');
+  verifica(/^(2[5-9]|30):\d\d$/.test(minuti.trim()), `il timer riparte dalla scadenza ricordata: ${minuti}`);
+  verifica((await page.textContent('#tracciaBox')).includes('Esercizio di Verifica con ricarica senza rete'), 'la traccia viene dalla copia locale');
+  verifica(!(await page.isVisible('h2:has-text("Verifica aperta")')), 'non compare la finestra di scelta');
+  await schermata(page, 's-11-rientro-offline');
+  await page.context().unroute(versoDb);
+  await page.waitForSelector('.banda-offline', { state: 'detached', timeout: 150000 });
+  verifica(await finche(page, async () => valoreTesto(await lavoro('vr'), 'programmaHash') !== hashServer, 150000), 'tornata la rete il programma della copia arriva al server');
+  errori.splice(0, errori.length, ...errori.filter((e) => !e.includes('ERR_FAILED') && !e.includes('Could not reach Cloud Firestore')));
+  await page.click('.banda-verifica button:has-text("Consegna")');
+  await page.click('.modal:not([hidden]) button:has-text("Consegna")');
+  await page.waitForSelector('h2:has-text("Lavoro consegnato")', { timeout: 120000 });
+  await page.getByRole('button', { name: 'Ok', exact: true }).click();
+  await page.click('#restoreCloseBtn', { timeout: 3000 }).catch(() => {});
+  verifica((await consegne('vr')).length === 1, 'e dopo il rientro si consegna normalmente');
+
   verifica(errori.length === 0, `nessun errore nella pagina${errori.length ? `: ${errori.join(' | ')}` : ''}`);
   riuscito = riepilogo();
 } catch (e) {

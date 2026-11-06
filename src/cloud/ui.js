@@ -116,7 +116,7 @@ export function montaCloud({ contenitore, toast, programma }) {
   let caricamento = null;
   let dialogo = null; // finestra di accesso aperta
 
-  function mostra({ utente, errore }) {
+  function mostra({ utente, errore, senzaRete = false }) {
     btnAccedi.hidden = !!utente;
     menu.hidden = !utente;
     chiudiMenu();
@@ -135,7 +135,7 @@ export function montaCloud({ contenitore, toast, programma }) {
         utente.ruolo === 'docente' ? cloud.verificaDocentePer(utente.email) : null);
       commentiUi.entra(cloud.commentiPer({ uid: utente.uid, email: utente.email, nome: utente.nome }), utente.ruolo, utente.email);
       // Lo studente trova qui le verifiche aperte da svolgere; il docente non ne svolge.
-      if (utente.ruolo === 'docente') { verificaStudenteUi.esci(); } else verificaStudenteUi.entra(cloud.verificaStudentePer(utente.email, utente.nome), corsi);
+      if (utente.ruolo === 'docente') { verificaStudenteUi.esci(); } else verificaStudenteUi.entra(cloud.verificaStudentePer(utente.email, utente.nome), corsi, { senzaRete });
     } else {
       memo(false);
       sketchUi.esci();
