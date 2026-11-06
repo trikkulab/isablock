@@ -69,16 +69,16 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
     }
   }
 
-  const annulla = vd.ascoltaSituazione(vid, (s) => { ultimo = s; disegna(); for (const g of seguaci) g.cb(s.lavori.find((l) => l.email === g.email) ?? null); },
+  const annulla = vd.ascoltaSituazione(vid, (s) => { ultimo = s; disegna(); for (const g of seguaci) g.cb(s.lavori.find((l) => l.email === g.email) ?? null, s.ultime[g.email] ?? null, s.verifica); },
     () => { if (elemento.isConnected) toast('Non riesco a seguire la verifica in tempo reale: controlla la rete.', 'error'); });
   // Il tempo scorre da solo; si ferma quando la tabella esce dalla pagina.
   const giro = setInterval(() => { if (!elemento.isConnected) distruggi(); else disegna(); }, 1000);
   function distruggi() { clearInterval(giro); annulla(); }
-  // Il lavoro di uno studente, subito (se già arrivato) e a ogni aggiornamento. Restituisce la funzione per smettere.
+  // Il lavoro di uno studente (con la sua ultima consegna e la verifica), subito (se già arrivato) e a ogni aggiornamento. Restituisce la funzione per smettere.
   function segui(email, cb) {
     const g = { email, cb };
     seguaci.add(g);
-    if (ultimo) cb(ultimo.lavori.find((l) => l.email === email) ?? null);
+    if (ultimo) cb(ultimo.lavori.find((l) => l.email === email) ?? null, ultimo.ultime[email] ?? null, ultimo.verifica);
     return () => seguaci.delete(g);
   }
   // Lo stato attuale di uno studente (lavoro e ultima consegna), per chi apre una finestra a partire da una riga.

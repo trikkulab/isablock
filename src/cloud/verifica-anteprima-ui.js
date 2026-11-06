@@ -7,7 +7,7 @@ import { el } from './dom.js';
 const CODICI = [['pseudocode', 'Pseudocodice'], ['c', 'C'], ['python', 'Python']];
 const ora = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-// `apri(titolo, onChiudi, opzioni)`: la finestra del modulo chiamante. `segui(email, cb)` chiama cb(lavoro) subito (se noto)
+// `apri(titolo, onChiudi, opzioni)`: la finestra del modulo chiamante. `segui(email, cb)` chiama cb(lavoro, consegna, verifica) subito (se noto)
 // e a ogni aggiornamento, e restituisce la funzione per smettere. `caricaStoria()` (facoltativa) legge le istantanee dello
 // studente (vedi lavori.storia): con quella la finestra ha il cursore per tornare indietro nel tempo.
 // Restituisce la finestra, o null se mancano i mezzi.
@@ -41,7 +41,7 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, ema
   // ── Storia: il cursore va dalla prima istantanea a «in diretta» (l'ultimo posto) ─────────────────────────────────
   let punti = null;         // istantanee lette, dalla più vecchia; null finché non si apre la storia
   let posizione = null;     // indice in `punti`, o null = in diretta
-  let ultimoLavoro = null;  // l'ultimo stato in diretta ricevuto
+  let ultimoLavoro = null;  // l'ultimo stato in diretta ricevuto: { lavoro, consegna, verifica }
   const bStoria = el('button', { type: 'button', class: 'modal-btn secondary' }, 'Storia…');
   const cursore = el('input', { type: 'range', min: '0', max: '0', step: '1', class: 'anteprima-cursore', 'aria-label': 'Momento del programma' });
   const eticCursore = el('span', { class: 'anteprima-etichetta', 'aria-live': 'polite' });
@@ -96,13 +96,24 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, ema
   if (caricaStoria) { bStoria.addEventListener('click', apriStoria); info.after(bStoria, barraStoria); }
 
   let ultimo = null;   // l'ultimo programma mostrato (testo del JSON)
-  annulla = segui(email, (lavoro) => {
+  annulla = segui(email, (lavoro, consegna = null, verifica = null) => {
     if (!lavoro) return;
-    ultimoLavoro = lavoro;
+    ultimoLavoro = { lavoro, consegna, verifica };
     if (posizione !== null) return;     // sta guardando il passato: la diretta si aggiorna sotto, ma non si mostra
-    disegna(lavoro);
+    disegna(ultimoLavoro);
   });
-  function disegna(lavoro) {
+
+  // Cosa mostrare: a verifica CHIUSA fa fede la consegna (l'ultima versione, anche raccolta o caricata da file); a verifica
+  // aperta il lavoro in diretta, e solo se è vuoto (per esempio chi non è mai entrato) la consegna, se c'è.
+  function sorgente({ lavoro, consegna, verifica }) {
+    const dallaConsegna = consegna && consegna.programma && (verifica?.stato === 'chiusa' || !lavoro.programma);
+    if (!dallaConsegna) return lavoro;
+    const come = consegna.origine === 'file' ? ' (da file)' : consegna.origine === 'raccolta' ? ' (raccolta)' : '';
+    return { programma: consegna.programma, nBlocchi: null, consegnato: false, ultimoSegnale: null, etichetta: ` · consegna v${consegna.versione}${come}` };
+  }
+
+  function disegna(stato) {
+    const lavoro = sorgente(stato);
     if (!lavoro.programma) {
       if (ultimo !== '') { anteprima.vuota(); ultimo = ''; }
       vuoto.hidden = false; blocchi.hidden = true;
@@ -117,7 +128,7 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, ema
     }
     if (vuoto.hidden === false || ultimo !== null) {
       const n = lavoro.nBlocchi === null || lavoro.nBlocchi === undefined ? '' : ` · ${lavoro.nBlocchi} blocchi`;
-      info.textContent = `${nome || email}${n}${lavoro.consegnato ? ' · consegnato' : ''}${lavoro.ultimoSegnale ? ` · ultimo segnale alle ${ora.format(lavoro.ultimoSegnale)}` : ''}`;
+      info.textContent = `${nome || email}${lavoro.etichetta ?? ''}${n}${lavoro.consegnato ? ' · consegnato' : ''}${lavoro.ultimoSegnale ? ` · ultimo segnale alle ${ora.format(lavoro.ultimoSegnale)}` : ''}`;
     }
   }
   return f;

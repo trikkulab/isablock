@@ -444,6 +444,12 @@ try {
   await page.waitForSelector('h2:has-text("Carica il file di emergenza")');
   await page.click('button:has-text("Carica come consegna v1")');
   verifica(await finche(async () => (await leggi(`verifiche/${vid2}/consegne/bruno@isarome.it_1`)).fields?.origine?.stringValue === 'file'), 'un file si carica anche per chi non è mai entrato (v1)');
+  // «Guarda» a verifica chiusa mostra la consegna (qui: il file), anche per chi non è mai entrato e non ha un lavoro sul server
+  await page.waitForSelector('.tabella-live tbody tr:has-text("Bruno Verdi") button:has-text("Guarda"), .tabella-live tbody tr:has-text("bruno@isarome.it") button:has-text("Guarda")');
+  await page.click('.tabella-live tbody tr:has-text("Consegnato"):not(:has-text("Anna")) button:has-text("Guarda")');
+  verifica(await finche(async () => (await page.$$('.anteprima-blocchi .blocklyBlockCanvas [data-id]')).length > 3), 'Guarda dopo il caricamento del file: mostra il programma della consegna (non «non ha scritto niente»)');
+  verifica(/consegna v1 \(da file\)/.test(await page.textContent('.anteprima-info')) && !(await page.isVisible('.anteprima-vuoto')), '…e dice che è la consegna v1 da file');
+  await page.keyboard.press('Escape');
 
   // archivia: sparisce dall'elenco, si ritrova con la casella, si ripristina
   dialoghi.length = 0;
