@@ -277,6 +277,7 @@ try {
   await page.getByRole('button', { name: 'Inizia', exact: true }).click();
   await page.waitForSelector('.banda-verifica');
   verifica((await page.getAttribute('.banda-verifica-timer', 'data-colore')) === 'giallo', 'con poco tempo (meno del 25% del totale) il timer è giallo');
+  await finche(page, async () => !!valoreTesto(await lavoro('vc'), 'programmaHash'), 10000);   // l'ingresso è arrivato al server: niente da salvare su file
   await scrivi('verifiche/vc', { corsoId: S('ST1DEN'), titolo: S('Verifica da chiudere'), stato: S('chiusa'), fine: T(ora() + 8 * MIN), tracciaDefault: S('t0'), creataDa: S('docente@isarome.it'), creato: T(ora() - 60 * MIN), apertaIl: T(ora() - 50 * MIN), chiusaIl: T(ora()) });
   await page.waitForSelector('h2:has-text("Verifica terminata")', { timeout: 10000 });
   verifica(true, 'se il docente chiude la verifica, lo studente lo vede: «Verifica terminata»');
@@ -345,7 +346,7 @@ try {
   await caricaEsempio(page);
   await page.waitForSelector('h2:has-text("Verifica terminata")', { timeout: 200000 });
   const corpoFine = await page.textContent('.modal:not([hidden]):last-of-type .modal-box');
-  verifica(/ultime modifiche non sono arrivate al server/.test(corpoFine) && /Salva su file/.test(corpoFine), 'finito il tempo offline: «Verifica terminata», con l\'invito a salvare il file');
+  verifica(/non è arrivato al server/.test(corpoFine) && /Salva su file/.test(corpoFine), 'finito il tempo offline: «Verifica terminata», con l\'invito a salvare il file');
   verifica((await consegne('vp')).length === 0, 'nessuna consegna online (la rete non c\'era)');
   await schermata(page, 's-10b-terminata-offline');
   let rifiutata = '';

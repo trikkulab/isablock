@@ -82,7 +82,7 @@ export const testiStudente = Object.freeze({
   offlineNienteDaSalvare: 'Non c\'è ancora niente da salvare: l\'editor è vuoto.',
   offlineConsegna: 'Sei offline: non posso consegnare online. Salva il file e consegnalo al docente.',
   tornataRete: 'Di nuovo online: il tuo lavoro si sta sincronizzando.',
-  terminataConFileRiga: 'La verifica è terminata e le tue ultime modifiche non sono arrivate al server. Salva il file e consegnalo al docente: è l\'unico modo perché il lavoro venga contato.',
+  terminataConFileRiga: 'La verifica è terminata e il tuo lavoro non è arrivato al server (anche se non hai scritto niente, il file è la prova che c\'eri). Salva il file e consegnalo al docente: è l\'unico modo perché venga contato.',
   terminataConFileConferma: 'Non hai ancora salvato il file. Se chiudi, il tuo lavoro resta solo su questo computer. Chiudere lo stesso?',
   dopoFine: 'Torni al lavoro che avevi prima della verifica, se ne avevi uno.',
   ok: 'Ok',

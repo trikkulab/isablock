@@ -361,9 +361,9 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
       : { titolo: T.terminataTitolo, riga: T.terminataRiga };
     finestraConsegna?.chiudi();                  // se era aperta la conferma e la consegna è partita da sola
     // Terminata con modifiche che il server non ha mai ricevuto (rete caduta): il file è l'unico modo di non perderle.
-    // (Un programma vuoto non ha niente da perdere: il file si propone solo se ci sono blocchi.)
-    const emergenza = tipo === 'terminata' && sessione.senzaSalvare() ? sessione.datiEmergenza() : null;
-    const dati = emergenza && emergenza.nBlocchi > 0 ? emergenza : null;
+    // Anche con l'editor vuoto: il file è la prova che lo studente c'era (e non ha scritto niente) quando il server non ha
+    // ricevuto nulla di suo.
+    const dati = tipo === 'terminata' && sessione.senzaSalvare() ? sessione.datiEmergenza() : null;
     const titoloVerifica = item?.verifica.titolo;
     fileSalvato = false;
     spegni();
