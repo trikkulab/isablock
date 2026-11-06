@@ -597,50 +597,6 @@ function creaAnteprima({ blocchi, codici }) {
   };
 }
 
-// Un foglio di STAMPA (scheda di consegna): i blocchi di un programma disegnati a larghezza fissa e altezza adatta al
-// contenuto, senza comandi, e i tre codici come testo semplice (la carta non ha i colori del pannello scuro). Come
-// creaAnteprima usa un secondo workspace, che il chiamante ha già reso visibile e con una larghezza (il testo si misura
-// solo con il layout): dopo `mostra` il disegno resta nel DOM e si stampa com'è.
-function creaFoglio({ blocchi, larghezza }) {
-  blocchi.style.width = `${larghezza}px`;
-  blocchi.style.height = '1200px';
-  const ws = Blockly.inject(blocchi, {
-    readOnly: true,
-    media: 'vendor/blockly/media/',
-    sounds: false,
-    zoom: { controls: false, wheel: false, startScale: 1, maxScale: 1, minScale: 0.3 },
-    move: { scrollbars: false, drag: false, wheel: false },
-    trashcan: false,
-  });
-  const rimettiPrincipale = () => { try { Blockly.common.setMainWorkspace(workspace); } catch { /* versione senza questa funzione */ } };
-  rimettiPrincipale();
-  let distrutto = false;
-  return {
-    // Restituisce { pseudocode, c, python } o null se il programma non si legge.
-    mostra(json) {
-      if (distrutto) return null;
-      try {
-        loadWorkspaceState(Blockly, ws, JSON.parse(json));
-        const testi = {
-          pseudocode: extractSourceMap(pseudocodeGen.workspaceToCode(ws)).text,
-          c: extractSourceMap(cGen.workspaceToCode(ws)).text,
-          python: extractSourceMap(pythonGen.workspaceToCode(ws)).text,
-        };
-        // Altezza dal contenuto: si scala solo se è più largo del foglio, mai ingrandendo.
-        const riquadro = ws.getBlocksBoundingBox();
-        const w = Math.max(1, riquadro.right - riquadro.left);
-        const h = Math.max(1, riquadro.bottom - riquadro.top);
-        const scala = Math.min(1, (larghezza - 24) / w);
-        blocchi.style.height = `${Math.ceil(h * scala) + 24}px`;
-        Blockly.svgResize(ws);
-        ws.zoomToFit();
-        return testi;
-      } catch { return null; }
-    },
-    distruggi() { if (distrutto) return; distrutto = true; ws.dispose(); rimettiPrincipale(); },
-  };
-}
-
 // Strato cloud opzionale: con l'interruttore spento non si importa nulla.
 let cloudUi = null; // lo sketch cloud aperto va "scollegato" quando il programma viene sostituito
 if (appConfig.cloud.enabled) {
@@ -683,7 +639,17 @@ if (appConfig.cloud.enabled) {
         modoVerifica: { entra: entraVerifica, esci: esciVerifica, nessuna: nessunaVerifica },
         // Il docente guarda il programma di uno studente (sola lettura): vedi creaAnteprima.
         anteprima: creaAnteprima,
-        foglio: creaFoglio,
+        // Scheda di consegna in PDF: i blocchi come immagine e i tre codici (vedi src/blocchi-immagine.js).
+        renderBlocchi: async () => (await import('./blocchi-immagine.js')).creaRenderBlocchi({
+          Blockly,
+          principale: () => workspace,
+          carica: (ws, json) => loadWorkspaceState(Blockly, ws, JSON.parse(json)),
+          testi: (ws) => ({
+            pseudocode: extractSourceMap(pseudocodeGen.workspaceToCode(ws)).text,
+            c: extractSourceMap(cGen.workspaceToCode(ws)).text,
+            python: extractSourceMap(pythonGen.workspaceToCode(ws)).text,
+          }),
+        }),
       },
     });
   });

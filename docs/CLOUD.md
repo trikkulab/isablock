@@ -2,7 +2,7 @@
 
 Stato: **accesso, ruolo (studente/docente), sketch personali, corsi (creati e gestiti dal
 docente nell'app) con iscrizione col codice o a mano, condivisione degli sketch col docente
-del corso, commenti del docente sugli sketch condivisi**. La **modalità verifica** è in costruzione (branch `cloud`, spenta con `enabled: false`): fatti il lato docente, il lavoro live dello studente, la consegna e riconsegna, la copia locale, la tabella live del docente; mancano offline/file di emergenza, sola lettura, stampa. Le decisioni di fondo sono nella nota di progetto
+del corso, commenti del docente sugli sketch condivisi**. La **modalità verifica** è in costruzione (branch `cloud`, spenta con `enabled: false`): fatti il lato docente, il lavoro live dello studente, la consegna e riconsegna, la copia locale, la tabella live del docente; mancano offline/file di emergenza, sola lettura; la scheda di consegna in PDF c'è. Le decisioni di fondo sono nella nota di progetto
 "cloud e verifica live"; qui c'è ciò che serve per usare e mantenere il codice.
 
 ## Principi
@@ -447,9 +447,11 @@ apri → tempo aggiuntivo / iscritti tardivi → chiudi (+ raccogli) → riapri*
 ### Markdown delle tracce (`markdown.js`)
 
 Il testo di una traccia è Markdown. **Un solo modulo** (`rendiMarkdown`) lo trasforma in HTML per
-anteprima del docente, scheda «Traccia» dello studente e stampa, così si vede sempre allo stesso modo.
+anteprima del docente e scheda «Traccia» dello studente, così si vede sempre allo stesso modo.
 La libreria (markdown-it con i plugin per apice e pedice, ~100 KB) sta in `vendor/markdown/` e si carica
 solo alla prima resa; è un file locale, quindi funziona offline. `npm run vendor:markdown` la rigenera.
+Il PDF della scheda di consegna NON usa questa resa HTML: ricompone il testo dai token (`tokenizzaMarkdown`, `pdf-markdown.js`);
+una funzionalità nuova va aggiunta anche lì (vedi la nota «Promemoria Markdown» sotto, nella scheda di consegna in PDF).
 - *Si rende*: titoli, grassetto, corsivo, barrato (`~~x~~`), apice (`x^2^`), pedice (`H~2~O`), elenchi
   puntati e numerati, citazioni, codice (in riga e a blocco), tabelle, righe orizzontali.
 - *Non si rende, volutamente*: HTML scritto a mano (mostrato come testo), **link** (non cliccabili:
@@ -553,16 +555,37 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
     da sola se una consegna dello studente ha lo STESSO programma (per esempio il docente ha caricato il file di
     emergenza): si confronta il contenuto, non le date. Fix collegato: il secondo workspace di «Guarda» lasciava a Blockly un «workspace
     principale» chiuso: ora `creaAnteprima` rimette quello dell'editor alla creazione e alla chiusura.
-  - **Stampa (passo 12)**: a verifica CHIUSA la tabella ha «Stampa» su ogni riga con una consegna e «Stampa tutte» in
-    testa (non compaiono a verifica aperta). La scheda (`stampa-ui.js`, parti pure in `scheda-stampa.js`) ha: titolo della
-    verifica e corso con la classe, studente, versione e origine della consegna, quando è stata registrata, scadenza
-    personale, la TRACCIA che aveva, i blocchi disegnati (secondo workspace Blockly, `programma.foglio` in main.js),
-    pseudocodice/C/Python in testo semplice e un CODICE DI RISCONTRO (`XXXX-XXXX`, calcolato dal programma; lo stesso si vede
-    nella finestra «Guarda» di una consegna). Una scheda per studente che ha consegnato (la versione valida), in ordine
-    alfabetico, ognuna su pagina nuova; con blocchi e tre codici sono in genere due pagine A4 per studente. È un'area
-    nascosta (`#areaStampa`) che con `@media print` diventa l'unica cosa visibile; si stampa o si salva come PDF dal
-    browser, il titolo della pagina è il nome del PDF suggerito (`mario.rossi_verifica-di-novembre_v2`, oppure
-    `<verifica>_tutte-le-consegne`) e a fine stampa (`afterprint`) l'area sparisce. Niente passa dal server.
+  - **Scheda di consegna in PDF (passo 12)**: a verifica CHIUSA la tabella ha «Scarica PDF» su ogni riga con una consegna e
+    «Scarica PDF di tutti» in testa (non compaiono a verifica aperta). Il PDF è generato dall'app con jsPDF (`vendor/pdf/jspdf.js`,
+    creato da `npm run vendor:pdf`, caricato solo alla prima generazione, funziona offline), A4 a layout fisso, indipendente da
+    browser e stampante; sostituisce la prima versione che stampava dal browser (Safari e Chrome davano risultati diversi).
+    Decisioni di contenuto e disposizione: `docs/PDF-SCHEDA.md`. Moduli: `pdf-markdown.js` (traccia: token di markdown-it →
+    struttura di dati, puro), `pdf-scheda.js` (impaginazione, senza DOM), `pdf-ui.js` (prepara le schede e scarica), `src/blocchi-immagine.js`
+    (blocchi → PNG), `scheda-stampa.js` (parti pure: nomi, riscontro, ordine, data).
+    - **Contenuto**: titolo della verifica, corso e classe, nome dello studente (senza email; se manca, la parte dell'email prima
+      della chiocciola), solo la data della consegna, la TRACCIA che aveva (Markdown ricomposto a mano), blocchi, pseudocodice, C,
+      Python. Non compaiono email, ora, scadenza, origine, nome del file né versione. Bianco e nero (grigi, filo sottile) salvo i blocchi.
+    - **Disposizione**: blocchi | pseudocodice, poi C | Python. Se i blocchi in colonna scenderebbero sotto la scala 0,8 o
+      non ci stanno in una pagina: blocchi a tutta larghezza (riducendo fino a 0,6 per l'altezza, tagliati su più pagine solo se ancora
+      troppo alti), poi pseudocodice | C e Python sotto. Ciò che sta in una pagina intera non si spezza (va a pagina nuova); i
+      codici troppo lunghi si spezzano con «(continua)». Un titolo di sezione non resta mai solo in fondo a una pagina.
+    - **Piè di pagina su ogni pagina**: `verifica · classe · data` a sinistra, `Nome · riscontro XXXX-XXXX · pagina x/n` a destra
+      (n = pagine di quella scheda). Il CODICE DI RISCONTRO è `codiceRiscontro()`, lo stesso della finestra «Guarda».
+    - **File**: `cognome-nome_classe_verifica_v2.pdf` (minuscolo, senza accenti; la versione c'è solo nel nome) e
+      `classe_verifica_tutte-le-consegne.pdf`. Ordine di «tutti»: per cognome e poi nome (primo termine = nome, il resto = cognome).
+    - **Blocchi come immagine** (`blocchi-immagine.js`): workspace Blockly di sola lettura fuori schermo (uno per tutto il PDF); si
+      copia il canvas dei blocchi in uno SVG autonomo con gli stili CSS già calcolati («inlined»: le regole di Blockly dipendono da
+      elementi genitori che nello SVG isolato non ci sono), si rasterizza su canvas a scala 2. Alla fine si rimette il workspace
+      principale dell'editor (stesso difetto già incontrato in «Guarda»).
+    - **Font e caratteri**: solo Helvetica e Courier (font standard del PDF). Virgolette e trattini tipografici → ASCII, `≠ ≤ ≥` dello
+      pseudocodice → `<> <= >=`, il resto fuori da Latin-1 → `?` (il greco non serve).
+    - **Promemoria Markdown**: se si aggiunge una funzionalità a `markdown.js` va aggiunta anche al PDF. `test/pdf-markdown.mjs` confronta le
+      righe di configurazione di `markdown.js` con un'istantanea e fallisce con il messaggio «aggiorna anche il PDF»; token
+      sconosciuti → testo semplice, mai un errore.
+    - **Prove**: unitarie `test/pdf-markdown.mjs`, `test/pdf-scheda.mjs` (impaginazione con un registro delle voci disegnate: pagine,
+      margini, titoli orfani, tagli, piè di pagina), `test/scheda-stampa.mjs`; e2e docente (`test/e2e/verifiche.mjs`) con download vero,
+      testo estratto con Ghostscript. L'aspetto si controlla a occhio: `gs -sDEVICE=png16m -r80 -sOutputFile=p-%d.png file.pdf`.
+    - **Non verificato** (per ora): Safari e Chrome veri (le prove girano in Chromium; le immagini SVG→canvas possono differire).
   - **Carica file (passo 10b)**: a verifica CHIUSA ogni riga ha «Carica file…» per il file di emergenza dello studente
     (anche se non è mai entrato). Formato e controlli in `src/verifica-file.js` (puro, sarà usato anche per PRODURRE il
     file nel passo 10a): JSON con marcatore `isablockEmergenza`, verifica, studente, programma, `offlineDa`, blocchi e UN

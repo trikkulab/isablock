@@ -14,8 +14,8 @@ import { perCampo, daCampo, finePredefinita, formatoDataOra } from './data-ora.j
 import { creaTabellaLive } from './verifica-tabella-ui.js';
 import { apriAnteprima } from './verifica-anteprima-ui.js';
 import { scegliFileEmergenza } from './verifica-file-ui.js';
-import { stampaSchede } from './stampa-ui.js';
-import { ordinaSchede, nomeDocumento, nomeDocumentoTutte } from './scheda-stampa.js';
+import { scaricaPdfSchede } from './pdf-ui.js';
+import { ordinaSchede, nomeFilePdf, nomeFilePdfTutte } from './scheda-stampa.js';
 import { etichettaCorso } from './corsi.js';
 import { testoApertura, testoChiusura, testoRiapertura, testoArchivia, esitoRaccolta } from './testi-verifica.js';
 
@@ -533,19 +533,28 @@ export function montaVerifiche({ toast, programma = null }) {
         ? (email, nome) => apriAnteprima({ apri, programma, segui: (e, cb) => tabella.segui(e, cb), caricaStoria: () => vd.lavori.storia(vid, email), email, nome })
         : null;
       const caricaFile = (email, nome) => scegliFileEmergenza({ apri, programma, vd, vid, email, nome, toast, ...tabella.stato(email) });
-      // Stampa: una scheda per consegna (la valida, cioè l'ultima versione), con la traccia che aveva lo studente.
-      const stampa = (emails) => {
+      // Scheda in PDF: una per consegna (la valida, cioè l'ultima versione), con la traccia che aveva lo studente.
+      const schedeDi = (emails) => {
         const trovate = tabella.tutti().filter((x) => x.ultimaConsegna && (!emails || emails.includes(x.email)));
         const traccePerId = new Map(tracce.map((t) => [t.id, t]));
-        const schede = ordinaSchede(trovate.map((x) => ({
+        return ordinaSchede(trovate.map((x) => ({
           nome: x.lavoro?.studenteNome ?? null, email: x.email, consegna: x.ultimaConsegna, lavoro: x.lavoro, traccia: traccePerId.get(x.ultimaConsegna.tracciaId) ?? null,
         })));
-        const nome = emails && emails.length === 1
-          ? nomeDocumento({ email: emails[0], titolo: verifica.titolo, versione: schede[0]?.consegna.versione ?? 1 })
-          : nomeDocumentoTutte({ titolo: verifica.titolo });
-        return stampaSchede({ schede, verifica, corso: etichettaCorso(corso), programma, nomeDocumento: nome, toast });
       };
-      tabella = creaTabellaLive({ vd, vid, toast, guarda, caricaFile, stampa: programma && programma.foglio ? (e) => stampa([e]) : null, stampaTutte: programma && programma.foglio ? () => stampa(null) : null });
+      const scaricaPdf = (email) => {
+        const schede = schedeDi([email]);
+        const s = schede[0];
+        return scaricaPdfSchede({
+          schede, verifica, corso, programma, toast,
+          nomeFile: nomeFilePdf({ nome: s?.nome, email, classe: corso.classe, titolo: verifica.titolo, versione: s?.consegna.versione ?? 1 }),
+        });
+      };
+      const scaricaTutti = () => scaricaPdfSchede({
+        schede: schedeDi(null), verifica, corso, programma, toast,
+        nomeFile: nomeFilePdfTutte({ classe: corso.classe, titolo: verifica.titolo }),
+      });
+      const conPdf = !!(programma && programma.renderBlocchi);
+      tabella = creaTabellaLive({ vd, vid, toast, guarda, caricaFile, scaricaPdf: conPdf ? scaricaPdf : null, scaricaTutti: conPdf ? scaricaTutti : null });
       chiudiTabella = tabella.distruggi;
       const pannelloSituazione = el('div', { class: 'situazione' }, tabella.elemento);
       const schede = [['situazione', 'Situazione'], ['tracce', 'Tracce']];

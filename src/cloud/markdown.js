@@ -1,5 +1,5 @@
 // Resa del Markdown delle tracce di una verifica. UN SOLO modulo per anteprima del docente,
-// scheda «Traccia» dello studente e stampa, così il testo si vede sempre allo stesso modo.
+// scheda «Traccia» dello studente, così il testo si vede sempre allo stesso modo.
 //
 // Cosa rende: titoli, grassetto, corsivo, barrato (~~testo~~), apice (x^2^), pedice (H~2~O), elenchi
 // puntati e numerati, citazioni, codice (in riga e a blocco), tabelle, righe orizzontali.
@@ -12,8 +12,7 @@
 //
 // ATTENZIONE: la scheda di consegna in PDF NON usa questa resa HTML: ricompone il testo da sola (src/cloud/pdf-markdown.js
 // e pdf-scheda.js). Se qui si aggiunge una funzionalità (un plugin, una regola abilitata), va aggiunta anche lì. Vedi
-// docs/PDF-SCHEDA.md: la prova test/pdf-markdown.mjs (da scrivere insieme al PDF) deve fallire se la configurazione qui
-// sotto cambia senza aggiornare il PDF.
+// docs/PDF-SCHEDA.md: la prova test/pdf-markdown.mjs fallisce se la configurazione qui sotto cambia senza aggiornare il PDF.
 //
 // La libreria (vendor/markdown/markdown-it.js, ~100 KB) si carica solo alla prima resa e funziona
 // offline perché è un file locale.

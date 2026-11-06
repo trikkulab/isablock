@@ -1083,7 +1083,7 @@ button.commento-blocco { cursor: pointer; }
   .editor-md.mostra-anteprima .editor-md-testo { display: none; }
 }
 
-/* Resa del Markdown di una traccia: anteprima del docente, scheda dello studente, stampa */
+/* Resa del Markdown di una traccia: anteprima del docente, scheda dello studente */
 .traccia-md { font-size: 1rem; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; }
 .traccia-md > :first-child { margin-top: 0; }
 .traccia-md > :last-child { margin-bottom: 0; }
@@ -1250,25 +1250,4 @@ body.modo-verifica .autosave-info { display: none; }
   .consegna-info { grid-column: 1 / -1; }
 }
 
-/* Scheda di consegna stampabile (stampa-ui.js): nascosta a schermo, durante la stampa è l'unica cosa visibile */
-#areaStampa { display: none; }
-#areaStampa.in-preparazione { display: block; position: fixed; left: -10000px; top: 0; width: 680px; background: #fff; color: #000; }
-.scheda { font: 10pt/1.4 "Helvetica Neue", Arial, sans-serif; color: #000; background: #fff; }
-.scheda h1 { font-size: 16pt; margin: 0; }
-.scheda h2 { font-size: 11pt; margin: 12pt 0 4pt; border-bottom: 1px solid #999; padding-bottom: 2pt; }
-.scheda-corso { margin: 2pt 0 8pt; color: #333; }
-.scheda-dati { border-collapse: collapse; width: 100%; }
-.scheda-dati th { text-align: left; width: 28%; padding: 2pt 6pt 2pt 0; font-weight: 600; vertical-align: top; }
-.scheda-dati td { padding: 2pt 0; }
-.scheda-traccia-testo { font-size: 10pt; }
-.scheda-blocchi { border: 1px solid #bbb; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; break-inside: avoid; }
-.scheda-codice { margin: 0; padding: 6pt 8pt; border: 1px solid #999; font: 8.5pt/1.35 "SFMono-Regular", Consolas, Menlo, monospace; white-space: pre-wrap; break-inside: avoid; background: #fff; color: #000; }
-.scheda-piede { margin-top: 12pt; padding-top: 4pt; border-top: 1px solid #999; font-size: 9pt; color: #333; }
-@media print {
-  @page { size: A4; margin: 15mm; }
-  body.stampa-attiva > *:not(#areaStampa) { display: none !important; }
-  body.stampa-attiva #areaStampa { display: block; position: static; width: auto; }
-  .scheda { break-after: page; page-break-after: always; }
-  .scheda:last-child { break-after: auto; page-break-after: auto; }
-}
 .tabella-azioni { display: inline-flex; gap: 0.5rem; align-items: center; }

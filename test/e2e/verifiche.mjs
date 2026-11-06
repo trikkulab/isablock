@@ -1,6 +1,8 @@
 // Prova nel browser della scheda delle verifiche del docente (passo 6c): corso, verifica in bozza, tracce,
 // segno «per tutti», titolo e fine, modifiche non salvate, eliminazione, vista stretta.
 // Si lancia con `npm run test:e2e` (avvia gli emulatori Auth e Firestore, vuoti, e questo script).
+import { execFileSync } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { avviaServer } from './server.mjs';
 import { avviaBrowser, accedi, abilitaDocente, leggi, scrivi, aggiorna, S, T, valoreTesto, verifica, riepilogo, schermata, MOD } from './aiuti.mjs';
 
@@ -297,7 +299,7 @@ try {
   await page.waitForSelector('.tabella-live tbody tr');
   verifica((await page.$$('.tabella-live tbody tr')).length === 3 && (await page.$$('.tabella-stato[data-stato="non-entrato"]')).length === 3, 'tabella: 3 righe, tutti «Non entrato»');
   verifica(/Entrati 0 su 3/.test(await page.textContent('.tabella-sommario')), 'riepilogo: Entrati 0 su 3');
-  verifica(!(await page.isVisible('button:has-text("Stampa tutte")')) && (await page.$$('.tabella-live tbody tr button:has-text("Stampa")')).length === 0, 'a verifica aperta non ci sono i pulsanti di stampa');
+  verifica(!(await page.isVisible('button:has-text("Scarica PDF di tutti")')) && (await page.$$('.tabella-live tbody tr button:has-text("Scarica PDF")')).length === 0, 'a verifica aperta non ci sono i pulsanti del PDF');
   const lavoroAnna = `verifiche/${vid2}/lavori/anna@isarome.it`;
   const adesso = Date.now();
   await aggiorna(lavoroAnna, { entrato: T(adesso - 2 * 60000), ultimoSegnale: T(adesso), studenteNome: S('Anna Rossi'), nBlocchi: { integerValue: '7' },
@@ -469,40 +471,60 @@ try {
   await page.keyboard.press('Escape');
   verifica(await finche(async () => (await page.textContent('.tabella-live tbody tr:has-text("bruno@isarome.it") td:nth-child(3)')).trim() === '12'), 'la tabella mostra i blocchi della consegna da file (12), anche per chi non è mai entrato');
 
-  // ── Stampa delle schede di consegna ────────────────────────────────────────
+  // ── Schede di consegna in PDF ────────────────────────────────────────
   const conteggioPagine = (pdf) => (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
-  await page.evaluate(() => { window.__stampe = 0; window.print = () => { window.__stampe += 1; }; });
-  verifica((await page.$$('.tabella-live tbody tr button:has-text("Stampa"):not(:has-text("tutte"))')).length === 2 && await page.isVisible('button:has-text("Stampa tutte")'), 'a verifica chiusa: «Stampa» sulle righe con una consegna (non su chi non ha consegnato) e «Stampa tutte» in testa');
-  await page.click('.tabella-live tbody tr:has-text("Anna Rossi") button:has-text("Stampa")');
-  await page.waitForFunction(() => window.__stampe === 1 && document.body.classList.contains('stampa-attiva'), null, { timeout: 30000 });
-  verifica(await page.title() === 'anna_verifica-per-la-vista-stretta_v2', `il titolo della pagina (nome del PDF) è «${await page.title()}»`);
-  await page.emulateMedia({ media: 'print' });
-  const scheda = await page.$$eval('#areaStampa .scheda', (x) => x.map((e) => ({ testo: e.textContent, blocchi: e.querySelectorAll('.scheda-blocchi .blocklyBlockCanvas [data-id]').length, codici: [...e.querySelectorAll('.scheda-codice')].map((c) => c.textContent) })));
-  verifica(scheda.length === 1 && /Verifica per la vista stretta/.test(scheda[0].testo) && /anna@isarome\.it/.test(scheda[0].testo) && /v2 · caricata dal docente dal file di emergenza/.test(scheda[0].testo), 'scheda di Anna: verifica, studente, versione e origine della consegna');
-  verifica(/Informatica \(3AINF\)/.test(scheda[0].testo) && /Traccia: Versione A/.test(scheda[0].testo) && /Scadenza personale/.test(scheda[0].testo), '…con il corso e la classe, la traccia che aveva e la scadenza personale');
-  verifica(/Codice di riscontro: [0-9A-F]{4}-[0-9A-F]{4}/.test(scheda[0].testo), '…e il codice di riscontro in calce');
-  verifica(scheda[0].blocchi > 3 && /INIZIO/.test(scheda[0].codici[0]) && /#include/.test(scheda[0].codici[1]) && /input\(\)/.test(scheda[0].codici[2]), '…con i blocchi disegnati e i tre codici (pseudocodice, C, Python)');
-  verifica(await page.evaluate(() => getComputedStyle(document.querySelector('header.toolbar')).display === 'none' && getComputedStyle(document.querySelector('.modal')).display === 'none' && getComputedStyle(document.querySelector('#areaStampa')).display === 'block'), 'in stampa si vede solo la scheda (il resto dell\'app è nascosto)');
-  await schermata(page, 'v-12-scheda-stampa');
-  const pdf1 = await page.pdf({ printBackground: true });
-  verifica(pdf1.length > 2000 && conteggioPagine(pdf1) >= 1, `il browser produce un PDF della scheda (${conteggioPagine(pdf1)} pagine)`);
-  await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
-  await page.emulateMedia({ media: null });
-  verifica(await page.evaluate(() => !document.querySelector('#areaStampa') && !document.body.classList.contains('stampa-attiva')) && !(await page.title()).includes('anna_'), 'finita la stampa l\'area sparisce e il titolo della pagina torna com\'era');
-  // tutte le schede: una pagina per studente che ha consegnato, in ordine
-  await page.click('button:has-text("Stampa tutte")');
-  await page.waitForFunction(() => window.__stampe === 2 && document.body.classList.contains('stampa-attiva'), null, { timeout: 60000 });
-  await page.emulateMedia({ media: 'print' });
-  const tutte = await page.$$eval('#areaStampa .scheda', (x) => x.map((e) => e.querySelector('.scheda-dati td').textContent));
-  verifica(tutte.length === 2 && /Anna Rossi/.test(tutte[0]) && /bruno@isarome\.it/.test(tutte[1]), `«Stampa tutte»: una scheda per ciascuno studente che ha consegnato, in ordine alfabetico: ${JSON.stringify(tutte)}`);
-  verifica((await page.$$eval('#areaStampa .scheda-piede', (x) => x[1].textContent)).includes(`Codice di riscontro: ${riscontroBruno}`), 'il codice di riscontro sulla scheda stampata è lo stesso che mostra «Guarda» nell\'app');
-  verifica(await page.title() === 'verifica-per-la-vista-stretta_tutte-le-consegne', 'il PDF delle schede si chiama «<verifica>_tutte-le-consegne»');
-  const pdf2 = await page.pdf({ printBackground: true });
-  verifica(conteggioPagine(pdf2) >= 2, `il PDF ha almeno una pagina per scheda (${conteggioPagine(pdf2)})`);
-  await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
-  await page.emulateMedia({ media: null });
-  verifica(await page.evaluate(() => document.querySelectorAll('.blocklyDiv, .scheda-blocchi').length >= 0 && !document.querySelector('#areaStampa')), 'pulita anche la stampa di tutte le schede');
-  verifica(await page.evaluate(() => !!window.Blockly.getMainWorkspace().getParentSvg().closest('#blocklyDiv')), 'dopo la stampa il workspace principale di Blockly è ancora quello dell\'editor');
+  // ── Scheda di consegna in PDF (una consegna) ──────────────────────────────
+  verifica((await page.$$('.tabella-live tbody tr button:has-text("Scarica PDF")')).length === 2 && await page.isVisible('button:has-text("Scarica PDF di tutti")'), 'a verifica chiusa: «Scarica PDF» sulle righe con una consegna (non su chi non ha consegnato)');
+  const [scaricato] = await Promise.all([
+    page.waitForEvent('download', { timeout: 90000 }),
+    page.click('.tabella-live tbody tr:has-text("Anna Rossi") button:has-text("Scarica PDF")'),
+  ]);
+  const nomePdf = scaricato.suggestedFilename();
+  const percorsoPdf = await scaricato.path();
+  const pdf1 = readFileSync(percorsoPdf);
+  if (process.env.E2E_SCHERMATE) writeFileSync(`${process.env.E2E_SCHERMATE}/${nomePdf}`, pdf1);
+  verifica(nomePdf === 'rossi-anna_3ainf_verifica-per-la-vista-stretta_v2.pdf', `nome del file: cognome-nome, classe, verifica, versione («${nomePdf}»)`);
+  const sPdf = pdf1.toString('latin1');
+  verifica(sPdf.startsWith('%PDF-') && /\/MediaBox \[0 0 595\.2\d* 841\.8\d*\]/.test(sPdf), 'è un PDF in formato A4');
+  verifica(conteggioPagine(pdf1) >= 1 && conteggioPagine(pdf1) <= 4, `la scheda di Anna ha ${conteggioPagine(pdf1)} pagine`);
+  verifica((sPdf.match(/\/Subtype \/Image/g) || []).length >= 1, 'contiene l\'immagine dei blocchi');
+  verifica(pdf1.length > 8000 && pdf1.length < 2_000_000, `dimensione plausibile (${pdf1.length} byte)`);
+  const testoDi = (file) => {
+    try { return execFileSync('gs', ['-q', '-dNOPAUSE', '-dBATCH', '-sDEVICE=txtwrite', '-sOutputFile=-', file], { encoding: 'utf8', maxBuffer: 20_000_000 }); } catch { return null; }
+  };
+  const testo1 = testoDi(percorsoPdf);
+  if (testo1 === null) console.log('        (Ghostscript non disponibile: il testo del PDF non si controlla)');
+  else {
+    const oggi = new Date().toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
+    verifica(/Verifica per la vista stretta/.test(testo1) && /Informatica . 3AINF/.test(testo1) && /Anna Rossi/.test(testo1) && testo1.includes(`Consegna del ${oggi}`), 'il testo: verifica, corso e classe, nome, data della consegna');
+    verifica(/Traccia: Versione A/.test(testo1) && /Pseudocodice/.test(testo1) && /INIZIO/.test(testo1) && /#include/.test(testo1) && /input\(\)/.test(testo1), '…traccia, pseudocodice, C e Python');
+    verifica(!/anna@isarome\.it/.test(testo1) && !/Scadenza|emergenza|v2 ./.test(testo1), '…senza email, scadenza né origine della consegna');
+    verifica(/riscontro [0-9A-F]{4}-[0-9A-F]{4} . pagina 1\/\d/.test(testo1), '…e il piè di pagina con riscontro e «pagina x/n»');
+  }
+  verifica(await page.evaluate(() => !!window.Blockly.getMainWorkspace().getParentSvg().closest('#blocklyDiv')), 'dopo il PDF il workspace principale di Blockly è ancora quello dell\'editor');
+  await page.waitForTimeout(300);
+  // tutte le schede: un solo PDF, una scheda dopo l'altra, in ordine alfabetico per cognome
+  const [tutti] = await Promise.all([
+    page.waitForEvent('download', { timeout: 120000 }),
+    page.click('button:has-text("Scarica PDF di tutti")'),
+  ]);
+  verifica(tutti.suggestedFilename() === '3ainf_verifica-per-la-vista-stretta_tutte-le-consegne.pdf', `nome del file con tutte le consegne («${tutti.suggestedFilename()}»)`);
+  const percorsoTutti = await tutti.path();
+  const pdfTutti = readFileSync(percorsoTutti);
+  if (process.env.E2E_SCHERMATE) writeFileSync(`${process.env.E2E_SCHERMATE}/${tutti.suggestedFilename()}`, pdfTutti);
+  verifica(conteggioPagine(pdfTutti) >= 2 && (pdfTutti.toString('latin1').match(/\/Subtype \/Image/g) || []).length >= 2, `il PDF di tutti ha ${conteggioPagine(pdfTutti)} pagine e un\'immagine di blocchi per scheda`);
+  const testoTutti = testoDi(percorsoTutti);
+  if (testoTutti !== null) {
+    const iBruno = testoTutti.search(/bruno . riscontro/); const iAnna = testoTutti.search(/Anna Rossi . riscontro/);
+    verifica(iBruno >= 0 && iAnna > iBruno, 'una scheda per ciascuno studente che ha consegnato, in ordine alfabetico per cognome (senza nome: la parte dell\'email prima della chiocciola)');
+    verifica(testoTutti.includes(`riscontro ${riscontroBruno} `) && !/bruno@isarome\.it/.test(testoTutti), 'il codice di riscontro sulla scheda è quello che mostra «Guarda» nell\'app, e non c\'è l\'email');
+    const riscAnna = (testo1 ?? '').match(/riscontro ([0-9A-F]{4}-[0-9A-F]{4})/)?.[1];
+    verifica(!!riscAnna && new RegExp(`Anna Rossi . riscontro ${riscAnna} `).test(testoTutti), 'la scheda di Anna ha lo stesso riscontro nel PDF singolo e in quello di tutti');
+    verifica((testoTutti.match(/Verifica per la vista stretta/g) || []).length >= 4, 'ogni pagina ha il piè di pagina con il titolo della verifica');
+    const pagineAnna = [...testoTutti.matchAll(/Anna Rossi . riscontro \S+ . pagina (\d+)\/(\d+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
+    verifica(pagineAnna.length >= 1 && pagineAnna.every(([x, n]) => n === pagineAnna.length && x >= 1 && x <= n), `«pagina x/n» conta solo le pagine della scheda (${JSON.stringify(pagineAnna)})`);
+  }
+  verifica(await page.evaluate(() => !!window.Blockly.getMainWorkspace().getParentSvg().closest('#blocklyDiv') && !document.querySelector('[aria-hidden="true"][style*="-20000px"]')), 'dopo il PDF di tutti il workspace principale è quello dell\'editor e il workspace fuori schermo è stato tolto');
 
   // archivia: sparisce dall'elenco, si ritrova con la casella, si ripristina
   dialoghi.length = 0;
