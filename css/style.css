@@ -1185,3 +1185,26 @@ body.modo-verifica .autosave-info { display: none; }
 .traccia-zoom button { padding: 0.2rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-bg); font: inherit; cursor: pointer; }
 .traccia-pannello .traccia-md { line-height: 1.6; }
 @media (max-width: 800px) { .banda-verifica { flex-wrap: wrap; gap: 0.4rem; } }
+
+/* Tabella live del docente (verifica-tabella-ui.js) */
+.tabella-testata { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; justify-content: space-between; margin: 0.6rem 0; }
+.tabella-sommario { margin: 0; font-weight: 600; }
+.tabella-corpo { overflow-x: auto; }
+.tabella-live { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.tabella-live th, .tabella-live td { text-align: left; padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--border, #d6d4e0); white-space: nowrap; }
+.tabella-live thead th { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted, #5f5d6e); }
+.tabella-live tbody th { font-weight: 600; }
+.tabella-stato { font-weight: 600; }
+.tabella-stato[data-stato="non-entrato"] { color: var(--muted, #5f5d6e); font-weight: 400; }
+.tabella-stato[data-stato="errore"] { color: #b91c1c; }
+.tabella-stato[data-stato="consegnato"] { color: #15803d; }
+.tabella-salto { color: #b45309; }
+.tabella-conn[data-conn="offline"] { color: #b91c1c; font-weight: 600; }
+.tabella-timer { font-variant-numeric: tabular-nums; font-weight: 600; }
+.tabella-timer[data-colore="verde"] { color: #15803d; }
+.tabella-timer[data-colore="giallo"] { color: #b45309; }
+.tabella-timer[data-colore="rosso"] { color: #b91c1c; }
+.verifica-schede { display: flex; gap: 0.3rem; margin-top: 0.8rem; border-bottom: 2px solid var(--border, #d6d4e0); }
+.verifica-scheda { background: none; border: 0; border-bottom: 3px solid transparent; margin-bottom: -2px; padding: 0.4rem 0.9rem; font: inherit; cursor: pointer; color: var(--muted, #5f5d6e); }
+.verifica-scheda.attiva { border-bottom-color: currentColor; color: inherit; font-weight: 600; }
+.tracce-corpo[hidden], .assegnazioni[hidden], .situazione[hidden] { display: none; }

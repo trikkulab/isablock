@@ -36,7 +36,7 @@ const testo = (v, max, etichetta) => {
 export const idTraccia = (n) => `t${n}`;
 export const numeroTraccia = (id) => Number(String(id).slice(1));
 
-function verificaDaDocumento(snap) {
+export function verificaDaDocumento(snap) {
   const d = snap.data();
   return {
     id: snap.id,

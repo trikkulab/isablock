@@ -11,6 +11,7 @@ import { creaEditorMarkdown } from './editor-markdown.js';
 import { rendiMarkdown } from './markdown.js';
 import { verificaConfig } from './verifica-config.js';
 import { perCampo, daCampo, finePredefinita, formatoDataOra } from './data-ora.js';
+import { creaTabellaLive } from './verifica-tabella-ui.js';
 import { testoApertura, testoChiusura, testoRiapertura, testoArchivia, esitoRaccolta } from './testi-verifica.js';
 
 const L = verificaConfig.regole;
@@ -160,7 +161,8 @@ export function montaVerifiche({ toast }) {
     let modificata = () => false;  // la traccia nell'editor ha modifiche non salvate?
     let editor = null;
 
-    const f = apri('Verifica', dopo, {
+    let chiudiTabella = () => {};
+    const f = apri('Verifica', () => { chiudiTabella(); dopo?.(); }, {
       larga: true,
       puoChiudere: () => !modificata() || window.confirm('Ci sono modifiche non salvate a una traccia. Chiudere senza salvarle?'),
     });
@@ -229,7 +231,7 @@ export function montaVerifiche({ toast }) {
 
     // --- Azioni sullo stato: aprire, chiudere (e raccogliere), riaprire, archiviare ------
     // Ogni cambio di stato passa da una finestra di conferma con il testo che il docente deve leggere (testi-verifica.js).
-    // La tabella live con i dettagli per studente arriva con il passo 9.
+    // La situazione live (passo 9) sta nella scheda «Situazione», sotto.
     const azioni = el('div', { class: 'verifica-azioni' });
     const bottone = (testo, fn, primario = false) => el('button', { type: 'button', class: `modal-btn${primario ? '' : ' secondary'}`, onclick: fn }, testo);
     if (bozza()) azioni.append(bottone('Apri verifica…', () => dialogoApertura(), true));
@@ -332,7 +334,8 @@ export function montaVerifiche({ toast }) {
     // --- Tracce: elenco a sinistra, editor a destra ------------------------
     const colonnaElenco = el('div', { class: 'tracce-elenco' });
     const colonnaEditor = el('div', { class: 'tracce-editor' });
-    f.corpo.append(el('div', { class: 'tracce-corpo' }, colonnaElenco, colonnaEditor));
+    const sezioneTracce = el('div', { class: 'tracce-corpo' }, colonnaElenco, colonnaEditor);
+    f.corpo.append(sezioneTracce);
 
     function disegnaElenco() {
       colonnaElenco.textContent = '';
@@ -514,7 +517,33 @@ export function montaVerifiche({ toast }) {
       // aprendo, la finestra scorre fino alle assegnazioni (altrimenti le righe restano sotto il bordo)
       if (assAperta) aggiornaAssegnazioni().then(() => toggleAss.scrollIntoView({ block: 'start', behavior: 'smooth' }));
     });
-    if (scrivibile()) f.corpo.append(el('div', { class: 'assegnazioni' }, el('div', { class: 'sketch-riga' }, toggleAss, esitoAss), corpoAss));
+    const sezioneAss = scrivibile() ? el('div', { class: 'assegnazioni' }, el('div', { class: 'sketch-riga' }, toggleAss, esitoAss), corpoAss) : null;
+    if (sezioneAss) f.corpo.append(sezioneAss);
+
+    // --- Situazione live (verifica aperta o chiusa): l'altra faccia della scheda, accanto a «Tracce» ------------
+    // Una verifica aperta si apre sulla situazione; la bozza non ha ancora studenti da seguire.
+    if (!bozza()) {
+      const tabella = creaTabellaLive({ vd, vid, toast });
+      chiudiTabella = tabella.distruggi;
+      const pannelloSituazione = el('div', { class: 'situazione' }, tabella.elemento);
+      const schede = [['situazione', 'Situazione'], ['tracce', 'Tracce']];
+      const bottoni = new Map();
+      const mostra = (cosa) => {
+        pannelloSituazione.hidden = cosa !== 'situazione';
+        sezioneTracce.hidden = cosa !== 'tracce';
+        if (sezioneAss) sezioneAss.hidden = cosa !== 'tracce';
+        for (const [k, b] of bottoni) { b.classList.toggle('attiva', k === cosa); b.setAttribute('aria-selected', String(k === cosa)); }
+      };
+      const barra = el('div', { class: 'verifica-schede', role: 'tablist' });
+      for (const [k, testo] of schede) {
+        const b = el('button', { type: 'button', role: 'tab', class: 'verifica-scheda', onclick: () => mostra(k) }, testo);
+        bottoni.set(k, b);
+        barra.append(b);
+      }
+      f.corpo.insertBefore(barra, sezioneTracce);
+      f.corpo.insertBefore(pannelloSituazione, sezioneTracce);
+      mostra('situazione');
+    }
 
     async function aggiornaAssegnazioni() {
       if (!assAperta || !scrivibile()) return;

@@ -10,11 +10,12 @@
 // scadenze di chi non è entrato si spostano della stessa differenza, extra compresi, in un unico
 // batch insieme alla modifica della verifica (o stanno tutte al vecchio valore o tutte al nuovo).
 // Nessun «motivo» del tempo aggiuntivo viene mai scritto da nessuna parte.
-import { creaVerifiche, ErroreVerifica } from './verifiche.js';
-import { creaLavoriDocente } from './lavori.js';
-import { creaConsegneDocente } from './consegne.js';
+import { creaVerifiche, ErroreVerifica, verificaDaDocumento } from './verifiche.js';
+import { creaLavoriDocente, lavoroDaDocumento } from './lavori.js';
+import { creaConsegneDocente, consegnaDaDocumento } from './consegne.js';
 import { creaGestione } from './gestione-corsi.js';
 import { verificaConfig } from './verifica-config.js';
+import { creaStimaOra } from './verifica-tabella.js';
 
 const MINUTO = 60_000;
 
@@ -219,6 +220,42 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
     return { verifica, lavori: elencoLavori, consegne: elencoConsegne, ultime: consegne.ultimePerStudente(elencoConsegne) };
   }
 
+  // Tabella live: ascolta la verifica, i lavori e le consegne e chiama `quando({ verifica, lavori, ultime, ora })` a ogni
+  // cambiamento, quando i tre pezzi sono arrivati almeno una volta. `ora()` è l'ora del SERVER stimata dai segnali degli
+  // studenti (l'orologio del PC del docente può essere sbagliato). Costo: una lettura per documento cambiato (i lavori
+  // cambiano a ogni salvataggio dello studente, ogni 25 s al più). Restituisce la funzione per smettere di ascoltare.
+  function ascoltaSituazione(vid, quando, quandoErrore = () => {}) {
+    const stima = creaStimaOra();
+    let verifica = null; let elencoLavori = null; let elencoConsegne = null;
+    let iniziale = true;
+    const emetti = () => {
+      if (!verifica || !elencoLavori || !elencoConsegne) return;
+      quando({ verifica, lavori: elencoLavori, ultime: consegne.ultimePerStudente(elencoConsegne), ora: stima.ora });
+    };
+    const errore = (err) => quandoErrore(err);
+    const annulla = [
+      sdk.onSnapshot(rifVerifica(vid), (snap) => { if (snap.exists()) { verifica = verificaDaDocumento(snap); emetti(); } }, errore),
+      sdk.onSnapshot(sdk.collection(db, 'verifiche', vid, 'lavori'), (snap) => {
+        elencoLavori = snap.docs.map(lavoroDaDocumento);
+        // Per la stima dell'ora contano solo i segnali ARRIVATI ora (non quelli già nel database al primo caricamento,
+        // che sono vecchi di minuti e farebbero credere il server indietro). Finché non ne arriva uno, ci si fida del PC.
+        if (iniziale) iniziale = false;
+        else if (!snap.metadata.fromCache) {
+          for (const c of snap.docChanges()) {
+            const t = c.type !== 'removed' ? c.doc.data().ultimoSegnale : null;
+            if (t && typeof t.toMillis === 'function') stima.osserva(t.toMillis());
+          }
+        }
+        emetti();
+      }, errore),
+      sdk.onSnapshot(sdk.collection(db, 'verifiche', vid, 'consegne'), (snap) => {
+        elencoConsegne = snap.docs.map(consegnaDaDocumento);
+        emetti();
+      }, errore),
+    ];
+    return () => annulla.forEach((a) => a());
+  }
+
   // ── Tracce, «per tutti» ed eliminazioni (bozza) ───────────────────────────
   // Le email di chi ha la traccia assegnata a mano (chi segue «di tutti» non conta). Serve a dire PRIMA di chiedere
   // conferma che una traccia non si può eliminare.
@@ -291,7 +328,7 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
     // pezzi di base, se servono alla UI
     verifiche, lavori, consegne,
     // operazioni composte
-    crea, cambiaFine, assegna, apri, aggiungiIscritti, tempoAggiuntivo, chiudi, raccogli, riapri, caricaFile, situazione,
+    crea, cambiaFine, assegna, apri, aggiungiIscritti, tempoAggiuntivo, chiudi, raccogli, riapri, caricaFile, situazione, ascoltaSituazione,
     archivia, riepilogoApertura, eliminaTraccia, studentiConTraccia, impattoUsaPerTutti, impostaTracciaDefault, riepilogoEliminazione, eliminaVerifica, assegnazioni,
   };
 }

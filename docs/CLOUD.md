@@ -2,7 +2,7 @@
 
 Stato: **accesso, ruolo (studente/docente), sketch personali, corsi (creati e gestiti dal
 docente nell'app) con iscrizione col codice o a mano, condivisione degli sketch col docente
-del corso, commenti del docente sugli sketch condivisi**. La **modalità verifica** è in costruzione (branch `cloud`, spenta con `enabled: false`): fatti il lato docente, il lavoro live dello studente, la consegna e riconsegna, la copia locale; mancano tabella live, offline/file di emergenza, sola lettura, stampa. Le decisioni di fondo sono nella nota di progetto
+del corso, commenti del docente sugli sketch condivisi**. La **modalità verifica** è in costruzione (branch `cloud`, spenta con `enabled: false`): fatti il lato docente, il lavoro live dello studente, la consegna e riconsegna, la copia locale, la tabella live del docente; mancano offline/file di emergenza, sola lettura, stampa. Le decisioni di fondo sono nella nota di progetto
 "cloud e verifica live"; qui c'è ciò che serve per usare e mantenere il codice.
 
 ## Principi
@@ -519,7 +519,15 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
   - **Chiudi verifica…** (aperta): con «Raccogli subito i lavori» già spuntato; dice com'è andata la raccolta.
   - **Raccogli i lavori**, **Riapri…** (stessa scelta della fine, proposta 30 minuti) e **Archivia…** (chiusa);
     **Ripristina** (archiviata: è l'unica azione). L'elenco ha la casella «Mostra anche le verifiche archiviate».
-  - La tabella live con il dettaglio per studente arriva con il passo 9.
+  - **Situazione (passo 9)**: da aperta o chiusa la scheda ha due schede, «Situazione» (si apre su questa) e «Tracce».
+    La tabella ha una riga per studente: stato (Non entrato / Scrive / Ha eseguito / Errore / Consegnato), blocchi con la
+    variazione degli ultimi 5 minuti, ⚠ se in un controllo i blocchi sono saliti di 15 o più (programma incollato),
+    esecuzioni con l'esito dell'ultima, connessione (offline dopo 4 minuti senza segnali) e tempo rimasto verde/giallo/rosso.
+    Si aggiorna da sola (`ascoltaSituazione`: una lettura per documento cambiato); il timer scorre con un orologio locale
+    ogni secondo, senza letture. L'ora usata è quella del SERVER, stimata dai segnali degli studenti arrivati DOPO l'apertura
+    della tabella (finché non ne arriva uno ci si fida del PC). Le righe si calcolano in `verifica-tabella.js` (funzioni
+    pure, `test/verifica-tabella.mjs`); `verifica-tabella-ui.js` le disegna. Non c'è una colonna «ultima modifica»: il
+    solo dato è `ultimoSegnale`, che vale anche per il battito.
 - A verifica chiusa la scheda è di sola lettura.
 - **Le notifiche («toast») stanno sopra le finestre** (livello 3000 contro 2000 delle finestre): prima un messaggio
   che usciva mentre una finestra era aperta finiva nascosto dietro l'oscuramento e non lo vedeva nessuno (valeva

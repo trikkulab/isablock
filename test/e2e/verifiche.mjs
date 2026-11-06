@@ -2,7 +2,7 @@
 // segno «per tutti», titolo e fine, modifiche non salvate, eliminazione, vista stretta.
 // Si lancia con `npm run test:e2e` (avvia gli emulatori Auth e Firestore, vuoti, e questo script).
 import { avviaServer } from './server.mjs';
-import { avviaBrowser, accedi, abilitaDocente, leggi, scrivi, valoreTesto, verifica, riepilogo, schermata, MOD } from './aiuti.mjs';
+import { avviaBrowser, accedi, abilitaDocente, leggi, scrivi, aggiorna, S, T, valoreTesto, verifica, riepilogo, schermata, MOD } from './aiuti.mjs';
 
 const { server } = await avviaServer();
 const browser = await avviaBrowser();
@@ -290,6 +290,36 @@ try {
     'i 3 iscritti hanno la loro assegnazione, con la traccia vera (t0)');
   verifica(!(await page.isVisible('button:has-text("Archivia")')) && !(await page.isVisible('button:has-text("Apri verifica")')), 'aperta: non si può archiviare né riaprire');
   await schermata(page, 'v-9-aperta');
+
+  // situazione live: tre studenti non entrati, poi Anna scrive e la riga cambia da sola
+  verifica(await page.isVisible('.verifica-scheda.attiva:has-text("Situazione")') && !(await page.isVisible('.tracce-corpo')), 'verifica aperta: la scheda si apre sulla Situazione (le tracce sono nell\'altra scheda)');
+  await page.waitForSelector('.tabella-live tbody tr');
+  verifica((await page.$$('.tabella-live tbody tr')).length === 3 && (await page.$$('.tabella-stato[data-stato="non-entrato"]')).length === 3, 'tabella: 3 righe, tutti «Non entrato»');
+  verifica(/Entrati 0 su 3/.test(await page.textContent('.tabella-sommario')), 'riepilogo: Entrati 0 su 3');
+  const lavoroAnna = `verifiche/${vid2}/lavori/anna@isarome.it`;
+  const adesso = Date.now();
+  await aggiorna(lavoroAnna, { entrato: T(adesso - 2 * 60000), ultimoSegnale: T(adesso), studenteNome: S('Anna Rossi'), nBlocchi: { integerValue: '7' },
+    esecuzioni: { mapValue: { fields: { n: { integerValue: '2' }, esito: S('errore'), quando: { integerValue: '1000' } } } } });
+  verifica(await finche(async () => (await page.textContent('.tabella-live tbody')).includes('Anna Rossi')), 'tabella: la riga di Anna si aggiorna da sola (nome)');
+  const rigaAnna = async () => page.textContent('.tabella-live tbody tr:has-text("Anna Rossi")');
+  verifica(/Errore/.test(await rigaAnna()) && /7/.test(await rigaAnna()) && /2 · errore/.test(await rigaAnna()), 'riga di Anna: Errore, 7 blocchi, 2 esecuzioni con esito errore');
+  verifica(/^.*\d+:\d\d/.test(await page.textContent('.tabella-live tbody tr:has-text("Anna Rossi") .tabella-timer')) && await page.getAttribute('.tabella-live tbody tr:has-text("Anna Rossi") .tabella-timer', 'data-colore') === 'verde', 'riga di Anna: timer verde con minuti e secondi');
+  verifica(/Entrati 1 su 3/.test(await page.textContent('.tabella-sommario')), 'riepilogo: Entrati 1 su 3');
+  // il tempo scorre da solo, senza letture
+  const t1 = await page.textContent('.tabella-live tbody tr:has-text("Anna Rossi") .tabella-timer');
+  await page.waitForTimeout(2200);
+  verifica(await page.textContent('.tabella-live tbody tr:has-text("Anna Rossi") .tabella-timer') !== t1, 'il timer scorre ogni secondo');
+  // salto di blocchi (incollato) e consegna
+  await aggiorna(lavoroAnna, { nBlocchi: { integerValue: '60' }, ultimoSegnale: T(Date.now()), campioni: { arrayValue: { values: [{ mapValue: { fields: { t: { integerValue: String(Date.now() - 3 * 60000) }, n: { integerValue: '10' } } } }] } } });
+  verifica(await finche(async () => (await page.$$('.tabella-salto')).length === 1), 'un salto di blocchi (10 → 60) mostra l\'avviso ⚠');
+  verifica(/1 con un salto di blocchi/.test(await page.textContent('.tabella-sommario')), '…e lo conta nel riepilogo');
+  await schermata(page, 'v-9b-situazione');
+  await page.selectOption('.tabella-ordine', 'attenzione');
+  verifica(/Anna Rossi/.test(await page.textContent('.tabella-live tbody tr:first-child')), 'ordine «chi richiede attenzione»: Anna (salto) per prima');
+  // l'altra scheda mostra le tracce
+  await page.click('.verifica-scheda:has-text("Tracce")');
+  verifica(await page.isVisible('.tracce-corpo') && !(await page.isVisible('.tabella-live')), 'scheda «Tracce»: si vedono le tracce e non la tabella');
+  await page.click('.verifica-scheda:has-text("Situazione")');
 
   // un corso con una verifica aperta non si archivia: avviso nella sezione, senza conferma generica
   await page.keyboard.press('Escape');                                                    // la scheda
