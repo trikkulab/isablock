@@ -31,6 +31,32 @@ export function creaStimaOra({ adesso = Date.now } = {}) {
   };
 }
 
+// Quanti blocchi ha un programma (JSON del file, come testo), senza contare il contenitore INIZIO/FINE: lo stesso numero
+// che l'editor comunica al salvataggio (`getAllBlocks` meno `program`). Serve dove c'è solo il programma e non il conteggio,
+// per esempio nella consegna. null se il testo non si legge. Memorizzato: la tabella si ridisegna ogni secondo.
+const conteggi = new Map();
+export function contaBlocchi(programma) {
+  if (typeof programma !== 'string' || programma === '') return null;
+  if (conteggi.has(programma)) return conteggi.get(programma);
+  let n = null;
+  try {
+    const stato = JSON.parse(programma);
+    n = 0;
+    // un blocco ha `type`; i figli stanno negli ingressi (`inputs.X.block` o `.shadow`) e nel blocco successivo (`next.block`)
+    const visita = (b) => {
+      while (b && typeof b === 'object') {
+        if (typeof b.type === 'string' && b.type !== 'program') n++;
+        for (const ingresso of Object.values(b.inputs ?? {})) { visita(ingresso?.block); visita(ingresso?.shadow); }
+        b = b.next?.block;
+      }
+    };
+    for (const radice of stato?.blocks?.blocks ?? []) visita(radice);
+  } catch { n = null; }
+  if (conteggi.size >= 200) conteggi.clear();
+  conteggi.set(programma, n);
+  return n;
+}
+
 // Incremento dei blocchi nella finestra: blocchi di adesso meno quelli del campione più vecchio dentro la finestra.
 // null se non c'è nessun campione utile (o se non si conoscono i blocchi attuali).
 export function incrementoBlocchi({ nBlocchi, campioni = [], ora, finestraMin = C.finestraIncrementoMin }) {
@@ -85,12 +111,15 @@ export function costruisciRighe({ verifica, lavori, ultime = {}, ora }) {
     // sta lavorando di nuovo (`consegnato` è tornato falso). A verifica chiusa la consegna (anche raccolta) fa fede.
     const consegna = lavoro.consegnato || verifica.stato !== 'aperta' ? (ultime[lavoro.email] ?? null) : null;
     const consegnato = lavoro.consegnato || !!consegna;
+    // A verifica CHIUSA i blocchi sono quelli della consegna valida (anche caricata da file, quando il lavoro sul server è
+    // vecchio o vuoto); la variazione degli ultimi minuti non ha più senso.
+    const daConsegna = verifica.stato === 'chiusa' && consegna && consegna.programma ? contaBlocchi(consegna.programma) : null;
     return {
       email: lavoro.email,
       nome: lavoro.studenteNome,
       stato: statoRiga(lavoro, consegna),
-      nBlocchi: lavoro.nBlocchi,
-      incremento: incrementoBlocchi({ nBlocchi: lavoro.nBlocchi, campioni: lavoro.campioni, ora }),
+      nBlocchi: daConsegna ?? lavoro.nBlocchi,
+      incremento: daConsegna !== null ? null : incrementoBlocchi({ nBlocchi: lavoro.nBlocchi, campioni: lavoro.campioni, ora }),
       salto: saltoBlocchi({ nBlocchi: lavoro.nBlocchi, campioni: lavoro.campioni }),
       esecuzioni: lavoro.esecuzioni && lavoro.esecuzioni.n > 0 ? { n: lavoro.esecuzioni.n, esito: lavoro.esecuzioni.esito ?? null } : null,
       timer: timerRiga({ lavoro, verifica, ora, consegnato }),

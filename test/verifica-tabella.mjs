@@ -1,6 +1,6 @@
 // Prova di src/cloud/verifica-tabella.js (righe della tabella live del docente), con un orologio finto.
 import assert from 'node:assert/strict';
-import { creaStimaOra, incrementoBlocchi, saltoBlocchi, statoRiga, timerRiga, connessioneRiga, costruisciRighe, riepilogo, ordinaRighe, testoDurata } from '../src/cloud/verifica-tabella.js';
+import { contaBlocchi, creaStimaOra, incrementoBlocchi, saltoBlocchi, statoRiga, timerRiga, connessioneRiga, costruisciRighe, riepilogo, ordinaRighe, testoDurata } from '../src/cloud/verifica-tabella.js';
 
 let test = 0;
 const prova = (nome, fn) => { fn(); test++; console.log(`OK      ${nome}`); };
@@ -100,6 +100,41 @@ prova('dopo una riapertura le consegne di prima non fanno «consegnato» chi sta
   const [riconsegnata] = costruisciRighe({ verifica, lavori: [lavoro({ consegnato: true })], ultime, ora: ORA });
   assert.equal(riconsegnata.stato, 'consegnato');
   assert.equal(riconsegnata.versioneConsegna, 2);
+});
+const bl = (type, extra = {}) => ({ type, id: type + Math.random(), ...extra });
+prova('contaBlocchi: conta ingressi e blocchi successivi, non il contenitore INIZIO/FINE', () => {
+  const programma = { formatVersion: 6, blocks: { languageVersion: 0, blocks: [bl('program', { inputs: { BODY: { block: bl('read', {
+    next: { block: bl('if_else', { inputs: { COND: { block: bl('compare', { inputs: { A: { block: bl('var') }, B: { block: bl('num') } } }) },
+      THEN: { block: bl('write', { inputs: { V: { block: bl('var') } } }) } }, next: { block: bl('write') } }) } }) } } })] } };
+  assert.equal(contaBlocchi(JSON.stringify(programma)), 8);                                  // read, if_else, compare, var, num, write, var, write
+  assert.equal(contaBlocchi(JSON.stringify({ blocks: { blocks: [bl('program')] } })), 0);    // vuoto
+  assert.equal(contaBlocchi(JSON.stringify({ blocks: { blocks: [bl('program'), bl('write'), bl('write', { next: { block: bl('write') } })] } })), 3);   // anche blocchi sciolti
+  const conOmbra = { blocks: { blocks: [bl('write', { inputs: { V: { shadow: bl('num'), block: bl('var') } } })] } };
+  assert.equal(contaBlocchi(JSON.stringify(conOmbra)), 3);                                   // `getAllBlocks` conta anche le ombre
+});
+prova('contaBlocchi: testo non leggibile, vuoto o senza blocchi', () => {
+  for (const x of [null, undefined, '', 'non json', '{', 42]) assert.equal(contaBlocchi(x), null);
+  assert.equal(contaBlocchi('{}'), 0);
+  assert.equal(contaBlocchi('null'), 0);
+  assert.equal(contaBlocchi('[1,2]'), 0);
+});
+prova('contaBlocchi: memorizzato (stesso testo, stesso risultato)', () => {
+  const t = JSON.stringify({ blocks: { blocks: [bl('write'), bl('write')] } });
+  assert.equal(contaBlocchi(t), 2);
+  assert.equal(contaBlocchi(t), 2);
+});
+prova('a verifica chiusa i blocchi della riga sono quelli della consegna (anche da file), senza variazione', () => {
+  const prog = JSON.stringify({ blocks: { blocks: [bl('program'), bl('write'), bl('write'), bl('write')] } });
+  const chiusa = { ...verifica, stato: 'chiusa' };
+  const l = lavoro({ nBlocchi: 99, campioni: [{ t: ORA - MIN, n: 10 }] });
+  const [r] = costruisciRighe({ verifica: chiusa, lavori: [l], ultime: { 'a@x.it': { versione: 2, origine: 'file', programma: prog } }, ora: ORA });
+  assert.deepEqual([r.nBlocchi, r.incremento], [3, null]);
+  const [senza] = costruisciRighe({ verifica: chiusa, lavori: [l], ultime: {}, ora: ORA });
+  assert.equal(senza.nBlocchi, 99);                                                           // senza consegna resta il lavoro
+  const [illeggibile] = costruisciRighe({ verifica: chiusa, lavori: [l], ultime: { 'a@x.it': { versione: 1, programma: 'rotto' } }, ora: ORA });
+  assert.equal(illeggibile.nBlocchi, 99);
+  const [aperta] = costruisciRighe({ verifica, lavori: [lavoro({ nBlocchi: 12 })], ultime: { 'a@x.it': { versione: 1, programma: prog } }, ora: ORA });
+  assert.equal(aperta.nBlocchi, 12);                                                          // a verifica aperta conta il lavoro in diretta
 });
 prova('testo della durata', () => {
   assert.equal(testoDurata(0), '0:00');

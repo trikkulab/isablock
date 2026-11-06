@@ -319,6 +319,18 @@ try {
   // «Guarda»: il programma di Anna in sola lettura, che si aggiorna da solo
   const esempio = await page.evaluate(async () => { const m = await import('/src/examples.js'); return { ...m.examples[0].workspaceState, formatVersion: 6 }; });
   const json1 = JSON.stringify(esempio);
+  // il conteggio dal JSON coincide con quello dell'editor, su tutti gli esempi dell'app
+  const confronto = await page.evaluate(async () => {
+    const { examples } = await import('/src/examples.js');
+    const { contaBlocchi } = await import('/src/cloud/verifica-tabella.js');
+    const ws = window.Blockly.getMainWorkspace();
+    return examples.map((e) => {
+      window.Blockly.serialization.workspaces.load(e.workspaceState, ws);
+      const editor = ws.getAllBlocks(false).filter((b) => b.type !== 'program').length;
+      return { titolo: e.title ?? e.name ?? '', editor, json: contaBlocchi(JSON.stringify(window.Blockly.serialization.workspaces.save(ws))) };
+    });
+  });
+  verifica(confronto.length >= 5 && confronto.every((c) => c.editor === c.json && c.editor > 0), `contaBlocchi coincide con l'editor su tutti gli esempi: ${JSON.stringify(confronto.map((c) => [c.editor, c.json]))}`);
   await aggiorna(lavoroAnna, { programma: S(json1), programmaHash: S('h1'), nBlocchi: { integerValue: '8' }, ultimoSegnale: T(Date.now()) });
   await page.click('.tabella-live tbody tr:has-text("Anna Rossi") button:has-text("Guarda")');
   await page.waitForSelector('.anteprima-blocchi svg.blocklySvg');
@@ -448,8 +460,9 @@ try {
   await page.waitForSelector('.tabella-live tbody tr:has-text("Bruno Verdi") button:has-text("Guarda"), .tabella-live tbody tr:has-text("bruno@isarome.it") button:has-text("Guarda")');
   await page.click('.tabella-live tbody tr:has-text("Consegnato"):not(:has-text("Anna")) button:has-text("Guarda")');
   verifica(await finche(async () => (await page.$$('.anteprima-blocchi .blocklyBlockCanvas [data-id]')).length > 3), 'Guarda dopo il caricamento del file: mostra il programma della consegna (non «non ha scritto niente»)');
-  verifica(/consegna v1 \(da file\)/.test(await page.textContent('.anteprima-info')) && !(await page.isVisible('.anteprima-vuoto')), '…e dice che è la consegna v1 da file');
+  verifica(/consegna v1 \(da file\) · 12 blocchi/.test(await page.textContent('.anteprima-info')) && !(await page.isVisible('.anteprima-vuoto')), '…e dice che è la consegna v1 da file, con il numero di blocchi');
   await page.keyboard.press('Escape');
+  verifica(await finche(async () => (await page.textContent('.tabella-live tbody tr:has-text("bruno@isarome.it") td:nth-child(3)')).trim() === '12'), 'la tabella mostra i blocchi della consegna da file (12), anche per chi non è mai entrato');
 
   // archivia: sparisce dall'elenco, si ritrova con la casella, si ripristina
   dialoghi.length = 0;

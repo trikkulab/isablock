@@ -3,6 +3,7 @@
 // dal database: i dati arrivano dalla tabella live (`segui`), che ha già il programma di ogni studente.
 // I blocchi e i codici li disegna main.js (`programma.anteprima`); qui c'è solo la finestra.
 import { el } from './dom.js';
+import { contaBlocchi } from './verifica-tabella.js';
 
 const CODICI = [['pseudocode', 'Pseudocodice'], ['c', 'C'], ['python', 'Python']];
 const ora = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -109,7 +110,7 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, ema
     const dallaConsegna = consegna && consegna.programma && (verifica?.stato === 'chiusa' || !lavoro.programma);
     if (!dallaConsegna) return lavoro;
     const come = consegna.origine === 'file' ? ' (da file)' : consegna.origine === 'raccolta' ? ' (raccolta)' : '';
-    return { programma: consegna.programma, nBlocchi: null, consegnato: false, ultimoSegnale: null, etichetta: ` · consegna v${consegna.versione}${come}` };
+    return { programma: consegna.programma, nBlocchi: contaBlocchi(consegna.programma), consegnato: false, ultimoSegnale: null, etichetta: ` · consegna v${consegna.versione}${come}` };
   }
 
   function disegna(stato) {

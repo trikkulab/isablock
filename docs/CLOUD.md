@@ -538,6 +538,10 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
     verifica aperta, entrato, non consegnato, entro scadenza+grazia; legge il docente; nessuno cancella (la pulizia di fine
     anno li toglie con lo script). Costo: ~700 scritture in più su 30 studenti × 2 h. Per infittire o allungare la storia:
     `istantaneaOgniMs` e `regole.maxIstantanee`, poi ripubblicare le regole.
+  - **Consegna vista da «Guarda»**: a verifica CHIUSA «Guarda» e la colonna Blocchi mostrano la consegna valida (l'ultima
+    versione, anche raccolta o da file); a verifica aperta il lavoro in diretta, e la consegna solo se il lavoro è vuoto.
+    La consegna non conserva il numero di blocchi: lo calcola `contaBlocchi()` (verifica-tabella.js, pura, memorizzata) dal
+    JSON del programma, escluso INIZIO/FINE; coincide con l'editor su tutti gli esempi dell'app (prova e2e).
   - **Carica file (passo 10b)**: a verifica CHIUSA ogni riga ha «Carica file…» per il file di emergenza dello studente
     (anche se non è mai entrato). Formato e controlli in `src/verifica-file.js` (puro, sarà usato anche per PRODURRE il
     file nel passo 10a): JSON con marcatore `isablockEmergenza`, verifica, studente, programma, `offlineDa`, blocchi e UN
