@@ -538,6 +538,15 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
     verifica aperta, entrato, non consegnato, entro scadenza+grazia; legge il docente; nessuno cancella (la pulizia di fine
     anno li toglie con lo script). Costo: ~700 scritture in più su 30 studenti × 2 h. Per infittire o allungare la storia:
     `istantaneaOgniMs` e `regole.maxIstantanee`, poi ripubblicare le regole.
+  - **Carica file (passo 10b)**: a verifica CHIUSA ogni riga ha «Carica file…» per il file di emergenza dello studente
+    (anche se non è mai entrato). Formato e controlli in `src/verifica-file.js` (puro, sarà usato anche per PRODURRE il
+    file nel passo 10a): JSON con marcatore `isablockEmergenza`, verifica, studente, programma, `offlineDa`, blocchi e UN
+    campo `impronta` (hash sincrono a 106 bit di sale fisso + verifica + email + programma: ferma i ritocchi semplici,
+    non è sicurezza). Si rifiuta se non è un file di emergenza, versione diversa, dati rotti, impronta falsa, altra verifica
+    o altro studente (anche se genuino). Il NOME del file non fa fede: solo un avviso se non ricorda lo studente. Finestra
+    di conferma con il confronto «ultimo salvataggio sul server / nel file», la versione che nascerà e «Guarda il programma
+    del file»; la consegna nasce con origine `file` sopra le precedenti (che restano), la tabella mostra «Consegnato (v2) ·
+    da file». `Apri` dell'editor rifiuta il file di emergenza (non si riapre mai).
 - A verifica chiusa la scheda è di sola lettura.
 - **Le notifiche («toast») stanno sopra le finestre** (livello 3000 contro 2000 delle finestre): prima un messaggio
   che usciva mentre una finestra era aperta finiva nascosto dietro l'oscuramento e non lo vedeva nessuno (valeva

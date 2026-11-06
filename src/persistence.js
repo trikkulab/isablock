@@ -70,6 +70,11 @@ export function isWorkspaceBlank(workspace) {
 export function loadWorkspaceState(Blockly, workspace, state) {
   // I file salvati prima dell'introduzione della versione non hanno il campo:
   // sono il formato 1.
+  // Il file di emergenza della verifica serve solo al docente (src/verifica-file.js): non si riapre nell'editor.
+  // (Controllo scritto qui, senza importare il modulo del cloud: l'app senza cloud non carica nulla di verifica.)
+  if (state && typeof state === 'object' && state.isablockEmergenza !== undefined) {
+    throw new FileFormatError('Questo è un file di emergenza della verifica: serve a consegnare il lavoro al docente, non si riapre qui.');
+  }
   const formatVersion = state.formatVersion ?? 1;
   // Controllo prima di workspace.clear(): un file non leggibile non deve
   // far perdere il lavoro in corso.

@@ -13,6 +13,7 @@ import { verificaConfig } from './verifica-config.js';
 import { perCampo, daCampo, finePredefinita, formatoDataOra } from './data-ora.js';
 import { creaTabellaLive } from './verifica-tabella-ui.js';
 import { apriAnteprima } from './verifica-anteprima-ui.js';
+import { scegliFileEmergenza } from './verifica-file-ui.js';
 import { testoApertura, testoChiusura, testoRiapertura, testoArchivia, esitoRaccolta } from './testi-verifica.js';
 
 const L = verificaConfig.regole;
@@ -528,7 +529,8 @@ export function montaVerifiche({ toast, programma = null }) {
       const guarda = programma && programma.anteprima
         ? (email, nome) => apriAnteprima({ apri, programma, segui: (e, cb) => tabella.segui(e, cb), caricaStoria: () => vd.lavori.storia(vid, email), email, nome })
         : null;
-      tabella = creaTabellaLive({ vd, vid, toast, guarda });
+      const caricaFile = (email, nome) => scegliFileEmergenza({ apri, programma, vd, vid, email, nome, toast, ...tabella.stato(email) });
+      tabella = creaTabellaLive({ vd, vid, toast, guarda, caricaFile });
       chiudiTabella = tabella.distruggi;
       const pannelloSituazione = el('div', { class: 'situazione' }, tabella.elemento);
       const schede = [['situazione', 'Situazione'], ['tracce', 'Tracce']];

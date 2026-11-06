@@ -394,6 +394,57 @@ try {
   verifica(await stato2() === 'chiusa', 'la verifica è chiusa');
   verifica(await page.isVisible('button:has-text("Raccogli i lavori")') && await page.isVisible('button:has-text("Riapri")'), 'chiusa: si può raccogliere, riaprire, archiviare');
 
+  // file di emergenza: il docente lo carica dalla riga dello studente (solo a verifica chiusa)
+  verifica((await page.$$('.tabella-live tbody tr button:has-text("Carica file")')).length === 3, 'chiusa: ogni riga ha «Carica file…»');
+  const creaFile = (args) => page.evaluate(async (a) => { const m = await import('/src/verifica-file.js'); const r = m.creaFileEmergenza({ ...a, creatoIl: new Date(a.creatoIl) }); return { testo: r.testo, nome: r.nomeFile }; }, args);
+  const datiFile = { verifica: vid2, titolo: 'Verifica per la vista stretta', studente: 'anna@isarome.it', studenteNome: 'Anna Rossi', programma: json1, nBlocchi: 37, nBlocchiSincronizzati: 14, offlineDa: '10:42', creatoIl: Date.now() };
+  const carica = async (riga, file, nome = file.nome) => {
+    const [scelta] = await Promise.all([page.waitForEvent('filechooser'), page.click(`.tabella-live tbody tr:has-text("${riga}") button:has-text("Carica file")`)]);
+    await scelta.setFiles({ name: nome, mimeType: 'application/json', buffer: Buffer.from(file.testo ?? file) });
+  };
+  // 1) file ritoccato → rifiutato con un messaggio, nessuna finestra
+  const buono = await creaFile(datiFile);
+  const ritoccato = JSON.parse(buono.testo); ritoccato.nBlocchi = 99; ritoccato.programma = ritoccato.programma.replace('program', 'programma');
+  await carica('Anna Rossi', JSON.stringify(ritoccato), buono.nome);
+  verifica(await toastContiene(/l'impronta non torna/), 'file ritoccato: rifiutato («l\'impronta non torna»)');
+  verifica(!(await page.isVisible('h2:has-text("Carica il file di emergenza")')), '…e non si apre nessuna conferma');
+  // 2) file genuino ma di un altro studente (Bruno) caricato sulla riga di Anna → rifiutato
+  const diBruno = await creaFile({ ...datiFile, studente: 'bruno@isarome.it', studenteNome: 'Bruno Verdi' });
+  await carica('Anna Rossi', diBruno);
+  verifica(await toastContiene(/Bruno Verdi.*non dello studente di questa riga/), 'file di un altro studente: rifiutato, dicendo di chi è');
+  // 3) un normale file di lavoro non vale come consegna
+  await carica('Anna Rossi', json1, 'lavoro.isablock');
+  verifica(await toastContiene(/non è un file di emergenza/), 'un normale file di lavoro: rifiutato');
+  // «Apri» dell'editor rifiuta il file di emergenza (non è un file di lavoro) e non tocca il programma in corso
+  const blocchiPrima = await page.evaluate(() => window.Blockly.getMainWorkspace().getAllBlocks(false).length);
+  await page.setInputFiles('#fileInput', { name: buono.nome, mimeType: 'application/json', buffer: Buffer.from(buono.testo) });
+  verifica(await toastContiene(/file di emergenza della verifica.*non si riapre qui/), '«Apri» rifiuta il file di emergenza con un messaggio chiaro');
+  verifica(await page.evaluate(() => window.Blockly.getMainWorkspace().getAllBlocks(false).length) === blocchiPrima, '…senza toccare il programma in corso');
+  // 4) file buono, ma con un nome che non ricorda lo studente: avviso, e confronto dei blocchi
+  await carica('Anna Rossi', buono, 'compito-finale.isablock');
+  await page.waitForSelector('h2:has-text("Carica il file di emergenza")');
+  const conferma = await page.textContent('.modal:last-of-type .modal-box');
+  verifica(/non ricorda questo studente/.test(conferma) && /conta il contenuto/.test(conferma), 'conferma: avviso sul nome del file, che non fa fede');
+  verifica(/Ultimo salvataggio arrivato al server.*0 blocchi/.test(conferma) && /Nel file.*37 blocchi/.test(conferma), 'conferma: confronto «server → file» (0 → 37 blocchi)');
+  verifica(/offline da 10:42/.test(conferma) && /versione v2 della consegna/.test(conferma), '…con l\'ora di offline e la versione che nascerà (v2, sopra la raccolta)');
+  await schermata(page, 'v-9e-carica-file');
+  await page.click('button:has-text("Guarda il programma del file")');
+  await page.waitForSelector('h2:has-text("(dal file)")');
+  verifica(await finche(async () => (await page.$$('.anteprima-blocchi .blocklyBlockCanvas [data-id]')).length > 3), 'conferma: «Guarda il programma del file» mostra i blocchi del file');
+  await page.keyboard.press('Escape');
+  await page.click('button:has-text("Carica come consegna v2")');
+  verifica(await finche(async () => (await leggi(`verifiche/${vid2}/consegne`)).documents?.some((d) => d.name.endsWith('/anna@isarome.it_2'))), 'la consegna v2 esiste');
+  const c2 = (await leggi(`verifiche/${vid2}/consegne/anna@isarome.it_2`));
+  verifica(valoreTesto(c2, 'origine') === 'file' && valoreTesto(c2, 'impronta') === JSON.parse(buono.testo).impronta && valoreTesto(c2, 'nomeFile') === 'compito-finale.isablock' && valoreTesto(c2, 'offlineDa') === '10:42' && c2.fields.nBlocchiSincronizzati?.integerValue === '14' && valoreTesto(c2, 'docenteEmail') === 'docente@isarome.it',
+    'consegna v2: origine «file», con impronta, nome del file, offline da, blocchi sincronizzati e docente');
+  verifica((await leggi(`verifiche/${vid2}/consegne/anna@isarome.it_1`)).fields?.origine?.stringValue === 'raccolta', '…e la v1 (raccolta) è rimasta com\'era');
+  verifica(await finche(async () => /Consegnato \(v2\) · da file/.test(await page.textContent('.tabella-live tbody tr:has-text("Anna Rossi")'))), 'la tabella mostra «Consegnato (v2) · da file»');
+  // la tabella mostra Bruno e Carla senza consegna come «Non entrato»; il file di Bruno invece si carica sulla riga giusta (anche se mai entrato)
+  await carica('bruno@isarome.it', diBruno, 'bruno.verdi_emergenza.isablock');
+  await page.waitForSelector('h2:has-text("Carica il file di emergenza")');
+  await page.click('button:has-text("Carica come consegna v1")');
+  verifica(await finche(async () => (await leggi(`verifiche/${vid2}/consegne/bruno@isarome.it_1`)).fields?.origine?.stringValue === 'file'), 'un file si carica anche per chi non è mai entrato (v1)');
+
   // archivia: sparisce dall'elenco, si ritrova con la casella, si ripristina
   dialoghi.length = 0;
   await page.click('.verifica-azioni button:has-text("Archivia")');

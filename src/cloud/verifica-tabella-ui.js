@@ -14,7 +14,7 @@ function testoOffline(ms) {
 }
 
 // `vd`: oggetto di verifica-docente.js. Restituisce { elemento, distruggi }.
-export function creaTabellaLive({ vd, vid, toast, guarda = null }) {
+export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = null }) {
   let ultimo = null;                // ultimo { verifica, lavori, ultime, ora } ricevuto
   let modo = 'email';
   const seguaci = new Set();        // chi vuole il lavoro di uno studente a ogni aggiornamento: { email, cb }
@@ -55,7 +55,7 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null }) {
       const blocchi = x.nBlocchi === null || x.nBlocchi === undefined ? '–'
         : `${x.nBlocchi}${x.incremento ? ` (${x.incremento > 0 ? '+' : ''}${x.incremento})` : ''}`;
       const esec = x.esecuzioni ? `${x.esecuzioni.n}${x.esecuzioni.esito ? ` · ${x.esecuzioni.esito === 'ok' ? 'ok' : 'errore'}` : ''}` : '–';
-      const stato = STATI_RIGA[x.stato] + (x.stato === 'consegnato' && x.versioneConsegna > 1 ? ` (v${x.versioneConsegna})` : '');
+      const stato = STATI_RIGA[x.stato] + (x.stato === 'consegnato' && x.versioneConsegna > 1 ? ` (v${x.versioneConsegna})` : '') + (x.stato === 'consegnato' && x.origineConsegna === 'file' ? ' · da file' : '');
       corpo.append(el('tr', { 'data-stato': x.stato },
         el('th', { scope: 'row', title: x.email }, x.nome || x.email),
         cella(x, el('span', { class: 'tabella-stato', 'data-stato': x.stato }, stato)),
@@ -63,7 +63,9 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null }) {
         cella(x, esec),
         cella(x, x.connessione ? el('span', { class: 'tabella-conn', 'data-conn': x.connessione.stato }, x.connessione.stato === 'offline' ? testoOffline(x.connessione.da) : 'online') : '–'),
         cella(x, x.timer ? el('span', { class: 'tabella-timer', 'data-colore': x.timer.colore }, x.timer.restante > 0 ? testoDurata(x.timer.restante) : 'scaduto') : '–'),
-        cella(x, guarda ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Guarda il programma (sola lettura)', onclick: () => guarda(x.email, x.nome) }, 'Guarda') : '')));
+        cella(x,
+          guarda ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Guarda il programma (sola lettura)', onclick: () => guarda(x.email, x.nome) }, 'Guarda') : '',
+          caricaFile && ultimo.verifica.stato === 'chiusa' ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Carica il file di emergenza di questo studente come nuova consegna', onclick: () => caricaFile(x.email, x.nome) }, 'Carica file…') : '')));
     }
   }
 
@@ -79,5 +81,7 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null }) {
     if (ultimo) cb(ultimo.lavori.find((l) => l.email === email) ?? null);
     return () => seguaci.delete(g);
   }
-  return { elemento, distruggi, segui };
+  // Lo stato attuale di uno studente (lavoro e ultima consegna), per chi apre una finestra a partire da una riga.
+  const stato = (email) => (ultimo ? { lavoro: ultimo.lavori.find((l) => l.email === email) ?? null, ultimaConsegna: ultimo.ultime[email] ?? null } : { lavoro: null, ultimaConsegna: null });
+  return { elemento, distruggi, segui, stato };
 }
