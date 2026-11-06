@@ -14,7 +14,8 @@ const TIPI = {
   '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8',
 };
 
-export function avviaServer(porta = 8123) {
+// `cloud: false` serve l'app com'è nel repository (cloud spento), per provare come si presenta senza.
+export function avviaServer(porta = 8123, { cloud = true } = {}) {
   const server = createServer(async (req, res) => {
     try {
       let percorso = decodeURIComponent(new URL(req.url, 'http://x').pathname);
@@ -38,7 +39,8 @@ export function avviaServer(porta = 8123) {
           .replace(/riprovaConsegnaMs:\s*\d+/, 'riprovaConsegnaMs: 1000'));
       }
       if (percorso === '/src/app-config.js') {
-        corpo = Buffer.from(corpo.toString('utf8').replace(/cloud:\s*Object\.freeze\(\{\s*enabled:\s*(true|false)\s*\}\)/, 'cloud: Object.freeze({ enabled: true })'));
+        // acceso o spento, qualunque cosa ci sia nel working tree (di Ivan resta true, nel repository false)
+        corpo = Buffer.from(corpo.toString('utf8').replace(/cloud:\s*Object\.freeze\(\{\s*enabled:\s*(true|false)\s*\}\)/, `cloud: Object.freeze({ enabled: ${cloud} })`));
       }
       res.writeHead(200, { 'Content-Type': TIPI[extname(file)] ?? 'application/octet-stream', 'Cache-Control': 'no-store' });
       res.end(corpo);

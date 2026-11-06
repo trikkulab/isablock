@@ -137,7 +137,9 @@
     <div class="modal-box wide">
       <button id="helpCloseBtn" class="modal-close" type="button" aria-label="Chiudi guida">✕</button>
       <h2>Guida rapida</h2>
+      <div id="guidaSchede" class="verifica-schede" role="tablist" aria-label="Sezioni della guida" hidden></div>
 
+      <div id="guidaEditor" class="guida-pagina">
       <section class="guide-section">
         <h3>1. Trascina i blocchi dalla tavolozza</h3>
         <p>A sinistra dell'area di lavoro trovi la <strong>tavolozza</strong>: le istruzioni disponibili, divise per categoria (Variabili e I/O, Numeri, Condizioni, Logica, Cicli, Commenti). Clicca su una categoria per aprirla, poi trascina il blocco che ti serve nell'area di lavoro.</p>
@@ -178,6 +180,8 @@
         <h3>6. Salva il lavoro e riparti da un esempio</h3>
         <p><strong>Salva</strong> scarica un file con il tuo programma; <strong>Apri&hellip;</strong> lo ricarica in una sessione successiva. Il menu <strong>Esempio</strong> in alto carica un algoritmo già pronto (massimo tra due numeri, somma, ricerca, fattoriale, primalità, stampa al contrario con un array): utile per studiarne uno o partire da lì invece che da zero.</p>
       </section>
+      </div>
+      <div id="guidaPagine"></div>
 
       <div class="modal-actions">
         <button id="helpCloseBtn2" class="modal-btn primary" type="button">Chiudi</button>

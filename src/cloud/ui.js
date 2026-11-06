@@ -16,7 +16,8 @@ import { montaCommenti } from './commenti-ui.js';
 import { montaConsegne } from './consegne-ui.js';
 import { montaVerificaStudente } from './verifica-studente-ui.js';
 import { el, apriFinestra } from './dom.js';
-import { titoloAccesso, introAccesso, titoloDati, datiSalvati, notaServizio } from './testi.js';
+import { titoloAccesso, introAccesso, titoloDati, apriTuttoEtichetta, chiudiTuttoEtichetta } from './testi.js';
+import { riassuntoInformativa, testoCompletoInformativa, paginaPrivacy } from './informativa-ui.js';
 
 const SESSIONE_KEY = 'isablock.cloud.sessione';
 
@@ -30,7 +31,9 @@ function eraEntrato() {
   try { return window.localStorage.getItem(SESSIONE_KEY) === '1'; } catch { return false; }
 }
 
-export function montaCloud({ contenitore, toast, programma }) {
+export function montaCloud({ contenitore, toast, programma, guida = null }) {
+  // Con il cloud la Guida ha anche la sezione «Privacy e dati» (l'informativa completa, sempre raggiungibile).
+  guida?.registra('privacy', 'Privacy e dati', paginaPrivacy);
   contenitore.hidden = false;
   contenitore.textContent = '';
 
@@ -173,11 +176,23 @@ export function montaCloud({ contenitore, toast, programma }) {
     const continua = el('button', { type: 'button', class: 'modal-btn', disabled: '' }, 'Carico…');
     continua.disabled = true;
     const annulla = el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => mia.chiudi() }, 'Annulla');
+    // Il riassunto si legge d'un colpo e il pulsante resta sempre in vista. Il testo completo si apre con un clic e scorre
+    // DENTRO la finestra (così «Continua con Google» non va mai cercato in fondo).
+    const riassunto = riassuntoInformativa();
+    const dettaglio = el('div', { class: 'informativa-dettaglio', hidden: '' }, testoCompletoInformativa());
+    const tutto = el('button', { type: 'button', class: 'avviso-link informativa-apri', 'aria-expanded': 'false' }, `▸ ${apriTuttoEtichetta}`);
+    tutto.addEventListener('click', () => {
+      const apri = dettaglio.hidden;
+      dettaglio.hidden = !apri;
+      riassunto.hidden = apri;                      // il testo completo contiene già tutto: il riassunto lascia posto
+      tutto.setAttribute('aria-expanded', String(apri));
+      tutto.textContent = `${apri ? '▾' : '▸'} ${apri ? chiudiTuttoEtichetta : apriTuttoEtichetta}`;
+    });
     mia.corpo.append(
       el('p', { class: 'sketch-nota' }, introAccesso),
       el('h3', { class: 'corsi-titolo' }, titoloDati),
-      el('ul', { class: 'cloud-dati' }, ...datiSalvati.map((t) => el('li', {}, t))),
-      el('p', { class: 'sketch-nota' }, notaServizio),
+      riassunto,
+      tutto, dettaglio,
       el('div', { class: 'modal-actions' }, continua, annulla));
 
     // Il cloud si carica ora, mentre l'utente legge: al clic su «Continua con

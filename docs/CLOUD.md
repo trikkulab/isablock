@@ -2,7 +2,7 @@
 
 Stato: **accesso, ruolo (studente/docente), sketch personali, corsi (creati e gestiti dal
 docente nell'app) con iscrizione col codice o a mano, condivisione degli sketch col docente
-del corso, commenti del docente sugli sketch condivisi**. La **modalità verifica** è in costruzione (branch `cloud`, spenta con `enabled: false`): fatti il lato docente, il lavoro live dello studente, la consegna e riconsegna, la copia locale, la tabella live del docente; mancano offline/file di emergenza, sola lettura; la scheda di consegna in PDF c'è. Le decisioni di fondo sono nella nota di progetto
+del corso, commenti del docente sugli sketch condivisi**. La **modalità verifica** è in costruzione (branch `cloud`, spenta con `enabled: false`): fatti il lato docente, il lavoro live dello studente, la consegna e riconsegna, la copia locale, la tabella live del docente con «Guarda» e la storia, i file di emergenza e il rientro senza rete, «Le mie consegne» e la scheda di consegna in PDF; restano la simulazione con 30 studenti (taratura) e le guide. Le decisioni di fondo sono nella nota di progetto
 "cloud e verifica live"; qui c'è ciò che serve per usare e mantenere il codice.
 
 ## Principi
@@ -785,3 +785,21 @@ Il ruolo docente in locale lo danno i `docentiProva` di `scripts/environments.lo
   il popup può essere bloccato; il messaggio chiede di riprovare, e il secondo
   clic funziona (SDK già caricato). Da verificare su Safari reale.
 - Il dominio del sito va aggiunto tra i "domini autorizzati" di Authentication.
+
+## Finestra di accesso, informativa e Guida (6 nov 2026)
+
+- **Informativa** (`src/cloud/testi.js`, un posto solo; DEVE restare identica a ciò che il cloud salva davvero): `riassuntoDati`
+  (5 righe, quelle della finestra di accesso) e `gruppiDati` (il testo completo in tre gruppi: «Il tuo account e i corsi»,
+  «Sketch e commenti», «Le verifiche»); `datiSalvati` è l'elenco piatto. Se cambiano i dati salvati si aggiorna QUI, in `gruppiDati`
+  e, se serve, nel riassunto. Il DOM è in `informativa-ui.js`.
+- **Finestra di accesso** (`ui.js`, `apriAccesso`): intro, riassunto di 5 righe e «Leggi tutto, voce per voce», che apre il testo
+  completo DENTRO la finestra (il riassunto lascia posto, il testo scorre in un'area con altezza legata allo schermo); i
+  pulsanti restano sempre in basso e in vista, come in tutte le altre finestre.
+- **Guida a sezioni** (`src/guida.js`, markup in `index.html`): senza cloud ha solo «Editor» (le 6 spiegazioni di sempre, nessuna
+  barra); con il cloud il cloud registra altre sezioni (`guida.registra(id, titolo, costruisci)`, in `montaCloud`) e compare la barra
+  delle schede. Oggi: «Editor» e «Privacy e dati» (l'informativa completa, raggiungibile sempre, anche senza accedere). Le
+  pagine delle sezioni aggiunte si costruiscono alla prima apertura. Il passo 14 (guide per studente e docente) aggiunge qui
+  le sue sezioni.
+- Prove: `test/e2e/accesso.mjs` (cloud acceso e spento; con `avviaServer(porta, { cloud })`). Lezione: un attributo `hidden` viene
+  annullato da una regola CSS con `display` (visto tre volte: voce di menu, barra delle schede): ogni elemento nascosto con `hidden`
+  che ha una classe con `display` ha bisogno di `[hidden] { display: none }`.

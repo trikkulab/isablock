@@ -1251,3 +1251,16 @@ body.modo-verifica .autosave-info { display: none; }
 }
 
 .tabella-azioni { display: inline-flex; gap: 0.5rem; align-items: center; }
+
+/* Guida a sezioni (guida.js) e informativa (informativa-ui.js) */
+.guida-pagina[hidden] { display: none; }
+#guidaSchede { margin: 0.2rem 0 1rem; }
+#guidaSchede[hidden] { display: none; }
+.informativa-riassunto { margin: 0 0 0.6rem; padding-left: 1.1rem; }
+.informativa-riassunto[hidden] { display: none; }
+.informativa-riassunto li { margin-bottom: 0.35rem; font-size: 0.9rem; line-height: 1.45; }
+.informativa-apri { display: inline-block; margin: 0 0 0.6rem; font-size: 0.9rem; }
+.informativa-dettaglio { max-height: max(8rem, calc(90vh - 17rem)); overflow-y: auto; margin: 0 0 0.8rem; padding: 0.4rem 0.8rem; border: 1px solid var(--border, #d6d4e0); border-radius: 8px; }
+.informativa-dettaglio[hidden] { display: none; }
+.informativa-gruppo { margin: 0.8rem 0 0.2rem; font-size: 0.95rem; }
+.informativa-testo .cloud-dati { margin-top: 0.2rem; }

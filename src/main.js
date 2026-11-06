@@ -12,6 +12,7 @@ import { saveWorkspaceToFile, saveWorkspaceWithPicker, hasNativeSavePicker, load
 import { createLocalBackup, createDebouncedSaver } from './local-backup.js';
 import { leggiVerificaInCorso } from './verifica-locale.js';
 import { examples } from './examples.js';
+import { creaGuida } from './guida.js';
 import { runProgram, ExecutionError } from './runtime/interpreter.js';
 import { updateEditorWarnings } from './blocks/editor-checks.js';
 
@@ -359,12 +360,10 @@ document.getElementById('welcomeAcceptBtn').addEventListener('click', () => {
 // --- Guida rapida (riapribile in qualsiasi momento, a differenza della
 // modale di benvenuto che compare solo al primo utilizzo) --------------
 const helpModal = document.getElementById('helpModal');
-function openHelp() {
-  helpModal.hidden = false;
-}
-function closeHelp() {
-  helpModal.hidden = true;
-}
+// La Guida ha una sezione «Editor» (index.html); con il cloud acceso se ne aggiungono altre (src/guida.js).
+const guida = creaGuida({ modale: helpModal, barra: document.getElementById('guidaSchede'), pagine: document.getElementById('guidaPagine') });
+const openHelp = () => guida.apri('editor');
+const closeHelp = () => guida.chiudi();
 document.getElementById('btnHelp').addEventListener('click', openHelp);
 document.getElementById('helpCloseBtn').addEventListener('click', closeHelp);
 document.getElementById('helpCloseBtn2').addEventListener('click', closeHelp);
@@ -604,6 +603,7 @@ if (appConfig.cloud.enabled) {
     cloudUi = m.montaCloud({
       contenitore: document.getElementById('cloudBox'),
       toast: showToast,
+      guida,
       // Il cloud vede il programma solo attraverso queste quattro funzioni.
       programma: {
         corrente: () => serializeWorkspace(Blockly, workspace),
