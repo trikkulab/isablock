@@ -464,6 +464,39 @@ test('rientro offline a tempo già scaduto: la verifica è terminata e il file �
   } finally { await chiudi(s, db); }
 });
 
+// ── «Le mie consegne»: le consegne nelle verifiche concluse ───────────────
+const consegnaDi = (email, vid, n, origine = 'studente', extra = {}) => admin((db) => sdk.setDoc(sdk.doc(db, `verifiche/${vid}/consegne/${email}_${n}`), {
+  studenteEmail: email, studenteNome: email.split('@')[0], corsoId: 'AB12CD', titolo: `Verifica ${vid}`, versione: n, origine, tracciaId: 't0',
+  programma: P(n), creato: sdk.Timestamp.now(), ...extra }));
+
+test('mieConsegne: solo le verifiche concluse, solo le consegne dello studente, dalla più recente', async () => {
+  await verifica('chiusa', null, 'v2');                                                  // vecchia: chiusa 10 minuti fa
+  await admin((db) => sdk.updateDoc(sdk.doc(db, 'verifiche/v2'), { chiusaIl: ts(Date.now() - 10 * MIN) }));
+  await verifica('chiusa', null, 'v3');                                                  // più recente
+  await verifica('bozza', null, 'v4');
+  await consegnaDi(ANNA, 'v2', 1); await consegnaDi(ANNA, 'v2', 2, 'file', { docenteEmail: 'docente@isarome.it', impronta: 'x', nomeFile: 'a.isablock' });
+  await consegnaDi(BRUNO, 'v2', 1);                                                      // di un altro studente
+  await consegnaDi(ANNA, 'v3', 1, 'raccolta', { docenteEmail: 'docente@isarome.it' });
+  await consegnaDi(ANNA, 'v1', 1);                                                       // verifica ancora APERTA: non compare
+  const api = creaVerificheStudente({ sdk, db: dbDi(ANNA) }, ANNA, 'anna');
+  const r = await api.mieConsegne(['AB12CD']);
+  assert.deepEqual(r.map((x) => x.verifica.id), ['v3', 'v2'], 'solo le chiuse, la più recente per prima');
+  assert.deepEqual(r[1].consegne.map((c) => [c.versione, c.origine, c.programma]), [[1, 'studente', P(1)], [2, 'file', P(2)]], 'le sue versioni, dalla prima');
+  assert.deepEqual(r[0].consegne.map((c) => c.origine), ['raccolta']);
+  assert.ok(r.every((x) => x.consegne.every((c) => c.studenteEmail === ANNA)), 'mai quelle di altri');
+  assert.deepEqual((await creaVerificheStudente({ sdk, db: dbDi(BRUNO) }, BRUNO, 'bruno').mieConsegne(['AB12CD'])).map((x) => x.verifica.id), ['v2']);
+  assert.deepEqual(await creaVerificheStudente({ sdk, db: dbDi(CARLA) }, CARLA, 'carla').mieConsegne(['AB12CD']), [], 'chi non ha consegnato niente non vede niente');
+  assert.deepEqual(await api.mieConsegne([]), []);
+});
+
+test('mieConsegne: una verifica chiusa e archiviata si vede ancora', async () => {
+  await verifica('chiusa', null, 'v2');
+  await admin((db) => sdk.updateDoc(sdk.doc(db, 'verifiche/v2'), { archiviata: true }));
+  await consegnaDi(ANNA, 'v2', 1);
+  const r = await creaVerificheStudente({ sdk, db: dbDi(ANNA) }, ANNA, 'anna').mieConsegne(['AB12CD']);
+  assert.deepEqual(r.map((x) => x.verifica.id), ['v2']);
+});
+
 test('consegna a mano: porta con sé anche l\'ultima versione non ancora salvata', async () => {
   const { s, cambi } = nuovaSessione();
   await s.avvia();

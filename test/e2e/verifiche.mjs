@@ -16,6 +16,7 @@ try {
 
   // 1) un corso
   await page.click('.cloud-menu-btn');
+  verifica(!(await page.isVisible('.cloud-voce:has-text("Le mie consegne")')), 'il docente non ha la voce «Le mie consegne» (è per gli studenti)');
   await page.click('.cloud-voce:has-text("Corsi")');
   await page.click('button:has-text("Nuovo corso")');
   await page.fill('input[maxlength="20"]', '3AINF');
@@ -376,6 +377,7 @@ try {
   verifica(await finche(async () => (await page.$$('.anteprima-blocchi .blocklyBlockCanvas [data-id]')).length < prima), 'Guarda: la finestra si aggiorna da sola quando lo studente salva');
   await page.keyboard.press('Escape');
   verifica(await page.isVisible('.tabella-live'), 'Guarda: Esc chiude solo la finestra, la tabella resta');
+  verifica(await page.evaluate(() => !!window.Blockly.getMainWorkspace().getParentSvg().closest('#blocklyDiv')), 'dopo Guarda il workspace principale di Blockly è ancora quello dell\'editor');
   // l'altra scheda mostra le tracce
   await page.click('.verifica-scheda:has-text("Tracce")');
   verifica(await page.isVisible('.tracce-corpo') && !(await page.isVisible('.tabella-live')), 'scheda «Tracce»: si vedono le tracce e non la tabella');

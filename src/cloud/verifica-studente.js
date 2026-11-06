@@ -80,7 +80,22 @@ export function creaVerificheStudente({ sdk, db }, emailUtente, nomeUtente) {
     return () => annulla.forEach((f) => f());
   }
 
-  return { daFare, ascoltaAperte, verifiche, lavoro, consegne };
+  // Le consegne dello studente nelle verifiche CONCLUSE (chiuse, anche archiviate) dei corsi indicati, dalla verifica più
+  // recente: { verifica, consegne: [v1, v2, …] }. Le bozze e le verifiche aperte non compaiono: una verifica in corso non
+  // si rivede (e in verifica il menu è spento). Costo: una lettura per corso e una per ogni verifica conclusa.
+  async function mieConsegne(corsiIds) {
+    const trovate = [];
+    for (const corsoId of corsiIds) {
+      for (const v of await verifiche.elenca(corsoId, { soloChiuse: true })) {
+        const mie = await consegne.mie(v.id);
+        if (mie.length) trovate.push({ verifica: v, consegne: mie });
+      }
+    }
+    const quando = (x) => (x.verifica.chiusaIl ?? x.verifica.fine)?.getTime() ?? 0;
+    return trovate.sort((a, b) => quando(b) - quando(a));
+  }
+
+  return { daFare, ascoltaAperte, mieConsegne, email, verifiche, lavoro, consegne };
 }
 
 // ── Sessione di una verifica ─────────────────────────────────────────────────

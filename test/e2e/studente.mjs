@@ -335,6 +335,9 @@ try {
   await page.waitForSelector('h2:has-text("Lavoro consegnato")', { timeout: 120000 });     // dopo una caduta lunga il canale di scrittura si riapre con ritardo
   await page.getByRole('button', { name: 'Ok', exact: true }).click();
   await page.click('#restoreCloseBtn', { timeout: 3000 }).catch(() => {});
+  await page.reload();                                                                      // connessione pulita (dopo la caduta lunga l'SDK aspetta prima di riconnettersi)
+  await page.click('text=Ho capito, iniziamo', { timeout: 1500 }).catch(() => {});
+  await page.waitForSelector('.cloud-menu-btn', { timeout: 30000 });
   // il tempo finisce mentre la rete è ancora caduta: «Verifica terminata», con il file
   await apriVerifica('vp', { titolo: 'Verifica senza rete fino alla fine', scadenzaMin: 1.8 });
   await page.waitForSelector('.modal:not([hidden]) h2:has-text("Verifica aperta")', { timeout: 10000 });
@@ -356,10 +359,13 @@ try {
   const [scarico2] = await Promise.all([page.waitForEvent('download'), page.click('.modal:not([hidden]) button:has-text("Salva su file")')]);
   const f2 = JSON.parse(await leggiScaricato(scarico2));
   verifica(f2.verifica === 'vp' && f2.nBlocchi > 0 && f2.studente === ANNA, 'il file di emergenza della verifica terminata è completo');
-  page.once('dialog', (d) => d.dismiss());
+  let domandaInattesa = false;
+  const eventuale = (d) => { domandaInattesa = true; d.dismiss(); };
+  page.on('dialog', eventuale);
   await page.getByRole('button', { name: 'Ok', exact: true }).click();
   await page.waitForSelector('h2:has-text("Verifica terminata")', { state: 'detached', timeout: 5000 });
-  verifica(true, 'dopo aver salvato il file si chiude senza domande');
+  page.off('dialog', eventuale);
+  verifica(!domandaInattesa, 'dopo aver salvato il file si chiude senza domande');
   await page.context().unroute(versoDb);
   errori.splice(0, errori.length, ...errori.filter((e) => !e.includes('ERR_FAILED')));
 
@@ -367,6 +373,10 @@ try {
   await page.reload();                                                                      // connessione pulita (dopo la lunga caduta di prima l'SDK aspetta prima di riconnettersi)
   await page.click('text=Ho capito, iniziamo', { timeout: 1500 }).catch(() => {});
   await page.waitForSelector('.cloud-menu-btn', { timeout: 30000 });
+  // il lavoro non consegnato della verifica precedente (rete caduta fino alla fine) è rimasto su questo computer: all'avvio si propone il file
+  await page.waitForSelector('h2:has-text("Lavoro di verifica non consegnato")', { timeout: 15000 });
+  verifica(/Verifica senza rete fino alla fine/.test(await page.textContent('.modal:not([hidden]):last-of-type .modal-box')) && await page.isVisible('.modal:not([hidden]) button:has-text("Salva su file")'), 'a pagina ricaricata, il lavoro non consegnato rimasto sul computer si propone di salvarlo su file');
+  await page.click('.modal:not([hidden]) button:has-text("Ok")');
   await apriVerifica('vr', { titolo: 'Verifica con ricarica senza rete', scadenzaMin: 30 });
   await page.waitForSelector('.modal:not([hidden]) h2:has-text("Verifica aperta")', { timeout: 10000 });
   await page.getByRole('button', { name: 'Inizia', exact: true }).click();
@@ -404,6 +414,44 @@ try {
   await page.getByRole('button', { name: 'Ok', exact: true }).click();
   await page.click('#restoreCloseBtn', { timeout: 3000 }).catch(() => {});
   verifica((await consegne('vr')).length === 1, 'e dopo il rientro si consegna normalmente');
+
+  // 12) «Le mie consegne»: a verifica conclusa lo studente rivede il suo lavoro (sola lettura, copia nell'editor, file)
+  const programmaZ = await page.evaluate(async () => { const { examples } = await import('/src/examples.js'); return JSON.stringify({ ...examples[0].workspaceState, formatVersion: 6 }); });
+  await scrivi('verifiche/vz', { corsoId: S('ST1DEN'), titolo: S('Verifica già conclusa'), stato: S('chiusa'), fine: T(ora() - 3 * 60 * MIN), tracciaDefault: S('t0'), creataDa: S('docente@isarome.it'), creato: T(ora() - 5 * 60 * MIN), apertaIl: T(ora() - 4 * 60 * MIN), chiusaIl: T(ora() - 3 * 60 * MIN) });
+  const consegnaZ = (n, origine, extra = {}) => scrivi(`verifiche/vz/consegne/${ANNA}_${n}`, { studenteEmail: S(ANNA), studenteNome: S('Anna Rossi'), corsoId: S('ST1DEN'), titolo: S('Verifica già conclusa'), versione: { integerValue: String(n) }, origine: S(origine), tracciaId: S('t0'), programma: S(programmaZ), creato: T(ora() - (3 - n) * 60 * MIN), ...extra });
+  await consegnaZ(1, 'studente');
+  await consegnaZ(2, 'file', { docenteEmail: S('docente@isarome.it'), impronta: S('abc'), nomeFile: S('anna.isablock') });
+  await page.waitForSelector('h2:has-text("Lavoro di verifica non consegnato")', { timeout: 8000 }).then(() => page.click('.modal:not([hidden]) button:has-text("Ok")')).catch(() => {});   // la proposta del file, se è comparsa
+  await page.click('.cloud-menu-btn');
+  await page.click('.cloud-voce:has-text("Le mie consegne")');
+  await page.waitForSelector('h2:has-text("Le mie consegne")');
+  await page.waitForSelector('.corsi-titolo:has-text("Verifica già conclusa")', { timeout: 15000 });
+  const testoLista = await page.textContent('.modal:not([hidden]) .modal-box');
+  verifica(/v2 · quella che vale/.test(testoLista) && /v1/.test(testoLista) && testoLista.indexOf('v2') < testoLista.indexOf('v1'), '«Le mie consegne»: la v2 per prima, segnata come quella che vale, poi la v1');
+  verifica(/caricata dal docente dal tuo file di emergenza/.test(testoLista) && /consegnata da te/.test(testoLista) && /12 blocchi/.test(testoLista), '…con l\'origine di ciascuna e il numero di blocchi');
+  verifica(!/Verifica di prova|Verifica da chiudere/.test(testoLista), '…e solo le verifiche concluse con una sua consegna');
+  await schermata(page, 's-12-mie-consegne');
+  // guardare: sola lettura
+  await page.click('.sketch-riga:has-text("v2") button:has-text("Guarda")');
+  await page.waitForSelector('h2:has-text("La tua consegna v2")');
+  verifica(await finche(page, async () => (await page.$$('.anteprima-blocchi .blocklyBlockCanvas [data-id]')).length > 3), 'Guarda: i blocchi della consegna');
+  verifica(/non si può modificare/.test(await page.textContent('.modal:not([hidden]):last-of-type .modal-box')) && !(await page.isVisible('button:has-text("Storia")')), '…in sola lettura, senza storia');
+  await page.keyboard.press('Escape');
+  verifica(await page.isVisible('h2:has-text("Le mie consegne")'), 'Esc chiude solo la consegna guardata, l\'elenco resta');
+  verifica(await page.evaluate(() => !!window.Blockly.getMainWorkspace().getParentSvg().closest('#blocklyDiv')), 'dopo Guarda il workspace principale di Blockly è ancora quello dell\'editor (non un\'anteprima chiusa)');
+  // salvare su file
+  const [scaricoZ] = await Promise.all([page.waitForEvent('download'), page.click('.sketch-riga:has-text("v1") button:has-text("Salva su file")')]);
+  verifica(/^verifica-gia-conclusa_consegna-v1\.json$/.test(scaricoZ.suggestedFilename()) && (await leggiScaricato(scaricoZ)) === programmaZ, 'Salva su file: un normale file di lavoro con il programma consegnato');
+  // aprire una copia nell'editor
+  await caricaEsempio(page);                                                                // l'editor ha del lavoro: chiede conferma
+  let conferma = '';
+  page.once('dialog', async (d) => { conferma = d.message(); await d.accept(); });
+  await page.click('.sketch-riga:has-text("v2") button:has-text("Apri nell\'editor")');
+  await page.waitForSelector('h2:has-text("Le mie consegne")', { state: 'detached', timeout: 5000 });
+  verifica(/andrà perso/.test(conferma), 'Apri nell\'editor: con del lavoro nell\'editor chiede conferma');
+  verifica((await pseudo(page)).includes('Legge i due numeri'), '…e il programma consegnato è nell\'editor (una copia)');
+  const consegneZ = (await leggi('verifiche/vz/consegne')).documents ?? [];
+  verifica(consegneZ.length === 2, 'la consegna non cambia (immutabile): restano le due versioni');
 
   verifica(errori.length === 0, `nessun errore nella pagina${errori.length ? `: ${errori.join(' | ')}` : ''}`);
   riuscito = riepilogo();

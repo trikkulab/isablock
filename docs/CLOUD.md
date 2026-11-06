@@ -542,6 +542,15 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
     versione, anche raccolta o da file); a verifica aperta il lavoro in diretta, e la consegna solo se il lavoro è vuoto.
     La consegna non conserva il numero di blocchi: lo calcola `contaBlocchi()` (verifica-tabella.js, pura, memorizzata) dal
     JSON del programma, escluso INIZIO/FINE; coincide con l'editor su tutti gli esempi dell'app (prova e2e).
+  - **Le mie consegne (passo 11, studente)**: voce del menu cloud, solo per gli studenti (spenta in verifica insieme al menu).
+    Elenca le verifiche CONCLUSE (chiuse, anche archiviate) dei suoi corsi dove ha almeno una consegna, dalla più recente
+    (`mieConsegne` in verifica-studente.js: una lettura per corso + una per verifica conclusa; la query deve dichiarare
+    `stato == 'chiusa'`, le regole non fanno elencare allo studente le bozze). Per ogni versione: origine («consegnata da te»,
+    «da sola allo scadere», «raccolta dal docente», «caricata dal docente dal tuo file»), ora, blocchi, «quella che vale»
+    sull'ultima; **Guarda** (stessa finestra del docente, sola lettura, senza storia), **Apri nell'editor** (una COPIA,
+    con conferma se l'editor ha lavoro; la consegna non cambia) e **Salva su file** (normale file di lavoro `.json`).
+    Le verifiche aperte non compaiono. Fix collegato: il secondo workspace di «Guarda» lasciava a Blockly un «workspace
+    principale» chiuso: ora `creaAnteprima` rimette quello dell'editor alla creazione e alla chiusura.
   - **Carica file (passo 10b)**: a verifica CHIUSA ogni riga ha «Carica file…» per il file di emergenza dello studente
     (anche se non è mai entrato). Formato e controlli in `src/verifica-file.js` (puro, sarà usato anche per PRODURRE il
     file nel passo 10a): JSON con marcatore `isablockEmergenza`, verifica, studente, programma, `offlineDa`, blocchi e UN

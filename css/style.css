@@ -1229,3 +1229,4 @@ body.modo-verifica .autosave-info { display: none; }
 /* Avviso «sei offline» sotto la fascia della verifica */
 .banda-offline { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; justify-content: space-between; padding: 0.5rem 1rem; background: #fef3c7; color: #78350f; border-bottom: 2px solid #f59e0b; font-weight: 600; }
 .banda-offline-testo { flex: 1; min-width: 14rem; }
+.cloud-voce[hidden] { display: none; }

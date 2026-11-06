@@ -13,6 +13,7 @@
 import { montaSketch } from './sketch-ui.js';
 import { montaCorsi } from './corsi-ui.js';
 import { montaCommenti } from './commenti-ui.js';
+import { montaConsegne } from './consegne-ui.js';
 import { montaVerificaStudente } from './verifica-studente-ui.js';
 import { el, apriFinestra } from './dom.js';
 import { titoloAccesso, introAccesso, titoloDati, datiSalvati, notaServizio } from './testi.js';
@@ -43,6 +44,7 @@ export function montaCloud({ contenitore, toast, programma }) {
   // In verifica il menu del cloud si spegne (niente sketch, corsi, esci): il resto lo spegne main.js.
   const verificaStudenteUi = montaVerificaStudente({ toast, programma, quandoCambiaModo: (on) => modoVerifica(on) });
   const corsiUi = montaCorsi({ toast, programma, commentiUi, dopoCaricamento: () => sketchUi.scollega() });
+  const consegneUi = montaConsegne({ toast, programma, dopoCaricamento: () => sketchUi.scollega() });
 
   // --- Elementi nella toolbar ---------------------------------------------
   const btnAccedi = el('button', { type: 'button', class: 'cloud-accedi',
@@ -56,11 +58,13 @@ export function montaCloud({ contenitore, toast, programma }) {
   const badge = el('span', { class: 'cloud-badge' });
   const voce = (testo, fn) => el('button', { type: 'button', role: 'menuitem', class: 'cloud-voce',
     onclick: () => { chiudiMenu(); fn(); } }, testo);
+  const voceConsegne = voce('Le mie consegne', () => consegneUi.apri());     // solo per gli studenti (vedi mostra)
   const dropdown = el('div', { class: 'cloud-dropdown', role: 'menu', hidden: '' },
     el('div', { class: 'cloud-dd-testa' }, el('div', {}, intNome, intEmail), badge),
     voce('Salva nel cloud', () => sketchUi.salva()),
     voce('I miei sketch', () => sketchUi.elenco()),
     voce('Corsi', () => corsiUi.apri()),
+    voceConsegne,
     el('hr', { class: 'cloud-sep' }),
     voce('Esci', () => cloud && cloud.auth.esci()));
   const menu = el('span', { class: 'cloud-menu', hidden: '' }, btnMenu, dropdown);
@@ -135,13 +139,19 @@ export function montaCloud({ contenitore, toast, programma }) {
         utente.ruolo === 'docente' ? cloud.verificaDocentePer(utente.email) : null);
       commentiUi.entra(cloud.commentiPer({ uid: utente.uid, email: utente.email, nome: utente.nome }), utente.ruolo, utente.email);
       // Lo studente trova qui le verifiche aperte da svolgere; il docente non ne svolge.
-      if (utente.ruolo === 'docente') { verificaStudenteUi.esci(); } else verificaStudenteUi.entra(cloud.verificaStudentePer(utente.email, utente.nome), corsi, { senzaRete });
+      voceConsegne.hidden = utente.ruolo === 'docente';
+      if (utente.ruolo === 'docente') { verificaStudenteUi.esci(); consegneUi.esci(); } else {
+        const apiStudente = cloud.verificaStudentePer(utente.email, utente.nome);
+        verificaStudenteUi.entra(apiStudente, corsi, { senzaRete });
+        consegneUi.entra(apiStudente, corsi);
+      }
     } else {
       memo(false);
       sketchUi.esci();
       corsiUi.esci();
       commentiUi.esci();
       verificaStudenteUi.esci();
+      consegneUi.esci();
     }
     if (errore) toast(errore.message, 'error');
   }

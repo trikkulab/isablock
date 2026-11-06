@@ -561,6 +561,10 @@ function creaAnteprima({ blocchi, codici }) {
     zoom: { controls: true, wheel: true, startScale: 0.85 },
     move: { scrollbars: true, drag: true, wheel: false },
   });
+  // Blockly considera «principale» l'ultimo workspace creato: serve rimettere quello dell'editor (scorciatoie, copia e
+  // incolla e altre funzioni globali di Blockly altrimenti agirebbero sull'anteprima, e dopo la chiusura su un'area morta).
+  const rimettiPrincipale = () => { try { Blockly.common.setMainWorkspace(workspace); } catch { /* versione di Blockly senza questa funzione */ } };
+  rimettiPrincipale();
   const pannelli = { pseudocode: codici.pseudocode, c: codici.c, python: codici.python };
   const scrivi = (testi, token) => {
     for (const k of Object.keys(pannelli)) pannelli[k].innerHTML = renderSegment(testi[k], token[k], 0, testi[k].length);
@@ -589,7 +593,7 @@ function creaAnteprima({ blocchi, codici }) {
       for (const k of Object.keys(pannelli)) pannelli[k].textContent = '';
     },
     ridimensiona() { if (!distrutta) Blockly.svgResize(ws); },
-    distruggi() { distrutta = true; ws.dispose(); },
+    distruggi() { distrutta = true; ws.dispose(); rimettiPrincipale(); },
   };
 }
 

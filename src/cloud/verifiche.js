@@ -96,10 +96,13 @@ export function creaVerifiche({ sdk, db }, emailUtente) {
 
   // Le verifiche di un corso, la più recente per prima. Il docente le vede tutte; lo studente
   // (solo con `soloAperte`, l'unica query che le regole accettano per lui) quelle aperte.
-  async function elenca(corsoId, { soloAperte = false } = {}) {
+  // Lo studente deve dichiarare lo stato (soloAperte o soloChiuse): le regole non gli fanno leggere le bozze, e una query
+  // senza filtro sullo stato non si potrebbe dimostrare lecita.
+  async function elenca(corsoId, { soloAperte = false, soloChiuse = false } = {}) {
     try {
       const vincoli = [sdk.where('corsoId', '==', corsoId)];
       if (soloAperte) vincoli.push(sdk.where('stato', '==', 'aperta'));
+      if (soloChiuse) vincoli.push(sdk.where('stato', '==', 'chiusa'));
       const snap = await sdk.getDocs(sdk.query(sdk.collection(db, 'verifiche'), ...vincoli));
       return snap.docs.map(verificaDaDocumento).sort((a, b) => (b.creato ?? 0) - (a.creato ?? 0));
     } catch (err) { throw traduci(err); }
