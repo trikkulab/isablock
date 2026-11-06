@@ -1208,3 +1208,11 @@ body.modo-verifica .autosave-info { display: none; }
 .verifica-scheda { background: none; border: 0; border-bottom: 3px solid transparent; margin-bottom: -2px; padding: 0.4rem 0.9rem; font: inherit; cursor: pointer; color: var(--muted, #5f5d6e); }
 .verifica-scheda.attiva { border-bottom-color: currentColor; color: inherit; font-weight: 600; }
 .tracce-corpo[hidden], .assegnazioni[hidden], .situazione[hidden] { display: none; }
+
+/* Finestra «Guarda» (verifica-anteprima-ui.js) */
+.anteprima-corpo { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 0.8rem; height: 62vh; min-height: 18rem; }
+.anteprima-blocchi { position: relative; border: 1px solid var(--border, #d6d4e0); border-radius: 6px; overflow: hidden; min-height: 14rem; }
+.anteprima-lato { display: flex; flex-direction: column; min-height: 0; }
+.anteprima-codice { flex: 1; overflow: auto; margin: 0; padding: 0.6rem; border-radius: 6px; font-size: 0.9rem; }
+.anteprima-codice[hidden], .anteprima-blocchi[hidden] { display: none; }
+@media (max-width: 800px) { .anteprima-corpo { grid-template-columns: 1fr; height: auto; } .anteprima-blocchi { height: 45vh; } .anteprima-codice { max-height: 40vh; } }

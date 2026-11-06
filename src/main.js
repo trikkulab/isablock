@@ -550,6 +550,49 @@ function nessunaVerifica() {
   }
 }
 
+// Anteprima in sola lettura del programma di un altro (il docente guarda lo studente): un secondo workspace, senza
+// tavolozza e non modificabile, nello stesso modo in cui si carica un file (versione e migrazioni comprese), e i tre
+// codici generati dagli STESSI generatori dell'editor (nessuna quarta implementazione). Non tocca l'editor principale.
+function creaAnteprima({ blocchi, codici }) {
+  const ws = Blockly.inject(blocchi, {
+    readOnly: true,
+    media: 'vendor/blockly/media/',
+    sounds: false,
+    zoom: { controls: true, wheel: true, startScale: 0.85 },
+    move: { scrollbars: true, drag: true, wheel: false },
+  });
+  const pannelli = { pseudocode: codici.pseudocode, c: codici.c, python: codici.python };
+  const scrivi = (testi, token) => {
+    for (const k of Object.keys(pannelli)) pannelli[k].innerHTML = renderSegment(testi[k], token[k], 0, testi[k].length);
+  };
+  let distrutta = false;
+  return {
+    // Mostra il programma (JSON del file). Restituisce false se non si legge. Il punto di vista non si sposta.
+    mostra(json) {
+      if (distrutta) return false;
+      try {
+        const x = ws.scrollX; const y = ws.scrollY; const prima = ws.getAllBlocks(false).length > 0;
+        loadWorkspaceState(Blockly, ws, JSON.parse(json));
+        const pseudo = extractSourceMap(pseudocodeGen.workspaceToCode(ws));
+        const c = extractSourceMap(cGen.workspaceToCode(ws));
+        const python = extractSourceMap(pythonGen.workspaceToCode(ws));
+        scrivi({ pseudocode: pseudo.text, c: c.text, python: python.text },
+          { pseudocode: tokenizePseudocode(pseudo.text, pseudocodeConfig), c: tokenizeC(c.text), python: tokenizePython(python.text) });
+        Blockly.svgResize(ws);
+        if (prima) ws.scroll(x, y);
+        return true;
+      } catch { return false; }
+    },
+    vuota() {
+      if (distrutta) return;
+      ws.clear();
+      for (const k of Object.keys(pannelli)) pannelli[k].textContent = '';
+    },
+    ridimensiona() { if (!distrutta) Blockly.svgResize(ws); },
+    distruggi() { distrutta = true; ws.dispose(); },
+  };
+}
+
 // Strato cloud opzionale: con l'interruttore spento non si importa nulla.
 let cloudUi = null; // lo sketch cloud aperto va "scollegato" quando il programma viene sostituito
 if (appConfig.cloud.enabled) {
@@ -590,6 +633,8 @@ if (appConfig.cloud.enabled) {
         onModifica: (cb) => { modificaListeners.add(cb); return () => modificaListeners.delete(cb); },
         onEsecuzione: (cb) => { esecuzioneListeners.add(cb); return () => esecuzioneListeners.delete(cb); },
         modoVerifica: { entra: entraVerifica, esci: esciVerifica, nessuna: nessunaVerifica },
+        // Il docente guarda il programma di uno studente (sola lettura): vedi creaAnteprima.
+        anteprima: creaAnteprima,
       },
     });
   });

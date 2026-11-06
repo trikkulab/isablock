@@ -14,9 +14,10 @@ function testoOffline(ms) {
 }
 
 // `vd`: oggetto di verifica-docente.js. Restituisce { elemento, distruggi }.
-export function creaTabellaLive({ vd, vid, toast }) {
+export function creaTabellaLive({ vd, vid, toast, guarda = null }) {
   let ultimo = null;                // ultimo { verifica, lavori, ultime, ora } ricevuto
   let modo = 'email';
+  const seguaci = new Set();        // chi vuole il lavoro di uno studente a ogni aggiornamento: { email, cb }
   const sommario = el('p', { class: 'tabella-sommario', 'aria-live': 'polite' });
   const corpo = el('tbody');
   const vuota = el('p', { class: 'sketch-nota' }, 'Carico la situazione…');
@@ -29,7 +30,7 @@ export function creaTabellaLive({ vd, vid, toast }) {
       intestazione('Studente'), intestazione('Stato'),
       intestazione('Blocchi', `Blocchi adesso e variazione negli ultimi ${C.finestraIncrementoMin} minuti`),
       intestazione('Esecuzioni', 'Numero di esecuzioni e esito dell\'ultima'),
-      intestazione('Connessione'), intestazione('Tempo'))),
+      intestazione('Connessione'), intestazione('Tempo'), intestazione('Programma'))),
     corpo);
   tabella.hidden = true;
   const elemento = el('div', { class: 'tabella-corpo' },
@@ -61,14 +62,22 @@ export function creaTabellaLive({ vd, vid, toast }) {
         cella(x, blocchi, x.salto ? el('span', { class: 'tabella-salto', title: `Salto di ${x.salto} blocchi tra due controlli`, role: 'img', 'aria-label': `Salto di ${x.salto} blocchi` }, ' ⚠') : ''),
         cella(x, esec),
         cella(x, x.connessione ? el('span', { class: 'tabella-conn', 'data-conn': x.connessione.stato }, x.connessione.stato === 'offline' ? testoOffline(x.connessione.da) : 'online') : '–'),
-        cella(x, x.timer ? el('span', { class: 'tabella-timer', 'data-colore': x.timer.colore }, x.timer.restante > 0 ? testoDurata(x.timer.restante) : 'scaduto') : '–')));
+        cella(x, x.timer ? el('span', { class: 'tabella-timer', 'data-colore': x.timer.colore }, x.timer.restante > 0 ? testoDurata(x.timer.restante) : 'scaduto') : '–'),
+        cella(x, guarda ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Guarda il programma (sola lettura)', onclick: () => guarda(x.email, x.nome) }, 'Guarda') : '')));
     }
   }
 
-  const annulla = vd.ascoltaSituazione(vid, (s) => { ultimo = s; disegna(); },
+  const annulla = vd.ascoltaSituazione(vid, (s) => { ultimo = s; disegna(); for (const g of seguaci) g.cb(s.lavori.find((l) => l.email === g.email) ?? null); },
     () => { if (elemento.isConnected) toast('Non riesco a seguire la verifica in tempo reale: controlla la rete.', 'error'); });
   // Il tempo scorre da solo; si ferma quando la tabella esce dalla pagina.
   const giro = setInterval(() => { if (!elemento.isConnected) distruggi(); else disegna(); }, 1000);
   function distruggi() { clearInterval(giro); annulla(); }
-  return { elemento, distruggi };
+  // Il lavoro di uno studente, subito (se già arrivato) e a ogni aggiornamento. Restituisce la funzione per smettere.
+  function segui(email, cb) {
+    const g = { email, cb };
+    seguaci.add(g);
+    if (ultimo) cb(ultimo.lavori.find((l) => l.email === email) ?? null);
+    return () => seguaci.delete(g);
+  }
+  return { elemento, distruggi, segui };
 }

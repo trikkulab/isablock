@@ -18,7 +18,7 @@ export function montaCorsi({ toast, programma, commentiUi, dopoCaricamento }) {
   let ricarica = null;      // ridisegna l'elenco della finestra aperta
   let mostraArchiviati = false;
   const gestioneUi = montaGestione({ toast, dopoCambio: () => ricarica?.() });
-  const verificheUi = montaVerifiche({ toast });
+  const verificheUi = montaVerifiche({ toast, programma });
 
   const messaggio = (err) => (err && err.message) || 'Qualcosa è andato storto. Riprova.';
   function chiudiFinestra() { finestra?.chiudi(); finestra = null; }

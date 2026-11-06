@@ -12,6 +12,7 @@ import { rendiMarkdown } from './markdown.js';
 import { verificaConfig } from './verifica-config.js';
 import { perCampo, daCampo, finePredefinita, formatoDataOra } from './data-ora.js';
 import { creaTabellaLive } from './verifica-tabella-ui.js';
+import { apriAnteprima } from './verifica-anteprima-ui.js';
 import { testoApertura, testoChiusura, testoRiapertura, testoArchivia, esitoRaccolta } from './testi-verifica.js';
 
 const L = verificaConfig.regole;
@@ -62,7 +63,7 @@ function scegliFine({ durataMin }) {
   return { elemento, calcola };
 }
 
-export function montaVerifiche({ toast }) {
+export function montaVerifiche({ toast, programma = null }) {
   let vd = null;                 // oggetto di verifica-docente.js, valido solo da docenti loggati
   let finestre = new Set();
   let mostraArchiviate = false;  // casella dell'elenco, come «Mostra anche i corsi archiviati»
@@ -523,7 +524,11 @@ export function montaVerifiche({ toast }) {
     // --- Situazione live (verifica aperta o chiusa): l'altra faccia della scheda, accanto a «Tracce» ------------
     // Una verifica aperta si apre sulla situazione; la bozza non ha ancora studenti da seguire.
     if (!bozza()) {
-      const tabella = creaTabellaLive({ vd, vid, toast });
+      let tabella;
+      const guarda = programma && programma.anteprima
+        ? (email, nome) => apriAnteprima({ apri, programma, segui: (e, cb) => tabella.segui(e, cb), email, nome })
+        : null;
+      tabella = creaTabellaLive({ vd, vid, toast, guarda });
       chiudiTabella = tabella.distruggi;
       const pannelloSituazione = el('div', { class: 'situazione' }, tabella.elemento);
       const schede = [['situazione', 'Situazione'], ['tracce', 'Tracce']];

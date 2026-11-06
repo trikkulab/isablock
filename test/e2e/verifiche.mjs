@@ -316,6 +316,27 @@ try {
   await schermata(page, 'v-9b-situazione');
   await page.selectOption('.tabella-ordine', 'attenzione');
   verifica(/Anna Rossi/.test(await page.textContent('.tabella-live tbody tr:first-child')), 'ordine «chi richiede attenzione»: Anna (salto) per prima');
+  // «Guarda»: il programma di Anna in sola lettura, che si aggiorna da solo
+  const esempio = await page.evaluate(async () => { const m = await import('/src/examples.js'); return { ...m.examples[0].workspaceState, formatVersion: 6 }; });
+  const json1 = JSON.stringify(esempio);
+  await aggiorna(lavoroAnna, { programma: S(json1), programmaHash: S('h1'), nBlocchi: { integerValue: '8' }, ultimoSegnale: T(Date.now()) });
+  await page.click('.tabella-live tbody tr:has-text("Anna Rossi") button:has-text("Guarda")');
+  await page.waitForSelector('.anteprima-blocchi svg.blocklySvg');
+  verifica(await finche(async () => (await page.$$('.anteprima-blocchi .blocklyBlockCanvas [data-id]')).length > 3), 'Guarda: i blocchi di Anna si vedono nella finestra');
+  const pseudoAnteprima = async () => page.textContent('.anteprima-codice >> nth=0');
+  verifica(/INIZIO/.test(await pseudoAnteprima()) && /FINE/.test(await pseudoAnteprima()), 'Guarda: c\'è lo pseudocodice generato');
+  await page.click('.anteprima-lato .verifica-scheda:has-text("Python")');
+  verifica((await page.textContent('.anteprima-codice >> nth=2')).length > 5 && await page.isVisible('.anteprima-codice >> nth=2'), 'Guarda: la scheda Python mostra il codice');
+  verifica(/Programma di Anna Rossi/.test(await page.textContent('h2:has-text("Programma di")')) && /ultimo segnale alle/.test(await page.textContent('.anteprima-info')), 'Guarda: titolo con il nome e ultimo segnale');
+  verifica(await page.$('.anteprima-blocchi .blocklyToolboxDiv') === null && await page.$('.anteprima-blocchi .blocklyFlyout') === null, 'Guarda: nessuna tavolozza (non si può modificare)');
+  await schermata(page, 'v-9c-guarda');
+  const prima = (await page.$$('.anteprima-blocchi .blocklyBlockCanvas [data-id]')).length;
+  const mod = JSON.parse(json1);
+  mod.blocks.blocks[0].next = undefined;                                              // meno blocchi: si vede l'aggiornamento
+  await aggiorna(lavoroAnna, { programma: S(JSON.stringify({ ...mod, blocks: { ...mod.blocks, blocks: [{ type: 'program', id: 'p1', x: 40, y: 40 }] } })), programmaHash: S('h2'), nBlocchi: { integerValue: '0' }, ultimoSegnale: T(Date.now()) });
+  verifica(await finche(async () => (await page.$$('.anteprima-blocchi .blocklyBlockCanvas [data-id]')).length < prima), 'Guarda: la finestra si aggiorna da sola quando lo studente salva');
+  await page.keyboard.press('Escape');
+  verifica(await page.isVisible('.tabella-live'), 'Guarda: Esc chiude solo la finestra, la tabella resta');
   // l'altra scheda mostra le tracce
   await page.click('.verifica-scheda:has-text("Tracce")');
   verifica(await page.isVisible('.tracce-corpo') && !(await page.isVisible('.tabella-live')), 'scheda «Tracce»: si vedono le tracce e non la tabella');
@@ -341,7 +362,7 @@ try {
   await page.waitForSelector('h2:has-text("Chiudere la verifica")');
   verifica(await page.isChecked('.modal:last-of-type input[type="checkbox"]'), 'chiusura: «Raccogli subito i lavori» è già spuntato');
   await page.click('button:has-text("Chiudi la verifica")');
-  verifica(await toastContiene(/Verifica chiusa\. Lavori: raccolti 0, non entrati 3\./), 'chiusura: dice com\'è andata la raccolta (nessuno era entrato)');
+  verifica(await toastContiene(/Verifica chiusa\. Lavori: raccolti 1, non entrati 2\./), 'chiusura: dice com\'è andata la raccolta (Anna è entrata, gli altri no)');
   await page.waitForSelector('.verifica-azioni button:has-text("Archivia")');
   verifica(await stato2() === 'chiusa', 'la verifica è chiusa');
   verifica(await page.isVisible('button:has-text("Raccogli i lavori")') && await page.isVisible('button:has-text("Riapri")'), 'chiusa: si può raccogliere, riaprire, archiviare');
