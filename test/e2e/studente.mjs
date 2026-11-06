@@ -377,6 +377,17 @@ try {
   await page.waitForSelector('h2:has-text("Lavoro di verifica non consegnato")', { timeout: 15000 });
   verifica(/Verifica senza rete fino alla fine/.test(await page.textContent('.modal:not([hidden]):last-of-type .modal-box')) && await page.isVisible('.modal:not([hidden]) button:has-text("Salva su file")'), 'a pagina ricaricata, il lavoro non consegnato rimasto sul computer si propone di salvarlo su file');
   await page.click('.modal:not([hidden]) button:has-text("Ok")');
+  // il docente carica il file di emergenza come consegna (stesso programma della copia): il lavoro è consegnato, la copia si elimina
+  const copiaVp = await page.evaluate(() => { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith('isablock.verifica.backup.') && k.endsWith('.vp')) return JSON.parse(localStorage.getItem(k)).programma; } return null; });
+  verifica(!!copiaVp, 'la copia locale della verifica terminata c\'è ancora');
+  await scrivi(`verifiche/vp/consegne/${ANNA}_1`, { studenteEmail: S(ANNA), studenteNome: S('Anna Rossi'), corsoId: S('ST1DEN'), titolo: S('Verifica senza rete fino alla fine'), versione: { integerValue: '1' }, origine: S('file'),
+    tracciaId: S('t0'), programma: S(copiaVp), creato: T(ora()), docenteEmail: S('docente@isarome.it'), impronta: S('abc'), nomeFile: S('anna.isablock') });
+  await page.reload();
+  await page.click('text=Ho capito, iniziamo', { timeout: 1500 }).catch(() => {});
+  await page.waitForSelector('.cloud-menu-btn', { timeout: 30000 });
+  await finche(page, async () => await page.evaluate(() => { for (let i = 0; i < localStorage.length; i++) if (localStorage.key(i).startsWith('isablock.verifica.backup.')) return false; return true; }), 15000);
+  verifica(!(await page.isVisible('h2:has-text("Lavoro di verifica non consegnato")')), 'se il docente ha già caricato il file come consegna, il lavoro non si ripropone');
+  verifica(await page.evaluate(() => { for (let i = 0; i < localStorage.length; i++) if (localStorage.key(i).startsWith('isablock.verifica.backup.')) return false; return true; }), '…e la copia locale è stata eliminata');
   await apriVerifica('vr', { titolo: 'Verifica con ricarica senza rete', scadenzaMin: 30 });
   await page.waitForSelector('.modal:not([hidden]) h2:has-text("Verifica aperta")', { timeout: 10000 });
   await page.getByRole('button', { name: 'Inizia', exact: true }).click();
@@ -430,9 +441,11 @@ try {
   verifica(/v2 · quella che vale/.test(testoLista) && /v1/.test(testoLista) && testoLista.indexOf('v2') < testoLista.indexOf('v1'), '«Le mie consegne»: la v2 per prima, segnata come quella che vale, poi la v1');
   verifica(/caricata dal docente dal tuo file di emergenza/.test(testoLista) && /consegnata da te/.test(testoLista) && /12 blocchi/.test(testoLista), '…con l\'origine di ciascuna e il numero di blocchi');
   verifica(!/Verifica di prova|Verifica da chiudere/.test(testoLista), '…e solo le verifiche concluse con una sua consegna');
+  const colonne = await page.$$eval('.consegna-riga', (righe) => righe.map((r) => [...r.querySelectorAll('button')].map((b) => Math.round(b.getBoundingClientRect().left))));
+  verifica(colonne.length === 2 && colonne[0].length === 3 && colonne[0].every((x, i) => Math.abs(x - colonne[1][i]) <= 1), `i pulsanti delle righe sono allineati in colonna: ${JSON.stringify(colonne)}`);
   await schermata(page, 's-12-mie-consegne');
   // guardare: sola lettura
-  await page.click('.sketch-riga:has-text("v2") button:has-text("Guarda")');
+  await page.click('.consegna-riga:has-text("v2") button:has-text("Guarda")');
   await page.waitForSelector('h2:has-text("La tua consegna v2")');
   verifica(await finche(page, async () => (await page.$$('.anteprima-blocchi .blocklyBlockCanvas [data-id]')).length > 3), 'Guarda: i blocchi della consegna');
   verifica(/non si può modificare/.test(await page.textContent('.modal:not([hidden]):last-of-type .modal-box')) && !(await page.isVisible('button:has-text("Storia")')), '…in sola lettura, senza storia');
@@ -440,13 +453,13 @@ try {
   verifica(await page.isVisible('h2:has-text("Le mie consegne")'), 'Esc chiude solo la consegna guardata, l\'elenco resta');
   verifica(await page.evaluate(() => !!window.Blockly.getMainWorkspace().getParentSvg().closest('#blocklyDiv')), 'dopo Guarda il workspace principale di Blockly è ancora quello dell\'editor (non un\'anteprima chiusa)');
   // salvare su file
-  const [scaricoZ] = await Promise.all([page.waitForEvent('download'), page.click('.sketch-riga:has-text("v1") button:has-text("Salva su file")')]);
+  const [scaricoZ] = await Promise.all([page.waitForEvent('download'), page.click('.consegna-riga:has-text("v1") button:has-text("Salva su file")')]);
   verifica(/^verifica-gia-conclusa_consegna-v1\.json$/.test(scaricoZ.suggestedFilename()) && (await leggiScaricato(scaricoZ)) === programmaZ, 'Salva su file: un normale file di lavoro con il programma consegnato');
   // aprire una copia nell'editor
   await caricaEsempio(page);                                                                // l'editor ha del lavoro: chiede conferma
   let conferma = '';
   page.once('dialog', async (d) => { conferma = d.message(); await d.accept(); });
-  await page.click('.sketch-riga:has-text("v2") button:has-text("Apri nell\'editor")');
+  await page.click('.consegna-riga:has-text("v2") button:has-text("Apri nell\'editor")');
   await page.waitForSelector('h2:has-text("Le mie consegne")', { state: 'detached', timeout: 5000 });
   verifica(/andrà perso/.test(conferma), 'Apri nell\'editor: con del lavoro nell\'editor chiede conferma');
   verifica((await pseudo(page)).includes('Legge i due numeri'), '…e il programma consegnato è nell\'editor (una copia)');

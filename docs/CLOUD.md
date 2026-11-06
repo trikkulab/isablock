@@ -549,7 +549,9 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
     «da sola allo scadere», «raccolta dal docente», «caricata dal docente dal tuo file»), ora, blocchi, «quella che vale»
     sull'ultima; **Guarda** (stessa finestra del docente, sola lettura, senza storia), **Apri nell'editor** (una COPIA,
     con conferma se l'editor ha lavoro; la consegna non cambia) e **Salva su file** (normale file di lavoro `.json`).
-    Le verifiche aperte non compaiono. Fix collegato: il secondo workspace di «Guarda» lasciava a Blockly un «workspace
+    Le verifiche aperte non compaiono. La copia locale di un lavoro non consegnato (proposta del file all'avvio) si ELIMINA
+    da sola se una consegna dello studente ha lo STESSO programma (per esempio il docente ha caricato il file di
+    emergenza): si confronta il contenuto, non le date. Fix collegato: il secondo workspace di «Guarda» lasciava a Blockly un «workspace
     principale» chiuso: ora `creaAnteprima` rimette quello dell'editor alla creazione e alla chiusura.
   - **Carica file (passo 10b)**: a verifica CHIUSA ogni riga ha «Carica file…» per il file di emergenza dello studente
     (anche se non è mai entrato). Formato e controlli in `src/verifica-file.js` (puro, sarà usato anche per PRODURRE il

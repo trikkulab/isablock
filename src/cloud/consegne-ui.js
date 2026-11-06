@@ -53,8 +53,8 @@ export function montaConsegne({ toast, programma, dopoCaricamento = () => {} }) 
 
   function riga(v, c, valida) {
     const n = contaBlocchi(c.programma);
-    return el('div', { class: 'sketch-riga' },
-      el('div', { class: 'sketch-info' },
+    return el('div', { class: 'consegna-riga' },
+      el('div', { class: 'consegna-info' },
         el('strong', {}, `v${c.versione}${valida ? ' · quella che vale' : ''}`),
         el('span', { class: 'sketch-data' }, [ORIGINE[c.origine] ?? c.origine, c.creato ? formatoDataOra.format(c.creato) : '', n === null ? '' : `${n} blocchi`].filter(Boolean).join(' · '))),
       el('button', { type: 'button', class: 'modal-btn', onclick: () => guarda(v, c) }, 'Guarda'),
@@ -80,10 +80,10 @@ export function montaConsegne({ toast, programma, dopoCaricamento = () => {} }) 
       if (trovate.length === 0) { lista.append(el('p', { class: 'sketch-nota' }, 'Non hai ancora consegne in verifiche concluse.')); return; }
       for (const { verifica: v, consegne } of trovate) {
         const chiusa = (v.chiusaIl ?? v.fine);
-        lista.append(
+        lista.append(el('section', { class: 'consegne-gruppo' },
           el('h3', { class: 'corsi-titolo' }, v.titolo),
-          el('p', { class: 'sketch-data' }, [nomi.get(v.corsoId) ?? '', chiusa ? `conclusa il ${formatoDataOra.format(chiusa)}` : ''].filter(Boolean).join(' · ')),
-          ...[...consegne].reverse().map((c, i) => riga(v, c, i === 0)));
+          el('p', { class: 'sketch-data consegne-meta' }, [nomi.get(v.corsoId) ?? '', chiusa ? `conclusa il ${formatoDataOra.format(chiusa)}` : ''].filter(Boolean).join(' · ')),
+          ...[...consegne].reverse().map((c, i) => riga(v, c, i === 0))));
       }
     } catch (err) {
       if (finestra !== f) return;

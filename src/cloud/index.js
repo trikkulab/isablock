@@ -47,6 +47,8 @@ export async function avviaCloud() {
       email: String(email || '').toLowerCase(),
       // La copia locale (se c'è) di una verifica di questo studente: serve a rientrare quando la pagina si ricarica senza rete.
       copiaLocale: (vid) => creaBackupVerifica({ uid: client.auth.currentUser?.uid ?? email, vid, email }).leggi(),
+      // Elimina la copia locale di una verifica (già consegnata, per esempio dal docente da un file di emergenza).
+      eliminaCopia: (vid) => creaBackupVerifica({ uid: client.auth.currentUser?.uid ?? email, vid, email }).cancella(),
       // Elimina le copie di verifiche finite (le non sincronizzate restano e sono restituite).
       pulisciCopie: (attive) => pulisciBackup({ uid: client.auth.currentUser?.uid ?? email, attive }),
     }),

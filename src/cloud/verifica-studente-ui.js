@@ -371,15 +371,25 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
   }
 
   // Lavori di verifica con modifiche mai arrivate al server, rimasti su questo computer (verifica finita, pagina chiusa): si
-  // propone di salvarli su file, una sola volta per pagina. Sono solo quelli dello studente collegato.
-  function proponiCopie(copie) {
+  // propone di salvarli su file, una sola volta per pagina. Sono solo quelli dello studente collegato. Prima si controlla
+  // se quel lavoro è GIÀ STATO CONSEGNATO (per esempio il docente ha caricato il file di emergenza): una consegna con lo
+  // stesso identico programma vuol dire che non c'è più niente da salvare, e la copia locale si elimina. Si confronta il
+  // contenuto, non le date (l'orologio del computer non è affidabile).
+  async function proponiCopie(copie) {
     const mie = copie.filter((r) => r.email === api?.email && !copieProposte.has(r.vid));
-    if (mie.length === 0 || finestraCopie || sessione || mostrandoFine) return;
-    for (const r of mie) copieProposte.add(r.vid);
+    if (mie.length === 0) return;
+    for (const r of mie) copieProposte.add(r.vid);              // subito: un controllo che parte mentre questo aspetta non le riproporrebbe
+    const daProporre = [];
+    for (const r of mie) {
+      let consegnata = false;
+      try { consegnata = (await api.consegne.mie(r.vid)).some((c) => c.programma === r.programma); } catch { /* non si sa: si propone */ }
+      if (consegnata) api.eliminaCopia?.(r.vid); else daProporre.push(r);
+    }
+    if (daProporre.length === 0 || finestraCopie || sessione || mostrandoFine || !api) return;
     const f = apriFinestra(T.copieTitolo, () => { finestraCopie = null; });
     finestraCopie = f;
     f.corpo.append(el('p', {}, T.copieRiga),
-      ...mie.map((r) => el('div', { class: 'sketch-riga' },
+      ...daProporre.map((r) => el('div', { class: 'sketch-riga' },
         el('div', { class: 'sketch-info' }, el('strong', {}, r.titolo || 'Verifica'),
           el('span', { class: 'sketch-data' }, `${r.nBlocchi ?? 0} blocchi · salvato ${formatoDataOra.format(new Date(r.salvataAlle ?? Date.now()))}`)),
         el('button', { type: 'button', class: 'modal-btn', onclick: () => salvaFile({
