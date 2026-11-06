@@ -373,21 +373,49 @@ try {
   await page.reload();                                                                      // connessione pulita (dopo la lunga caduta di prima l'SDK aspetta prima di riconnettersi)
   await page.click('text=Ho capito, iniziamo', { timeout: 1500 }).catch(() => {});
   await page.waitForSelector('.cloud-menu-btn', { timeout: 30000 });
+  const ricarica = async () => {
+    await page.reload();
+    await page.click('text=Ho capito, iniziamo', { timeout: 1500 }).catch(() => {});
+    await page.waitForSelector('.cloud-menu-btn', { timeout: 30000 });
+  };
+  const copieLocali = () => page.evaluate(() => { const r = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith('isablock.verifica.backup.')) r.push(k.split('.').pop()); } return r.sort(); });
+  const finestraCopie = async () => { await page.waitForSelector('h2:has-text("Lavoro di verifica non consegnato")', { timeout: 15000 }); return page.textContent('.modal:not([hidden]):last-of-type .modal-box'); };
+  const consegnaDalDocente = (vid, titolo, programmaCopia) => scrivi(`verifiche/${vid}/consegne/${ANNA}_1`, { studenteEmail: S(ANNA), studenteNome: S('Anna Rossi'), corsoId: S('ST1DEN'), titolo: S(titolo), versione: { integerValue: '1' }, origine: S('file'),
+    tracciaId: S('t0'), programma: S(programmaCopia), creato: T(ora()), docenteEmail: S('docente@isarome.it'), impronta: S('abc'), nomeFile: S('anna.isablock') });
+
   // il lavoro non consegnato della verifica precedente (rete caduta fino alla fine) è rimasto su questo computer: all'avvio si propone il file
   await page.waitForSelector('h2:has-text("Lavoro di verifica non consegnato")', { timeout: 15000 });
   verifica(/Verifica senza rete fino alla fine/.test(await page.textContent('.modal:not([hidden]):last-of-type .modal-box')) && await page.isVisible('.modal:not([hidden]) button:has-text("Salva su file")'), 'a pagina ricaricata, il lavoro non consegnato rimasto sul computer si propone di salvarlo su file');
   await page.click('.modal:not([hidden]) button:has-text("Ok")');
-  // il docente carica il file di emergenza come consegna (stesso programma della copia): il lavoro è consegnato, la copia si elimina
+  // caso «doppio»: lo studente ha DUE verifiche terminate offline e non ancora caricate dal docente (la seconda copia è scritta come la lascerebbe il motore)
   const copiaVp = await page.evaluate(() => { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith('isablock.verifica.backup.') && k.endsWith('.vp')) return JSON.parse(localStorage.getItem(k)).programma; } return null; });
   verifica(!!copiaVp, 'la copia locale della verifica terminata c\'è ancora');
-  await scrivi(`verifiche/vp/consegne/${ANNA}_1`, { studenteEmail: S(ANNA), studenteNome: S('Anna Rossi'), corsoId: S('ST1DEN'), titolo: S('Verifica senza rete fino alla fine'), versione: { integerValue: '1' }, origine: S('file'),
-    tracciaId: S('t0'), programma: S(copiaVp), creato: T(ora()), docenteEmail: S('docente@isarome.it'), impronta: S('abc'), nomeFile: S('anna.isablock') });
-  await page.reload();
-  await page.click('text=Ho capito, iniziamo', { timeout: 1500 }).catch(() => {});
-  await page.waitForSelector('.cloud-menu-btn', { timeout: 30000 });
-  await finche(page, async () => await page.evaluate(() => { for (let i = 0; i < localStorage.length; i++) if (localStorage.key(i).startsWith('isablock.verifica.backup.')) return false; return true; }), 15000);
+  await page.evaluate(() => {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k.startsWith('isablock.verifica.backup.') || !k.endsWith('.vp')) continue;
+      const rec = JSON.parse(localStorage.getItem(k));
+      localStorage.setItem(k.replace(/\.vp$/, '.vq'), JSON.stringify({ ...rec, vid: 'vq', titolo: 'Seconda verifica terminata offline', finoA: Date.now() + 2 * 3600 * 1000 }));
+      return;
+    }
+  });
+  await ricarica();
+  const conDue = await finestraCopie();
+  verifica(/Verifica senza rete fino alla fine/.test(conDue) && /Seconda verifica terminata offline/.test(conDue) && (await page.$$('.modal:not([hidden]) button:has-text("Salva su file")')).length === 2, 'con due verifiche terminate offline la finestra propone il file di ciascuna');
+  await page.click('.modal:not([hidden]) button:has-text("Ok")');
+  // il docente carica il file della prima (stesso programma della copia): resta proposta solo la seconda
+  await consegnaDalDocente('vp', 'Verifica senza rete fino alla fine', copiaVp);
+  await ricarica();
+  const soloSeconda = await finestraCopie();
+  verifica(/Seconda verifica terminata offline/.test(soloSeconda) && !/Verifica senza rete fino alla fine/.test(soloSeconda), 'caricato il file della prima, si propone ancora solo quello della seconda');
+  verifica(JSON.stringify(await copieLocali()) === JSON.stringify(['vq']), '…e la copia della prima è stata eliminata, quella della seconda no');
+  await page.click('.modal:not([hidden]) button:has-text("Ok")');
+  // poi il docente carica anche il file della seconda: non resta niente
+  await consegnaDalDocente('vq', 'Seconda verifica terminata offline', copiaVp);
+  await ricarica();
+  await finche(page, async () => (await copieLocali()).length === 0, 15000);
   verifica(!(await page.isVisible('h2:has-text("Lavoro di verifica non consegnato")')), 'se il docente ha già caricato il file come consegna, il lavoro non si ripropone');
-  verifica(await page.evaluate(() => { for (let i = 0; i < localStorage.length; i++) if (localStorage.key(i).startsWith('isablock.verifica.backup.')) return false; return true; }), '…e la copia locale è stata eliminata');
+  verifica((await copieLocali()).length === 0, '…e la copia locale è stata eliminata');
   await apriVerifica('vr', { titolo: 'Verifica con ricarica senza rete', scadenzaMin: 30 });
   await page.waitForSelector('.modal:not([hidden]) h2:has-text("Verifica aperta")', { timeout: 10000 });
   await page.getByRole('button', { name: 'Inizia', exact: true }).click();
@@ -441,6 +469,7 @@ try {
   await page.waitForSelector('.consegne-titolo:has-text("Verifica già conclusa")', { timeout: 15000 });
   const testoLista = await page.textContent('.modal:not([hidden]) .modal-box');
   verifica(/v2 · quella che vale/.test(testoLista) && /v1/.test(testoLista) && testoLista.indexOf('v2') < testoLista.indexOf('v1'), '«Le mie consegne»: la v2 per prima, segnata come quella che vale, poi la v1');
+  verifica(/Informatica \(3BINF\)/.test(await page.textContent('.consegne-meta')), 'sotto il titolo di ogni verifica c\'è il corso con la classe: «Informatica (3BINF)»');
   verifica(/caricata dal docente dal tuo file di emergenza/.test(testoLista) && /consegnata da te/.test(testoLista) && /12 blocchi/.test(testoLista), '…con l\'origine di ciascuna e il numero di blocchi');
   verifica(!/Verifica di prova|Verifica da chiudere/.test(testoLista), '…e solo le verifiche concluse con una sua consegna');
   const colonne = await page.$$eval('.consegna-riga', (righe) => righe.map((r) => [...r.querySelectorAll('button')].map((b) => Math.round(b.getBoundingClientRect().left))));

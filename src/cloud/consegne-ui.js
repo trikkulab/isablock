@@ -4,6 +4,7 @@
 // (il menu del cloud, in verifica, è spento).
 import { el, apriFinestra } from './dom.js';
 import { formatoDataOra } from './data-ora.js';
+import { etichettaCorso } from './corsi.js';
 import { apriAnteprima } from './verifica-anteprima-ui.js';
 import { contaBlocchi } from './verifica-tabella.js';
 
@@ -75,7 +76,7 @@ export function montaConsegne({ toast, programma, dopoCaricamento = () => {} }) 
       const mieiCorsi = await corsi.elenca({ archiviati: true });
       trovate = await api.mieConsegne(mieiCorsi.map((c) => c.id));
       if (finestra !== f) return;
-      const nomi = new Map(mieiCorsi.map((c) => [c.id, c.nome]));
+      const corsiPerId = new Map(mieiCorsi.map((c) => [c.id, c]));
       lista.textContent = '';
       if (trovate.length === 0) { lista.append(el('p', { class: 'sketch-nota' }, 'Non hai ancora consegne in verifiche concluse.')); return; }
       for (const { verifica: v, consegne } of trovate) {
@@ -84,7 +85,7 @@ export function montaConsegne({ toast, programma, dopoCaricamento = () => {} }) 
         lista.append(el('section', { class: 'consegne-gruppo', 'aria-label': v.titolo },
           el('header', { class: 'consegne-testata' },
             el('h3', { class: 'consegne-titolo' }, v.titolo),
-            el('p', { class: 'consegne-meta' }, [nomi.get(v.corsoId) ?? '', chiusa ? `conclusa il ${formatoDataOra.format(chiusa)}` : ''].filter(Boolean).join(' · '))),
+            el('p', { class: 'consegne-meta' }, [corsiPerId.has(v.corsoId) ? etichettaCorso(corsiPerId.get(v.corsoId)) : '', chiusa ? `conclusa il ${formatoDataOra.format(chiusa)}` : ''].filter(Boolean).join(' · '))),
           el('div', { class: 'consegne-righe' }, ...[...consegne].reverse().map((c, i) => riga(v, c, i === 0)))));
       }
     } catch (err) {
