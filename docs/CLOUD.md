@@ -553,6 +553,16 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
     da sola se una consegna dello studente ha lo STESSO programma (per esempio il docente ha caricato il file di
     emergenza): si confronta il contenuto, non le date. Fix collegato: il secondo workspace di «Guarda» lasciava a Blockly un «workspace
     principale» chiuso: ora `creaAnteprima` rimette quello dell'editor alla creazione e alla chiusura.
+  - **Stampa (passo 12)**: a verifica CHIUSA la tabella ha «Stampa» su ogni riga con una consegna e «Stampa tutte» in
+    testa (non compaiono a verifica aperta). La scheda (`stampa-ui.js`, parti pure in `scheda-stampa.js`) ha: titolo della
+    verifica e corso con la classe, studente, versione e origine della consegna, quando è stata registrata, scadenza
+    personale, la TRACCIA che aveva, i blocchi disegnati (secondo workspace Blockly, `programma.foglio` in main.js),
+    pseudocodice/C/Python in testo semplice e un CODICE DI RISCONTRO (`XXXX-XXXX`, calcolato dal programma; lo stesso si vede
+    nella finestra «Guarda» di una consegna). Una scheda per studente che ha consegnato (la versione valida), in ordine
+    alfabetico, ognuna su pagina nuova; con blocchi e tre codici sono in genere due pagine A4 per studente. È un'area
+    nascosta (`#areaStampa`) che con `@media print` diventa l'unica cosa visibile; si stampa o si salva come PDF dal
+    browser, il titolo della pagina è il nome del PDF suggerito (`mario.rossi_verifica-di-novembre_v2`, oppure
+    `<verifica>_tutte-le-consegne`) e a fine stampa (`afterprint`) l'area sparisce. Niente passa dal server.
   - **Carica file (passo 10b)**: a verifica CHIUSA ogni riga ha «Carica file…» per il file di emergenza dello studente
     (anche se non è mai entrato). Formato e controlli in `src/verifica-file.js` (puro, sarà usato anche per PRODURRE il
     file nel passo 10a): JSON con marcatore `isablockEmergenza`, verifica, studente, programma, `offlineDa`, blocchi e UN

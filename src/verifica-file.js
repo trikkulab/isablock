@@ -40,7 +40,7 @@ export function calcolaImpronta({ verifica, studente, programma }) {
 export const eFileEmergenza = (stato) => !!stato && typeof stato === 'object' && stato.isablockEmergenza !== undefined;
 
 // Testo adatto a un nome di file: minuscolo, senza accenti, il resto diventa «-». `punto`: il punto resta (mario.rossi).
-const slug = (testo, max, punto = false) => String(testo ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+export const slug = (testo, max, punto = false) => String(testo ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .replace(punto ? /[^a-z0-9.]+/g : /[^a-z0-9]+/g, '-').replace(/^[-.]+|[-.]+$/g, '').slice(0, max);
 const due = (n) => String(n).padStart(2, '0');
 export const oraBreve = (d) => `${due(d.getHours())}:${due(d.getMinutes())}`;

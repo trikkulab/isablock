@@ -297,6 +297,7 @@ try {
   await page.waitForSelector('.tabella-live tbody tr');
   verifica((await page.$$('.tabella-live tbody tr')).length === 3 && (await page.$$('.tabella-stato[data-stato="non-entrato"]')).length === 3, 'tabella: 3 righe, tutti «Non entrato»');
   verifica(/Entrati 0 su 3/.test(await page.textContent('.tabella-sommario')), 'riepilogo: Entrati 0 su 3');
+  verifica(!(await page.isVisible('button:has-text("Stampa tutte")')) && (await page.$$('.tabella-live tbody tr button:has-text("Stampa")')).length === 0, 'a verifica aperta non ci sono i pulsanti di stampa');
   const lavoroAnna = `verifiche/${vid2}/lavori/anna@isarome.it`;
   const adesso = Date.now();
   await aggiorna(lavoroAnna, { entrato: T(adesso - 2 * 60000), ultimoSegnale: T(adesso), studenteNome: S('Anna Rossi'), nBlocchi: { integerValue: '7' },
@@ -462,9 +463,46 @@ try {
   await page.waitForSelector('.tabella-live tbody tr:has-text("Bruno Verdi") button:has-text("Guarda"), .tabella-live tbody tr:has-text("bruno@isarome.it") button:has-text("Guarda")');
   await page.click('.tabella-live tbody tr:has-text("Consegnato"):not(:has-text("Anna")) button:has-text("Guarda")');
   verifica(await finche(async () => (await page.$$('.anteprima-blocchi .blocklyBlockCanvas [data-id]')).length > 3), 'Guarda dopo il caricamento del file: mostra il programma della consegna (non «non ha scritto niente»)');
-  verifica(/consegna v1 \(da file\) · 12 blocchi/.test(await page.textContent('.anteprima-info')) && !(await page.isVisible('.anteprima-vuoto')), '…e dice che è la consegna v1 da file, con il numero di blocchi');
+  const infoBruno = await page.textContent('.anteprima-info');
+  const riscontroBruno = (infoBruno.match(/riscontro ([0-9A-F]{4}-[0-9A-F]{4})/) || [])[1] ?? null;
+  verifica(/consegna v1 \(da file\) · 12 blocchi/.test(infoBruno) && !!riscontroBruno && !(await page.isVisible('.anteprima-vuoto')), `…e dice che è la consegna v1 da file, con il numero di blocchi e il codice di riscontro (${riscontroBruno})`);
   await page.keyboard.press('Escape');
   verifica(await finche(async () => (await page.textContent('.tabella-live tbody tr:has-text("bruno@isarome.it") td:nth-child(3)')).trim() === '12'), 'la tabella mostra i blocchi della consegna da file (12), anche per chi non è mai entrato');
+
+  // ── Stampa delle schede di consegna ────────────────────────────────────────
+  const conteggioPagine = (pdf) => (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
+  await page.evaluate(() => { window.__stampe = 0; window.print = () => { window.__stampe += 1; }; });
+  verifica((await page.$$('.tabella-live tbody tr button:has-text("Stampa"):not(:has-text("tutte"))')).length === 2 && await page.isVisible('button:has-text("Stampa tutte")'), 'a verifica chiusa: «Stampa» sulle righe con una consegna (non su chi non ha consegnato) e «Stampa tutte» in testa');
+  await page.click('.tabella-live tbody tr:has-text("Anna Rossi") button:has-text("Stampa")');
+  await page.waitForFunction(() => window.__stampe === 1 && document.body.classList.contains('stampa-attiva'), null, { timeout: 30000 });
+  verifica(await page.title() === 'anna_verifica-per-la-vista-stretta_v2', `il titolo della pagina (nome del PDF) è «${await page.title()}»`);
+  await page.emulateMedia({ media: 'print' });
+  const scheda = await page.$$eval('#areaStampa .scheda', (x) => x.map((e) => ({ testo: e.textContent, blocchi: e.querySelectorAll('.scheda-blocchi .blocklyBlockCanvas [data-id]').length, codici: [...e.querySelectorAll('.scheda-codice')].map((c) => c.textContent) })));
+  verifica(scheda.length === 1 && /Verifica per la vista stretta/.test(scheda[0].testo) && /anna@isarome\.it/.test(scheda[0].testo) && /v2 · caricata dal docente dal file di emergenza/.test(scheda[0].testo), 'scheda di Anna: verifica, studente, versione e origine della consegna');
+  verifica(/Informatica \(3AINF\)/.test(scheda[0].testo) && /Traccia: Versione A/.test(scheda[0].testo) && /Scadenza personale/.test(scheda[0].testo), '…con il corso e la classe, la traccia che aveva e la scadenza personale');
+  verifica(/Codice di riscontro: [0-9A-F]{4}-[0-9A-F]{4}/.test(scheda[0].testo), '…e il codice di riscontro in calce');
+  verifica(scheda[0].blocchi > 3 && /INIZIO/.test(scheda[0].codici[0]) && /#include/.test(scheda[0].codici[1]) && /input\(\)/.test(scheda[0].codici[2]), '…con i blocchi disegnati e i tre codici (pseudocodice, C, Python)');
+  verifica(await page.evaluate(() => getComputedStyle(document.querySelector('header.toolbar')).display === 'none' && getComputedStyle(document.querySelector('.modal')).display === 'none' && getComputedStyle(document.querySelector('#areaStampa')).display === 'block'), 'in stampa si vede solo la scheda (il resto dell\'app è nascosto)');
+  await schermata(page, 'v-12-scheda-stampa');
+  const pdf1 = await page.pdf({ printBackground: true });
+  verifica(pdf1.length > 2000 && conteggioPagine(pdf1) >= 1, `il browser produce un PDF della scheda (${conteggioPagine(pdf1)} pagine)`);
+  await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+  await page.emulateMedia({ media: null });
+  verifica(await page.evaluate(() => !document.querySelector('#areaStampa') && !document.body.classList.contains('stampa-attiva')) && !(await page.title()).includes('anna_'), 'finita la stampa l\'area sparisce e il titolo della pagina torna com\'era');
+  // tutte le schede: una pagina per studente che ha consegnato, in ordine
+  await page.click('button:has-text("Stampa tutte")');
+  await page.waitForFunction(() => window.__stampe === 2 && document.body.classList.contains('stampa-attiva'), null, { timeout: 60000 });
+  await page.emulateMedia({ media: 'print' });
+  const tutte = await page.$$eval('#areaStampa .scheda', (x) => x.map((e) => e.querySelector('.scheda-dati td').textContent));
+  verifica(tutte.length === 2 && /Anna Rossi/.test(tutte[0]) && /bruno@isarome\.it/.test(tutte[1]), `«Stampa tutte»: una scheda per ciascuno studente che ha consegnato, in ordine alfabetico: ${JSON.stringify(tutte)}`);
+  verifica((await page.$$eval('#areaStampa .scheda-piede', (x) => x[1].textContent)).includes(`Codice di riscontro: ${riscontroBruno}`), 'il codice di riscontro sulla scheda stampata è lo stesso che mostra «Guarda» nell\'app');
+  verifica(await page.title() === 'verifica-per-la-vista-stretta_tutte-le-consegne', 'il PDF delle schede si chiama «<verifica>_tutte-le-consegne»');
+  const pdf2 = await page.pdf({ printBackground: true });
+  verifica(conteggioPagine(pdf2) >= 2, `il PDF ha almeno una pagina per scheda (${conteggioPagine(pdf2)})`);
+  await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+  await page.emulateMedia({ media: null });
+  verifica(await page.evaluate(() => document.querySelectorAll('.blocklyDiv, .scheda-blocchi').length >= 0 && !document.querySelector('#areaStampa')), 'pulita anche la stampa di tutte le schede');
+  verifica(await page.evaluate(() => !!window.Blockly.getMainWorkspace().getParentSvg().closest('#blocklyDiv')), 'dopo la stampa il workspace principale di Blockly è ancora quello dell\'editor');
 
   // archivia: sparisce dall'elenco, si ritrova con la casella, si ripristina
   dialoghi.length = 0;

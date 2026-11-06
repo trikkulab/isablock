@@ -14,7 +14,7 @@ function testoOffline(ms) {
 }
 
 // `vd`: oggetto di verifica-docente.js. Restituisce { elemento, distruggi }.
-export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = null }) {
+export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = null, stampa = null, stampaTutte = null }) {
   let ultimo = null;                // ultimo { verifica, lavori, ultime, ora } ricevuto
   let modo = 'email';
   const seguaci = new Set();        // chi vuole il lavoro di uno studente a ogni aggiornamento: { email, cb }
@@ -33,8 +33,10 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
       intestazione('Connessione'), intestazione('Tempo'), intestazione('Programma'))),
     corpo);
   tabella.hidden = true;
+  // «Stampa tutte»: solo a verifica chiusa (si mostra quando arriva lo stato), una pagina per ogni consegna.
+  const btnStampaTutte = el('button', { type: 'button', class: 'modal-btn secondary', hidden: '', title: 'Una pagina per ogni consegna: si stampa o si salva come PDF', onclick: () => stampaTutte?.() }, 'Stampa tutte');
   const elemento = el('div', { class: 'tabella-corpo' },
-    el('div', { class: 'tabella-testata' }, sommario, ordine), vuota, tabella);
+    el('div', { class: 'tabella-testata' }, sommario, el('span', { class: 'tabella-azioni' }, btnStampaTutte, ordine)), vuota, tabella);
 
   function cella(riga, ...figli) { return el('td', {}, ...figli); }
 
@@ -47,6 +49,7 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
       `Entrati ${r.entrati} su ${r.totale}`, `consegnati ${r.consegnati}`,
       r.offline ? `${r.offline} offline` : null, r.conSalto ? `${r.conSalto} con un salto di blocchi` : null,
     ].filter(Boolean).join(' · ');
+    btnStampaTutte.hidden = !(stampaTutte && ultimo.verifica.stato === 'chiusa' && righe.some((x) => x.versioneConsegna !== null));
     vuota.hidden = righe.length > 0;
     tabella.hidden = righe.length === 0;
     if (righe.length === 0) { vuota.textContent = 'Nessuno studente assegnato a questa verifica.'; return; }
@@ -65,6 +68,7 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
         cella(x, x.timer ? el('span', { class: 'tabella-timer', 'data-colore': x.timer.colore }, x.timer.restante > 0 ? testoDurata(x.timer.restante) : 'scaduto') : '–'),
         cella(x,
           guarda ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Guarda il programma (sola lettura)', onclick: () => guarda(x.email, x.nome) }, 'Guarda') : '',
+          stampa && ultimo.verifica.stato === 'chiusa' && x.versioneConsegna !== null ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Stampa la scheda di consegna di questo studente (o salvala come PDF)', onclick: () => stampa(x.email) }, 'Stampa') : '',
           caricaFile && ultimo.verifica.stato === 'chiusa' ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Carica il file di emergenza di questo studente come nuova consegna', onclick: () => caricaFile(x.email, x.nome) }, 'Carica file…') : '')));
     }
   }
@@ -83,5 +87,7 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
   }
   // Lo stato attuale di uno studente (lavoro e ultima consegna), per chi apre una finestra a partire da una riga.
   const stato = (email) => (ultimo ? { lavoro: ultimo.lavori.find((l) => l.email === email) ?? null, ultimaConsegna: ultimo.ultime[email] ?? null } : { lavoro: null, ultimaConsegna: null });
-  return { elemento, distruggi, segui, stato };
+  // Tutti gli studenti con la loro ultima consegna (per la stampa), nell'ordine in cui arrivano.
+  const tutti = () => (ultimo ? ultimo.lavori.map((l) => ({ email: l.email, lavoro: l, ultimaConsegna: ultimo.ultime[l.email] ?? null })) : []);
+  return { elemento, distruggi, segui, stato, tutti };
 }
