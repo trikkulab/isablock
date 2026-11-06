@@ -909,3 +909,90 @@ test('traccia: senza rete (non si legge) si usa quella della copia locale', asyn
   assert.equal(viste[0].traccia.titolo, 'Dalla copia');
   s.termina();
 });
+
+// ── Chiusura forzata del docente con modifiche non ancora salvate, raccolta, riapertura (caso visto in prova, 6 nov 2026) ──
+const chiudiDalDocente = () => admin((db) => sdk.updateDoc(sdk.doc(db, 'verifiche/v1'), { stato: 'chiusa', chiusaIl: sdk.Timestamp.now() }));
+const riapriDalDocente = () => admin((db) => sdk.updateDoc(sdk.doc(db, 'verifiche/v1'), { stato: 'aperta', apertaIl: sdk.Timestamp.now(), fine: ts(Date.now() + 60 * MIN) }));
+const raccogliDalDocente = () => admin(async (db) => {                  // come consegne.raccogli: una consegna dal lavoro com'è sul server
+  const l = (await sdk.getDoc(sdk.doc(db, `verifiche/v1/lavori/${ANNA}`))).data();
+  const n = (await sdk.getDocs(sdk.collection(db, 'verifiche/v1/consegne'))).size + 1;
+  await sdk.setDoc(sdk.doc(db, `verifiche/v1/consegne/${ANNA}_${n}`), { studenteEmail: ANNA, studenteNome: 'anna', corsoId: 'AB12CD', titolo: 'Verifica v1', versione: n, origine: 'raccolta', tracciaId: 't0', programma: l.programma, creato: sdk.Timestamp.now(), docenteEmail: 'docente@isarome.it' });
+});
+
+test('chiusura forzata con una modifica non ancora salvata: terminata, il file di emergenza ha il programma NUOVO, la copia locale resta', async () => {
+  const st = storageFinto();
+  const a = nuovaSessione(ANNA, { backup: copiaDi(st) });
+  await a.s.avvia();
+  a.s.aggiorna({ programma: P(1), nBlocchi: 1 });
+  await a.tempo.avanza(C.debounceSalvataggioMs + 100, a.s);             // sul server c'è P(1)
+  a.s.aggiorna({ programma: P(2), nBlocchi: 2 });                       // la modifica nuova: ancora entro la pausa di salvataggio
+  await chiudiDalDocente();
+  assert.ok(await finche(() => a.cambi.includes('terminata')), 'la sessione si accorge della chiusura');
+  assert.equal(a.s.stato(), 'terminata');
+  assert.equal(a.s.senzaSalvare(), true, 'sa che ha modifiche mai arrivate al server → la finestra offre il file');
+  const e = a.s.datiEmergenza();
+  assert.equal(e.programma, P(2));
+  assert.equal(e.nBlocchi, 2);
+  assert.equal(e.nBlocchiSincronizzati, 1);
+  assert.equal((await leggiLavoro()).programma, P(1), 'il server è rimasto indietro');
+  assert.equal(copiaDi(st).leggi()?.programma, P(2), 'la copia locale tiene il programma nuovo');
+  a.s.termina();
+});
+
+test('chiusura forzata, raccolta del vecchio, riapertura: lo studente riparte dalla copia locale (la più nuova) e il server la riceve', async () => {
+  const st = storageFinto();
+  const a = nuovaSessione(ANNA, { backup: copiaDi(st) });
+  await a.s.avvia();
+  a.s.aggiorna({ programma: P(1), nBlocchi: 1 });
+  await a.tempo.avanza(C.debounceSalvataggioMs + 100, a.s);
+  a.s.aggiorna({ programma: P(2), nBlocchi: 2 });
+  await chiudiDalDocente();
+  assert.ok(await finche(() => a.cambi.includes('terminata')));
+  a.s.termina();
+  await raccogliDalDocente();                                            // consegna v1 = P(1), il vecchio
+  assert.equal((await leggiConsegne())[0].programma, P(1));
+  await riapriDalDocente();
+  const b = nuovaSessione(ANNA, { backup: copiaDi(st) });                // lo studente rientra (nuova pagina o nuovo ingresso)
+  assert.equal(await b.s.avvia(), 'in-corso');
+  assert.equal(b.s.ripresa(), 'locale', 'vince la copia locale: il server non si è mosso dopo di lei');
+  assert.equal(b.s.programmaSalvato(), P(2), 'nell\'editor torna il programma nuovo, non quello vecchio del server');
+  assert.equal((await leggiLavoro()).programma, P(2), 'e l\'ingresso lo scrive sul server');
+  b.s.termina();
+});
+
+test('seconda chiusura forzata subito dopo la riapertura, con un\'altra modifica: ancora il file di emergenza, col programma più nuovo', async () => {
+  const st = storageFinto();
+  const a = nuovaSessione(ANNA, { backup: copiaDi(st) });
+  await a.s.avvia();
+  a.s.aggiorna({ programma: P(1), nBlocchi: 1 });
+  await a.tempo.avanza(C.debounceSalvataggioMs + 100, a.s);
+  a.s.aggiorna({ programma: P(2), nBlocchi: 2 });
+  await chiudiDalDocente();
+  assert.ok(await finche(() => a.cambi.includes('terminata')));
+  a.s.termina();
+  await raccogliDalDocente();
+  await riapriDalDocente();
+  const b = nuovaSessione(ANNA, { backup: copiaDi(st) });
+  await b.s.avvia();
+  b.s.aggiorna({ programma: P(3), nBlocchi: 3 });                        // altra modifica, subito
+  await chiudiDalDocente();
+  assert.ok(await finche(() => b.cambi.includes('terminata')));
+  assert.equal(b.s.senzaSalvare(), true);
+  assert.equal(b.s.datiEmergenza().programma, P(3));
+  assert.equal(b.s.datiEmergenza().nBlocchiSincronizzati, 2, 'il server aveva P(2), quello scritto all\'ingresso');
+  assert.equal(copiaDi(st).leggi()?.programma, P(3));
+  b.s.termina();
+});
+
+test('chiusura forzata con TUTTO già salvato: terminata senza file di emergenza e senza copia locale', async () => {
+  const st = storageFinto();
+  const a = nuovaSessione(ANNA, { backup: copiaDi(st) });
+  await a.s.avvia();
+  a.s.aggiorna({ programma: P(1), nBlocchi: 1 });
+  await a.tempo.avanza(C.debounceSalvataggioMs + 100, a.s);
+  await chiudiDalDocente();
+  assert.ok(await finche(() => a.cambi.includes('terminata')));
+  assert.equal(a.s.senzaSalvare(), false);
+  assert.equal(copiaDi(st).leggi(), null);
+  a.s.termina();
+});
