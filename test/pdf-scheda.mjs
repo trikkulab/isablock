@@ -189,10 +189,19 @@ await prova('citazione lunga e annidata, che attraversa le pagine: sfondo dietro
   }
 });
 
-await prova('caratteri speciali nel PDF: ≤ ≥ ≠ diventano <= >= <>, i caratteri fuori da Latin-1 «?»', async () => {
-  const { testoPdf } = crea([scheda({ traccia: await md('Se a ≤ b e α > 0'), testi: { pseudocode: 'SE a ≠ b ALLORA\nSE a ≥ b', c: 'x', python: 'y' } })]);
-  assert.ok(testoPdf.includes('<>') && testoPdf.includes('>='));
-  assert.ok(testoPdf.includes('a <= b e ? > 0'));
+await prova('caratteri speciali: ≠ ≤ ≥ restano nei riquadri di codice (disegnati), nel testo diventano <> <= >=, il resto fuori da Latin-1 «?»', async () => {
+  const { registro, testoPdf } = crea([scheda({ traccia: await md('Se a ≤ b e α > 0\n\n```\nx ≠ y\n```'), testi: { pseudocode: 'SE a ≠ b ALLORA\nSE a ≥ b', c: 'x >= 1', python: 'y' } })]);
+  const codici = registro.voci.filter((v) => v.tipo === 'codice').map((v) => v.testo).join('\n');
+  assert.ok(codici.includes('SE a ≠ b ALLORA') && codici.includes('SE a ≥ b') && codici.includes('x ≠ y'), 'nello pseudocodice e nei blocchi di codice della traccia i simboli restano');
+  assert.ok(testoPdf.includes('a <= b e ? > 0'), 'nel testo corrente ≤ diventa <=, α diventa ?');
+  assert.ok(!testoPdf.includes('?>'), 'nessun segnaposto «?» al posto dei simboli');
+  assert.ok(!/\(SE a [^)]*\?/.test(testoPdf), 'nessun «?» nel codice');
+  assert.ok(testoPdf.includes('(SE a ) Tj') || testoPdf.includes('(SE a ) '), 'il testo si interrompe dove il simbolo è disegnato');
+  assert.ok(testoPdf.includes('( b ALLORA)'), 'e riprende dopo');
+  // Le linee dei simboli ci sono (≠ ha tre tratti, ≤ ≥ due + uno)
+  const tratti = (testoPdf.match(/ l\nS\n/g) || []).length;
+  assert.ok(tratti >= 3 + 3 + 3 + 3, `tratti disegnati: ${tratti}`);
+  assert.deepEqual(spezzaRiga('a ≠ b', 5), ['a ≠ b'], 'un simbolo vale una cella, come ogni carattere');
 });
 
 await prova('PDF vero: intestazione %PDF, tante pagine A4 quante dice il registro, titolo del documento', () => {

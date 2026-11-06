@@ -32,9 +32,11 @@ export const SCALA_MIN_ALTEZZA = 0.6;                          // riduzione mass
 // Solo i font standard del PDF (Helvetica, Courier): quel che non sta in Latin-1 si sostituisce.
 const SOSTITUZIONI = { '\u2018': "'", '\u2019': "'", '\u201a': "'", '\u201c': '"', '\u201d': '"', '\u201e': '"', '\u2013': '-', '\u2014': '-', '\u2212': '-', '\u2026': '...', '\u2022': '-', '\u00a0': ' ', '\t': '    ',
   '\u2260': '<>', '\u2264': '<=', '\u2265': '>=', '\u2190': '<-', '\u2192': '->' };       // i simboli dello pseudocodice (≠ ≤ ≥) che i font standard non hanno
-export function pulisci(testo) {
-  return String(testo ?? '').replace(/[^\x00-\xff\n]|[\u0080-\u009f]|\t/g, (c) => SOSTITUZIONI[c] ?? '?');
+// `simboli`: nei riquadri di codice ≠ ≤ ≥ restano (si disegnano a mano, vedi `simbolo`), altrove diventano <> <= >=.
+export function pulisci(testo, { simboli = false } = {}) {
+  return String(testo ?? '').replace(/[^\x00-\xff\n]|[\u0080-\u009f]|\t/g, (c) => (simboli && SIMBOLI.includes(c) ? c : SOSTITUZIONI[c] ?? '?'));
 }
+const SIMBOLI = '\u2260\u2264\u2265';                // ≠ ≤ ≥
 
 // Spezza una riga di codice che non sta nella larghezza (in caratteri), in modo ordinato: a uno spazio se c'è, e la
 // continuazione rientra di due spazi rispetto all'inizio della riga.
@@ -256,7 +258,7 @@ class Foglio {
   codiceMd(testo, ctx) {
     const lh = PT_CODICE * PT * 1.3;
     const max = Math.floor((ctx.w - 2 * PAD) / this.larg('M', 'courier', 'normal', PT_CODICE));
-    const righe = pulisci(testo).split('\n').flatMap((r) => spezzaRiga(r, max));
+    const righe = pulisci(testo, { simboli: true }).split('\n').flatMap((r) => spezzaRiga(r, max));
     this.riquadroSpezzato(righe, ctx.x, ctx.w, lh);
     this.y += 1.5;
   }
@@ -322,12 +324,44 @@ class Foglio {
     }
   }
 
+  // Una riga di codice a larghezza fissa. ≠ ≤ ≥ non sono nei font standard del PDF: si disegnano con linee, nella loro cella.
+  rigaCodice(r, x, base, cella) {
+    const doc = this.doc;
+    let da = 0;
+    const testo = (a, b) => { if (b > a) doc.text(r.slice(a, b), x + a * cella, base); };
+    for (let i = 0; i < r.length; i++) {
+      if (!SIMBOLI.includes(r[i])) continue;
+      testo(da, i);
+      this.simbolo(r[i], x + i * cella, base, cella);
+      da = i + 1;
+    }
+    testo(da, r.length);
+  }
+
+  simbolo(c, x, base, cella) {
+    const doc = this.doc;
+    const em = PT_CODICE * PT;
+    const y = (k) => base - k * em;                           // k = altezza sopra la linea di base, in em
+    const a = x + cella * 0.14; const b = x + cella * 0.86;
+    doc.setDrawColor(0); doc.setLineWidth(em * 0.045); doc.setLineCap('round'); doc.setLineJoin('round');
+    if (c === '\u2260') {                                     // = con una barra obliqua
+      doc.line(a, y(0.42), b, y(0.42)); doc.line(a, y(0.2), b, y(0.2));
+      doc.line(x + cella * 0.68, y(0.66), x + cella * 0.32, y(0.0));
+    } else {                                                  // < o > con un trattino sotto
+      const punta = c === '\u2264' ? a : b; const apertura = c === '\u2264' ? b : a;
+      doc.line(apertura, y(0.66), punta, y(0.42)); doc.line(punta, y(0.42), apertura, y(0.18));
+      doc.line(a, y(0.0), b, y(0.0));
+    }
+    doc.setLineCap('butt'); doc.setLineJoin('miter');
+  }
+
   riquadroCodice(righe, x, w, lh, h) {
     const doc = this.doc;
     doc.setFillColor(246); doc.setDrawColor(150); doc.setLineWidth(0.25);
     doc.rect(x, this.y, w, h, 'FD');
     doc.setFont('courier', 'normal'); doc.setFontSize(PT_CODICE); doc.setTextColor(0);
-    righe.forEach((r, i) => { if (r !== '') doc.text(r, x + PAD, this.y + PAD + i * lh + lh * 0.74); });
+    const cella = doc.getTextWidth('M');                       // il Courier ha celle di larghezza fissa
+    righe.forEach((r, i) => { if (r !== '') this.rigaCodice(r, x + PAD, this.y + PAD + i * lh + lh * 0.74, cella); });
     this.reg('codice', { x, h, righe: righe.length, testo: righe.join('\n') });
   }
 
@@ -346,7 +380,7 @@ class Foglio {
   // Righe di codice spezzate per la colonna di larghezza `w`.
   righeCodice(testo, w) {
     const max = Math.floor((w - 2 * PAD) / this.larg('M', 'courier', 'normal', PT_CODICE));
-    return pulisci(testo).replace(/\s+$/, '').split('\n').flatMap((r) => spezzaRiga(r, max));
+    return pulisci(testo, { simboli: true }).replace(/\s+$/, '').split('\n').flatMap((r) => spezzaRiga(r, max));
   }
 
   // Due codici affiancati, di uguale altezza; si tengono su una pagina se ci stanno, altrimenti si spezzano (righe in pari).

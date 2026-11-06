@@ -578,7 +578,9 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
       elementi genitori che nello SVG isolato non ci sono), si rasterizza su canvas a scala 2. Alla fine si rimette il workspace
       principale dell'editor (stesso difetto già incontrato in «Guarda»).
     - **Font e caratteri**: solo Helvetica e Courier (font standard del PDF). Virgolette e trattini tipografici → ASCII, `≠ ≤ ≥` dello
-      pseudocodice → `<> <= >=`, il resto fuori da Latin-1 → `?` (il greco non serve).
+      pseudocodice NON sono nei font standard: nei riquadri di codice si disegnano con linee, nella cella a larghezza fissa del
+      Courier (`rigaCodice` in `pdf-scheda.js`); nel testo corrente della traccia diventano `<> <= >=`; il resto fuori da Latin-1 → `?`
+      (il greco non serve).
     - **Promemoria Markdown**: se si aggiunge una funzionalità a `markdown.js` va aggiunta anche al PDF. `test/pdf-markdown.mjs` confronta le
       righe di configurazione di `markdown.js` con un'istantanea e fallisce con il messaggio «aggiorna anche il PDF»; token
       sconosciuti → testo semplice, mai un errore.

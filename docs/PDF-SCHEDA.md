@@ -1,6 +1,6 @@
 # Scheda di consegna in PDF (passo 12, seconda versione)
 
-> **Stato (6 nov 2026): implementata** (scheda singola e «tutte»), vedi `docs/CLOUD.md` (sezione «Scheda di consegna in PDF»). Questo documento resta come registro delle decisioni di Ivan; le sezioni «Stato del lavoro» e «Da fare» sono storiche. Scostamenti: `≠ ≤ ≥` dello pseudocodice diventano `<> <= >=` (i font standard non li hanno).
+> **Stato (6 nov 2026): implementata** (scheda singola e «tutte»), vedi `docs/CLOUD.md` (sezione «Scheda di consegna in PDF»). Questo documento resta come registro delle decisioni di Ivan; le sezioni «Stato del lavoro» e «Da fare» sono storiche. Scostamenti: `≠ ≤ ≥` dello pseudocodice non sono nei font standard, quindi nei riquadri di codice si disegnano con linee (nel testo della traccia diventano `<> <= >=`).
 
 Documento di consegna per chi continua il lavoro (anche una nuova sessione). Leggi anche `docs/CLOUD.md` (sezione
 «Stampa (passo 12)») e le note di progetto nella memoria (`isablock_verifica_struttura_approvata`).
