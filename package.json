@@ -5,6 +5,7 @@
     "@firebase/rules-unit-testing": "^5.0.2",
     "esbuild": "^0.28.2",
     "firebase": "^12.19.0",
+    "jspdf": "^4.2.1",
     "markdown-it": "^15.0.3",
     "markdown-it-sub": "^2.0.0",
     "markdown-it-sup": "^2.0.0",
@@ -22,6 +23,7 @@
     "codice": "node scripts/codice.mjs",
     "deploy:test": "node scripts/deploy-test.mjs",
     "vendor:markdown": "node scripts/bundle-markdown.mjs",
-    "test:e2e": "node scripts/build-rules.mjs test .regole-test.rules && REGOLE_FILE=.regole-test.rules firebase emulators:exec --config firebase.test.json --only auth,firestore --project demo-isablock \"node test/e2e/verifiche.mjs && node test/e2e/studente.mjs\""
+    "test:e2e": "node scripts/build-rules.mjs test .regole-test.rules && REGOLE_FILE=.regole-test.rules firebase emulators:exec --config firebase.test.json --only auth,firestore --project demo-isablock \"node test/e2e/verifiche.mjs && node test/e2e/studente.mjs\"",
+    "vendor:pdf": "node scripts/bundle-pdf.mjs"
   }
 }

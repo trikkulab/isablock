@@ -10,6 +10,11 @@
 // Il risultato è una stringa HTML già sicura da assegnare a innerHTML: questo è l'UNICO posto
 // dell'interfaccia cloud dove succede, e solo con l'output di rendiMarkdown().
 //
+// ATTENZIONE: la scheda di consegna in PDF NON usa questa resa HTML: ricompone il testo da sola (src/cloud/pdf-markdown.js
+// e pdf-scheda.js). Se qui si aggiunge una funzionalità (un plugin, una regola abilitata), va aggiunta anche lì. Vedi
+// docs/PDF-SCHEDA.md: la prova test/pdf-markdown.mjs (da scrivere insieme al PDF) deve fallire se la configurazione qui
+// sotto cambia senza aggiornare il PDF.
+//
 // La libreria (vendor/markdown/markdown-it.js, ~100 KB) si carica solo alla prima resa e funziona
 // offline perché è un file locale.
 
@@ -50,4 +55,12 @@ export async function rendiMarkdown(testo) {
   pronto ??= carica();
   const md = await pronto;
   return md.render(testo.slice(0, MAX_RESA), {});
+}
+
+// I «token» del Markdown (struttura del testo, non HTML), per chi lo ricompone in un altro formato (il PDF).
+export async function tokenizzaMarkdown(testo) {
+  if (typeof testo !== 'string' || !testo.trim()) return [];
+  pronto ??= carica();
+  const md = await pronto;
+  return md.parse(testo.slice(0, MAX_RESA), {});
 }
