@@ -430,19 +430,23 @@ try {
   const programmaZ = await page.evaluate(async () => { const { examples } = await import('/src/examples.js'); return JSON.stringify({ ...examples[0].workspaceState, formatVersion: 6 }); });
   await scrivi('verifiche/vz', { corsoId: S('ST1DEN'), titolo: S('Verifica già conclusa'), stato: S('chiusa'), fine: T(ora() - 3 * 60 * MIN), tracciaDefault: S('t0'), creataDa: S('docente@isarome.it'), creato: T(ora() - 5 * 60 * MIN), apertaIl: T(ora() - 4 * 60 * MIN), chiusaIl: T(ora() - 3 * 60 * MIN) });
   const consegnaZ = (n, origine, extra = {}) => scrivi(`verifiche/vz/consegne/${ANNA}_${n}`, { studenteEmail: S(ANNA), studenteNome: S('Anna Rossi'), corsoId: S('ST1DEN'), titolo: S('Verifica già conclusa'), versione: { integerValue: String(n) }, origine: S(origine), tracciaId: S('t0'), programma: S(programmaZ), creato: T(ora() - (3 - n) * 60 * MIN), ...extra });
+  await scrivi('verifiche/vy', { corsoId: S('ST1DEN'), titolo: S('Verifica più vecchia'), stato: S('chiusa'), fine: T(ora() - 9 * 60 * MIN), tracciaDefault: S('t0'), creataDa: S('docente@isarome.it'), creato: T(ora() - 10 * 60 * MIN), apertaIl: T(ora() - 9.5 * 60 * MIN), chiusaIl: T(ora() - 9 * 60 * MIN) });
+  await scrivi(`verifiche/vy/consegne/${ANNA}_1`, { studenteEmail: S(ANNA), studenteNome: S('Anna Rossi'), corsoId: S('ST1DEN'), titolo: S('Verifica più vecchia'), versione: { integerValue: '1' }, origine: S('raccolta'), tracciaId: S('t0'), programma: S(programmaZ), creato: T(ora() - 9 * 60 * MIN), docenteEmail: S('docente@isarome.it') });
   await consegnaZ(1, 'studente');
   await consegnaZ(2, 'file', { docenteEmail: S('docente@isarome.it'), impronta: S('abc'), nomeFile: S('anna.isablock') });
   await page.waitForSelector('h2:has-text("Lavoro di verifica non consegnato")', { timeout: 8000 }).then(() => page.click('.modal:not([hidden]) button:has-text("Ok")')).catch(() => {});   // la proposta del file, se è comparsa
   await page.click('.cloud-menu-btn');
   await page.click('.cloud-voce:has-text("Le mie consegne")');
   await page.waitForSelector('h2:has-text("Le mie consegne")');
-  await page.waitForSelector('.corsi-titolo:has-text("Verifica già conclusa")', { timeout: 15000 });
+  await page.waitForSelector('.consegne-titolo:has-text("Verifica già conclusa")', { timeout: 15000 });
   const testoLista = await page.textContent('.modal:not([hidden]) .modal-box');
   verifica(/v2 · quella che vale/.test(testoLista) && /v1/.test(testoLista) && testoLista.indexOf('v2') < testoLista.indexOf('v1'), '«Le mie consegne»: la v2 per prima, segnata come quella che vale, poi la v1');
   verifica(/caricata dal docente dal tuo file di emergenza/.test(testoLista) && /consegnata da te/.test(testoLista) && /12 blocchi/.test(testoLista), '…con l\'origine di ciascuna e il numero di blocchi');
   verifica(!/Verifica di prova|Verifica da chiudere/.test(testoLista), '…e solo le verifiche concluse con una sua consegna');
   const colonne = await page.$$eval('.consegna-riga', (righe) => righe.map((r) => [...r.querySelectorAll('button')].map((b) => Math.round(b.getBoundingClientRect().left))));
-  verifica(colonne.length === 2 && colonne[0].length === 3 && colonne[0].every((x, i) => Math.abs(x - colonne[1][i]) <= 1), `i pulsanti delle righe sono allineati in colonna: ${JSON.stringify(colonne)}`);
+  verifica(colonne.length === 3 && colonne[0].length === 3 && colonne.every((r) => r.every((x, i) => Math.abs(x - colonne[0][i]) <= 1)), `i pulsanti di tutte le righe, anche di verifiche diverse, sono allineati in colonna: ${JSON.stringify(colonne)}`);
+  const cornici = await page.$$eval('.consegne-gruppo', (g) => g.map((x) => [x.querySelector('.consegne-titolo').textContent, x.querySelectorAll('.consegna-riga').length, getComputedStyle(x).borderTopWidth]));
+  verifica(JSON.stringify(cornici.map((c) => c.slice(0, 2))) === JSON.stringify([['Verifica già conclusa', 2], ['Verifica più vecchia', 1]]) && cornici.every((c) => c[2] === '1px'), `ogni verifica ha la sua cornice con le sue consegne, la più recente per prima: ${JSON.stringify(cornici)}`);
   await schermata(page, 's-12-mie-consegne');
   // guardare: sola lettura
   await page.click('.consegna-riga:has-text("v2") button:has-text("Guarda")');

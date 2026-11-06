@@ -80,10 +80,12 @@ export function montaConsegne({ toast, programma, dopoCaricamento = () => {} }) 
       if (trovate.length === 0) { lista.append(el('p', { class: 'sketch-nota' }, 'Non hai ancora consegne in verifiche concluse.')); return; }
       for (const { verifica: v, consegne } of trovate) {
         const chiusa = (v.chiusaIl ?? v.fine);
-        lista.append(el('section', { class: 'consegne-gruppo' },
-          el('h3', { class: 'corsi-titolo' }, v.titolo),
-          el('p', { class: 'sketch-data consegne-meta' }, [nomi.get(v.corsoId) ?? '', chiusa ? `conclusa il ${formatoDataOra.format(chiusa)}` : ''].filter(Boolean).join(' · ')),
-          ...[...consegne].reverse().map((c, i) => riga(v, c, i === 0))));
+        // Una CORNICE per verifica: testata con titolo e data, sotto le sue consegne.
+        lista.append(el('section', { class: 'consegne-gruppo', 'aria-label': v.titolo },
+          el('header', { class: 'consegne-testata' },
+            el('h3', { class: 'consegne-titolo' }, v.titolo),
+            el('p', { class: 'consegne-meta' }, [nomi.get(v.corsoId) ?? '', chiusa ? `conclusa il ${formatoDataOra.format(chiusa)}` : ''].filter(Boolean).join(' · '))),
+          el('div', { class: 'consegne-righe' }, ...[...consegne].reverse().map((c, i) => riga(v, c, i === 0)))));
       }
     } catch (err) {
       if (finestra !== f) return;
