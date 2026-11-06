@@ -528,6 +528,16 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
     della tabella (finché non ne arriva uno ci si fida del PC). Le righe si calcolano in `verifica-tabella.js` (funzioni
     pure, `test/verifica-tabella.mjs`); `verifica-tabella-ui.js` le disegna. Non c'è una colonna «ultima modifica»: il
     solo dato è `ultimoSegnale`, che vale anche per il battito.
+  - **Guarda e Storia**: ogni riga ha «Guarda»: finestra in sola lettura con i blocchi (secondo workspace Blockly,
+    `programma.anteprima` in main.js) e i tre codici dagli stessi generatori; segue lo studente (ritardo massimo ~25 s)
+    senza letture in più (i dati sono già nella tabella). «Storia…» legge le istantanee (`lavori/<email>/storia`, ≤30
+    letture): cursore, frecce, segni ⚠ sui salti, «In diretta». Le scrive lo studente (best effort, a parte dal
+    salvataggio): periodica ogni `istantaneaOgniMs` (5 min) se il programma è cambiato e ha blocchi, in 24 posti A ANELLO
+    scelti dall'ora (`p<k>`, k = ora / intervallo mod 24: nessun contatore da ricordare), più la coppia `a<k>`/`d<k>`
+    (prima/dopo) quando i blocchi salgono di `saltoBlocchi` o più tra due salvataggi (3 posti). Regole: solo lo studente a
+    verifica aperta, entrato, non consegnato, entro scadenza+grazia; legge il docente; nessuno cancella (la pulizia di fine
+    anno li toglie con lo script). Costo: ~700 scritture in più su 30 studenti × 2 h. Per infittire o allungare la storia:
+    `istantaneaOgniMs` e `regole.maxIstantanee`, poi ripubblicare le regole.
 - A verifica chiusa la scheda è di sola lettura.
 - **Le notifiche («toast») stanno sopra le finestre** (livello 3000 contro 2000 delle finestre): prima un messaggio
   che usciva mentre una finestra era aperta finiva nascosto dietro l'oscuramento e non lo vedeva nessuno (valeva

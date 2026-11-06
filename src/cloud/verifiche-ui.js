@@ -526,7 +526,7 @@ export function montaVerifiche({ toast, programma = null }) {
     if (!bozza()) {
       let tabella;
       const guarda = programma && programma.anteprima
-        ? (email, nome) => apriAnteprima({ apri, programma, segui: (e, cb) => tabella.segui(e, cb), email, nome })
+        ? (email, nome) => apriAnteprima({ apri, programma, segui: (e, cb) => tabella.segui(e, cb), caricaStoria: () => vd.lavori.storia(vid, email), email, nome })
         : null;
       tabella = creaTabellaLive({ vd, vid, toast, guarda });
       chiudiTabella = tabella.distruggi;

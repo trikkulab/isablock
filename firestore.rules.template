@@ -30,6 +30,8 @@ service cloud.firestore {
     function maxProgramma() { return @@VERIFICA_maxProgramma@@; }
     function maxBlocchi() { return @@VERIFICA_maxBlocchi@@; }
     function maxMinutiExtra() { return @@VERIFICA_maxMinutiExtra@@; }
+    function maxIstantanee() { return @@VERIFICA_maxIstantanee@@; }
+    function maxIstantaneeSalto() { return @@VERIFICA_maxIstantaneeSalto@@; }
 
     function dominioIstituzionale() {
       return '@@DOMINIO@@';
@@ -496,6 +498,38 @@ service cloud.firestore {
           && lavoroNuovoValido(request.resource.data);
         allow update: if aggiornamentoDocente() || aggiornamentoStudente();
         allow delete: if docenteLav() && resource.data.entrato == null;
+
+        // Storia del lavoro: istantanee del programma per capire come evolve (non è un registro di ogni modifica).
+        // Id a ANELLO: `p<k>` periodiche (k < maxIstantanee), `a<k>`/`d<k>` coppia prima/dopo un salto di blocchi
+        // (k < maxIstantaneeSalto): la nuova prende il posto della più vecchia, quindi i dati non crescono. Le scrive
+        // solo lo studente, a verifica aperta, entro la scadenza personale più la grazia, finché non ha consegnato; le
+        // legge solo il docente del corso. Mai cancellate da qui (le toglie la pulizia di fine anno).
+        match /storia/{sid} {
+          function lavoroSt() {
+            return get(/databases/$(database)/documents/verifiche/$(vid)/lavori/$(lid)).data;
+          }
+          function indiceOk(limite) {
+            return sid.matches('[pad][0-9]{1,2}') && string(int(sid[1:])) == sid[1:] && int(sid[1:]) < limite;
+          }
+          function istantaneaValida(d) {
+            return d.keys().hasOnly(['programma', 'nBlocchi', 't', 'tipo'])
+              && d.keys().hasAll(['programma', 'nBlocchi', 't', 'tipo'])
+              && d.programma is string && d.programma.size() > 0 && d.programma.size() <= maxProgramma()
+              && d.nBlocchi is int && d.nBlocchi >= 0 && d.nBlocchi <= maxBlocchi()
+              && d.t == request.time
+              && ((d.tipo == 'periodica' && sid[0:1] == 'p' && indiceOk(maxIstantanee()))
+                  || (d.tipo == 'prima' && sid[0:1] == 'a' && indiceOk(maxIstantaneeSalto()))
+                  || (d.tipo == 'dopo' && sid[0:1] == 'd' && indiceOk(maxIstantaneeSalto())));
+          }
+          allow read: if docenteLav();
+          allow create, update: if mioLavoro()
+            && verificaLav().stato == 'aperta'
+            && lavoroSt().entrato != null
+            && lavoroSt().consegnato == false
+            && request.time <= lavoroSt().scadenza + duration.value(graziaSecondi(), 's')
+            && istantaneaValida(request.resource.data);
+          allow delete: if false;
+        }
       }
 
       // Consegne: la copia IMMUTABILE del lavoro. Id `<email>_<n>`, n da 1 a maxVersioniConsegna

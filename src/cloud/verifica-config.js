@@ -27,6 +27,10 @@ export const verificaConfig = Object.freeze({
     maxBlocchi: 5000,
     // Minuti in più dati a mano a uno studente (la scadenza è la fine della verifica più questi).
     maxMinutiExtra: 1000,
+    // Storia del lavoro (istantanee del programma, per capire come evolve): periodiche, a anello (la nuova prende il
+    // posto della più vecchia, quindi i dati non crescono), e la coppia prima/dopo di un salto di blocchi.
+    maxIstantanee: 24,
+    maxIstantaneeSalto: 3,
   }),
   client: Object.freeze({
     // Apertura e riapertura: durata proposta (minuti dall'apertura) e massimo ammesso.
@@ -41,6 +45,9 @@ export const verificaConfig = Object.freeze({
     riprovaConsegnaMs: 5000,
     // Copia locale del lavoro in verifica: attesa dopo l'ultima modifica (costa solo localStorage, nessuna quota).
     backupLocaleMs: 1500,
+    // Istantanea periodica del programma, solo se è cambiato (24 posti × 5 min = 2 ore di storia). Per allungare la
+    // storia o infittirla si cambia questo e/o regole.maxIstantanee (e si ripubblicano le regole).
+    istantaneaOgniMs: 300000,
     // Segnale di vita, solo se nel frattempo non c'è stata un'altra scrittura.
     battitoMs: 120000,
     // Nessuna conferma dal server da tanto: lo studente è «offline».

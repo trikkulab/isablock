@@ -8,8 +8,10 @@ const CODICI = [['pseudocode', 'Pseudocodice'], ['c', 'C'], ['python', 'Python']
 const ora = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
 // `apri(titolo, onChiudi, opzioni)`: la finestra del modulo chiamante. `segui(email, cb)` chiama cb(lavoro) subito (se noto)
-// e a ogni aggiornamento, e restituisce la funzione per smettere. Restituisce la finestra, o null se mancano i mezzi.
-export function apriAnteprima({ apri, programma, segui, email, nome }) {
+// e a ogni aggiornamento, e restituisce la funzione per smettere. `caricaStoria()` (facoltativa) legge le istantanee dello
+// studente (vedi lavori.storia): con quella la finestra ha il cursore per tornare indietro nel tempo.
+// Restituisce la finestra, o null se mancano i mezzi.
+export function apriAnteprima({ apri, programma, segui, caricaStoria = null, email, nome }) {
   if (!programma || !programma.anteprima) return null;
   const blocchi = el('div', { class: 'anteprima-blocchi' });
   const pre = Object.fromEntries(CODICI.map(([k]) => [k, el('pre', { class: 'code-body anteprima-codice' })]));
@@ -36,9 +38,71 @@ export function apriAnteprima({ apri, programma, segui, email, nome }) {
   anteprima = programma.anteprima({ blocchi, codici: pre });
   requestAnimationFrame(() => anteprima?.ridimensiona());
 
+  // ── Storia: il cursore va dalla prima istantanea a «in diretta» (l'ultimo posto) ─────────────────────────────────
+  let punti = null;         // istantanee lette, dalla più vecchia; null finché non si apre la storia
+  let posizione = null;     // indice in `punti`, o null = in diretta
+  let ultimoLavoro = null;  // l'ultimo stato in diretta ricevuto
+  const bStoria = el('button', { type: 'button', class: 'modal-btn secondary' }, 'Storia…');
+  const cursore = el('input', { type: 'range', min: '0', max: '0', step: '1', class: 'anteprima-cursore', 'aria-label': 'Momento del programma' });
+  const eticCursore = el('span', { class: 'anteprima-etichetta', 'aria-live': 'polite' });
+  const bIndietro = el('button', { type: 'button', class: 'modal-btn secondary', title: 'Istantanea precedente', 'aria-label': 'Istantanea precedente' }, '◀');
+  const bAvanti = el('button', { type: 'button', class: 'modal-btn secondary', title: 'Istantanea successiva', 'aria-label': 'Istantanea successiva' }, '▶');
+  const bDiretta = el('button', { type: 'button', class: 'modal-btn secondary' }, 'In diretta');
+  const saltiEl = el('div', { class: 'anteprima-salti' });
+  const barraStoria = el('div', { class: 'anteprima-storia', hidden: '' },
+    el('div', { class: 'sketch-riga' }, bIndietro, cursore, bAvanti, bDiretta), eticCursore, saltiEl);
+  const ore = (d) => ora.format(d);
+  const nomiTipo = { prima: 'prima del salto', dopo: 'dopo il salto', periodica: '' };
+  const segno = (p) => (p.tipo === 'periodica' ? '' : ' ⚠');
+
+  function mostraPosizione() {
+    cursore.max = String(punti.length);
+    cursore.value = String(posizione === null ? punti.length : posizione);
+    bIndietro.disabled = posizione === 0 || punti.length === 0;
+    bAvanti.disabled = posizione === null;
+    bDiretta.disabled = posizione === null;
+    if (posizione === null) {
+      eticCursore.textContent = punti.length ? `In diretta · ${punti.length} istantanee salvate (una ogni 5 minuti circa, più i salti di blocchi)` : 'Nessuna istantanea salvata finora.';
+      if (ultimoLavoro) disegna(ultimoLavoro);
+    } else {
+      const p = punti[posizione];
+      eticCursore.textContent = `Com'era alle ${ore(p.t)} · ${p.nBlocchi} blocchi${nomiTipo[p.tipo] ? ` · ${nomiTipo[p.tipo]}` : ''} — non è il programma attuale`;
+      vuoto.hidden = true; blocchi.hidden = false;
+      if (anteprima.mostra(p.programma)) ultimo = p.programma;
+      info.textContent = `${nome || email} · istantanea delle ${ore(p.t)}`;
+    }
+  }
+  const vai = (i) => { posizione = i; mostraPosizione(); };
+  cursore.addEventListener('input', () => vai(Number(cursore.value) >= punti.length ? null : Number(cursore.value)));
+  bIndietro.addEventListener('click', () => vai(posizione === null ? punti.length - 1 : Math.max(0, posizione - 1)));
+  bAvanti.addEventListener('click', () => vai(posizione !== null && posizione + 1 < punti.length ? posizione + 1 : null));
+  bDiretta.addEventListener('click', () => vai(null));
+
+  async function apriStoria() {
+    bStoria.disabled = true;
+    try { punti = await caricaStoria(); } catch (err) { bStoria.disabled = false; info.textContent = (err && err.message) || 'Non riesco a leggere la storia.'; return; }
+    bStoria.disabled = false;
+    bStoria.textContent = 'Aggiorna la storia';
+    barraStoria.hidden = false;
+    saltiEl.textContent = '';
+    const salti = punti.map((p, i) => [p, i]).filter(([p]) => p.tipo === 'prima');
+    if (salti.length) {
+      saltiEl.append(el('span', { class: 'sketch-nota' }, 'Salti di blocchi: '),
+        ...salti.map(([p, i]) => el('button', { type: 'button', class: 'avviso-link', title: 'Mostra il programma subito prima del salto', onclick: () => vai(i) }, `⚠ ${ore(p.t)}`)));
+    }
+    if (posizione !== null && posizione >= punti.length) posizione = null;
+    mostraPosizione();
+  }
+  if (caricaStoria) { bStoria.addEventListener('click', apriStoria); info.after(bStoria, barraStoria); }
+
   let ultimo = null;   // l'ultimo programma mostrato (testo del JSON)
   annulla = segui(email, (lavoro) => {
     if (!lavoro) return;
+    ultimoLavoro = lavoro;
+    if (posizione !== null) return;     // sta guardando il passato: la diretta si aggiorna sotto, ma non si mostra
+    disegna(lavoro);
+  });
+  function disegna(lavoro) {
     if (!lavoro.programma) {
       if (ultimo !== '') { anteprima.vuota(); ultimo = ''; }
       vuoto.hidden = false; blocchi.hidden = true;
@@ -55,6 +119,6 @@ export function apriAnteprima({ apri, programma, segui, email, nome }) {
       const n = lavoro.nBlocchi === null || lavoro.nBlocchi === undefined ? '' : ` · ${lavoro.nBlocchi} blocchi`;
       info.textContent = `${nome || email}${n}${lavoro.consegnato ? ' · consegnato' : ''}${lavoro.ultimoSegnale ? ` · ultimo segnale alle ${ora.format(lavoro.ultimoSegnale)}` : ''}`;
     }
-  });
+  }
   return f;
 }

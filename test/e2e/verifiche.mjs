@@ -330,6 +330,33 @@ try {
   verifica(/Programma di Anna Rossi/.test(await page.textContent('h2:has-text("Programma di")')) && /ultimo segnale alle/.test(await page.textContent('.anteprima-info')), 'Guarda: titolo con il nome e ultimo segnale');
   verifica(await page.$('.anteprima-blocchi .blocklyToolboxDiv') === null && await page.$('.anteprima-blocchi .blocklyFlyout') === null, 'Guarda: nessuna tavolozza (non si può modificare)');
   await schermata(page, 'v-9c-guarda');
+  // storia: istantanee seminate dal database (come le scriverebbe lo studente), cursore, salti
+  const piccolo = JSON.stringify({ ...esempio, blocks: { ...esempio.blocks, blocks: [{ type: 'program', id: 'p1', x: 40, y: 40 }] } });
+  const istantanea = (sid, tipo, ms, n, prog) => scrivi(`${lavoroAnna}/storia/${sid}`, { programma: S(prog), nBlocchi: { integerValue: String(n) }, t: T(ms), tipo: S(tipo) });
+  const adesso0 = Date.now();
+  await istantanea('p0', 'periodica', adesso0 - 20 * 60000, 2, piccolo);
+  await istantanea('a1', 'prima', adesso0 - 10 * 60000, 2, piccolo);
+  await istantanea('d1', 'dopo', adesso0 - 10 * 60000 + 1000, 8, json1);
+  verifica(await page.isVisible('.anteprima-info ~ button:has-text("Storia")') || await page.isVisible('button:has-text("Storia…")'), 'Guarda: c\'è il pulsante «Storia…»');
+  verifica(!(await page.isVisible('.anteprima-cursore')), 'Guarda: il cursore compare solo dopo aver aperto la storia');
+  await page.click('button:has-text("Storia…")');
+  await page.waitForSelector('.anteprima-cursore');
+  verifica((await page.getAttribute('.anteprima-cursore', 'max')) === '3' && /In diretta · 3 istantanee/.test(await page.textContent('.anteprima-etichetta')), 'Storia: 3 istantanee e il cursore è «in diretta»');
+  verifica((await page.$$('.anteprima-salti button')).length === 1, 'Storia: un segno di salto (⚠) con la sua ora');
+  await page.click('.anteprima-salti button');
+  verifica(/prima del salto/.test(await page.textContent('.anteprima-etichetta')) && /non è il programma attuale/.test(await page.textContent('.anteprima-etichetta')), 'Storia: il segno porta al programma di prima del salto, dichiarando che non è l\'attuale');
+  verifica(await finche(async () => (await page.$$('.anteprima-blocchi .blocklyBlockCanvas [data-id]')).length === 1), 'Storia: i blocchi mostrati sono quelli di quel momento (solo INIZIO/FINE)');
+  await page.click('button[aria-label="Istantanea successiva"]');
+  verifica(/dopo il salto/.test(await page.textContent('.anteprima-etichetta')) && await finche(async () => (await page.$$('.anteprima-blocchi .blocklyBlockCanvas [data-id]')).length > 3), 'Storia: la freccia ▶ passa al «dopo il salto» (di nuovo molti blocchi)');
+  await schermata(page, 'v-9d-storia');
+  // mentre guarda il passato la diretta non cambia ciò che vede
+  await aggiorna(lavoroAnna, { programma: S(piccolo), programmaHash: S('h9'), nBlocchi: { integerValue: '0' }, ultimoSegnale: T(Date.now()) });
+  await page.waitForTimeout(800);
+  verifica(/dopo il salto/.test(await page.textContent('.anteprima-etichetta')) && (await page.$$('.anteprima-blocchi .blocklyBlockCanvas [data-id]')).length > 3, 'Storia: mentre guarda il passato, la diretta non gli cambia la vista');
+  await page.click('button:has-text("In diretta")');
+  verifica(await finche(async () => (await page.$$('.anteprima-blocchi .blocklyBlockCanvas [data-id]')).length === 1) && /In diretta/.test(await page.textContent('.anteprima-etichetta')), 'Storia: «In diretta» torna al programma attuale (nel frattempo cambiato)');
+  await aggiorna(lavoroAnna, { programma: S(json1), programmaHash: S('h1'), nBlocchi: { integerValue: '8' }, ultimoSegnale: T(Date.now()) });
+  await finche(async () => (await page.$$('.anteprima-blocchi .blocklyBlockCanvas [data-id]')).length > 3);
   const prima = (await page.$$('.anteprima-blocchi .blocklyBlockCanvas [data-id]')).length;
   const mod = JSON.parse(json1);
   mod.blocks.blocks[0].next = undefined;                                              // meno blocchi: si vede l'aggiornamento

@@ -30,7 +30,7 @@ import { scegliPunto } from '../verifica-backup.js';
 
 const C = verificaConfig.client;
 const L = verificaConfig.regole;
-
+const MINUTO = 60_000;
 // Orologio e timer, sostituibili nei test con un tempo simulato.
 export const tempoReale = Object.freeze({
   adesso: () => Date.now(),
@@ -103,9 +103,10 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
   let ultimoSegnaleVisto = null;  // ultimoSegnale (ms) dell'ultimo eco già usato per stimare lo scarto
   let ultimaScrittura = null;     // quando è finita l'ultima scrittura (orologio locale)
   let ultimoCampione = null;      // ora del server dell'ultimo campione scritto
+  let ultimaIstantanea = null;    // ora del server dell'ultima istantanea periodica (storia)
   let campioni = [];
   const corrente = { programma: null, nBlocchi: 0, esecuzioni: null };   // ultimo stato comunicato dall'interfaccia
-  const salvato = { hash: null, esecuzioni: null, revVista: null };                      // ciò che è già nel database
+  const salvato = { hash: null, esecuzioni: null, revVista: null, programma: null, nBlocchi: null };                      // ciò che è già nel database
   let timerDebounce = null;
   let timerBattito = null;
   let timerFine = null;
@@ -190,12 +191,34 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
     stat.scritture++;
     if (battito) stat.battiti++;
     ultimaScrittura = tempo.adesso();
-    if (dati.programma !== undefined) salvato.hash = dati.programmaHash;
+    const programmaPrima = salvato.programma;
+    const nBlocchiPrima = salvato.nBlocchi;
+    if (dati.programma !== undefined) { salvato.hash = dati.programmaHash; salvato.programma = dati.programma; salvato.nBlocchi = dati.nBlocchi; }
     if (dati.esecuzioni !== undefined) salvato.esecuzioni = dati.esecuzioni;
     if (dati.campioni !== undefined) ultimoCampione = t;
     if (dati.tracciaRevVista !== undefined) salvato.revVista = dati.tracciaRevVista;
     if (stato === 'in-corso') scriviBackup();              // ora il database ha questo programma: la copia lo sa
+    if (dati.programma !== undefined) storia(t, dati.programma, dati.nBlocchi, programmaPrima, nBlocchiPrima);
     programmaBattito();
+  }
+
+  // ── Storia del lavoro ───────────────────────────────────────────────────
+  // Istantanee del programma per capire come evolve: una ogni `istantaneaOgniMs` (solo se è cambiato) e, se i blocchi
+  // sono saliti di colpo (`saltoBlocchi` o più rispetto al salvataggio precedente), la coppia prima/dopo. I posti sono
+  // a anello e dipendono dall'ora (la nuova rimpiazza la più vecchia), quindi non serve ricordare nulla tra un
+  // ricaricamento e l'altro. Scritture a parte e senza bloccare il salvataggio: se falliscono si perde solo l'istantanea.
+  function storia(t, programma, n, programmaPrima, nBlocchiPrima) {
+    if (!lavoro.istantanea) return;
+    const scrivi = (sid, tipo, p, nb) => inBackground(() => lavoro.istantanea(vid, sid, { tipo, programma: p, nBlocchi: nb }));
+    if (programmaPrima && nBlocchiPrima !== null && n - nBlocchiPrima >= config.saltoBlocchi) {
+      const k = Math.floor(t / MINUTO) % L.maxIstantaneeSalto;
+      scrivi(`a${k}`, 'prima', programmaPrima, nBlocchiPrima);
+      scrivi(`d${k}`, 'dopo', programma, n);
+    }
+    if (n > 0 && (ultimaIstantanea === null || t - ultimaIstantanea >= config.istantaneaOgniMs)) {
+      scrivi(`p${Math.floor(t / config.istantaneaOgniMs) % L.maxIstantanee}`, 'periodica', programma, n);
+      ultimaIstantanea = t;
+    }
   }
 
   function clearAndNull(quale) {
@@ -349,7 +372,7 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
     ultimoCampione = campioni.length ? campioni[campioni.length - 1].t : null;
     if (l.consegnato) { cambiaStato('consegnato'); return stato; }
     programmaIniziale = l.programma ?? null;
-    if (l.programma) { corrente.programma = l.programma; salvato.hash = l.programmaHash ?? hashProgramma(l.programma); corrente.nBlocchi = l.nBlocchi ?? 0; }
+    if (l.programma) { corrente.programma = l.programma; salvato.hash = l.programmaHash ?? hashProgramma(l.programma); corrente.nBlocchi = l.nBlocchi ?? 0; salvato.programma = l.programma; salvato.nBlocchi = l.nBlocchi ?? 0; }
     if (l.esecuzioni) { corrente.esecuzioni = l.esecuzioni; salvato.esecuzioni = l.esecuzioni; }
     entrataNuova = !l.entrato;
     riprendiDallaCopia(l);
@@ -398,7 +421,7 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
     salvaBackupOra: () => { if (stato === 'in-corso') scriviBackup(); },   // prima di chiudere la pagina
     tracciaCorrente: () => traccia,
     senzaSalvare: () => corrente.programma !== null && haDaScrivere(),     // modifiche mai arrivate al database
-    fermo: () => coda,                                      // si risolve quando le scritture in corso sono finite
+    fermo: async () => { let c; do { c = coda; await c; } while (c !== coda); },   // si risolve quando le scritture in corso (e quelle che accodano) sono finite
     statistiche: () => ({ ...stat }),
   };
 }

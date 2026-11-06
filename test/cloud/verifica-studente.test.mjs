@@ -26,6 +26,7 @@ const ANNA = 'anna@isarome.it';
 const BRUNO = 'bruno@isarome.it';
 const CARLA = 'carla@isarome.it';
 const MIN = 60_000;
+const MINUTO = 60_000;
 const ts = (ms) => sdk.Timestamp.fromMillis(ms);
 const admin = (fn) => env.withSecurityRulesDisabled((ctx) => fn(ctx.firestore()));
 const dbDi = (email) => env.authenticatedContext('u-' + email, { email, email_verified: true }).firestore();
@@ -181,6 +182,101 @@ test('campioni: uno ogni campioneOgniMs dentro la scrittura che capita, in un an
   await tempo.avanza(C.campioneOgniMs * (L.maxCampioni + 4), s);
   d = await leggiLavoro();
   assert.equal(d.campioni.length, L.maxCampioni);                                              // l'anello non cresce
+  s.termina();
+});
+
+// ── Storia del lavoro (istantanee) ────────────────────────────────────────
+const leggiStoria = async (email = ANNA) => { let r = []; await admin(async (db) => { r = (await sdk.getDocs(sdk.collection(db, `verifiche/v1/lavori/${email}/storia`))).docs.map((x) => ({ id: x.id, ...x.data() })); }); return r; };
+
+test('storia: una istantanea periodica solo se il programma è cambiato, al massimo una ogni istantaneaOgniMs', async () => {
+  await modifica(ANNA, { scadenza: ts(Date.now() + 600 * MIN) });
+  const { s, tempo } = nuovaSessione();
+  await s.avvia();
+  assert.equal((await leggiStoria()).length, 0, 'senza blocchi (programma vuoto) non c\'è nulla da fotografare');
+  s.aggiorna({ programma: P(0), nBlocchi: 0 });                                      // un programma salvato ma senza blocchi
+  await tempo.avanza(C.debounceSalvataggioMs + 1000, s);
+  assert.equal((await leggiStoria()).length, 0, 'un programma senza blocchi non fa istantanee');
+  s.aggiorna({ programma: P(1), nBlocchi: 3 });
+  await tempo.avanza(C.debounceSalvataggioMs + 1000, s);
+  let h = await leggiStoria();
+  assert.equal(h.length, 1);
+  assert.deepEqual([h[0].tipo, h[0].programma, h[0].nBlocchi, h[0].id.startsWith('p')], ['periodica', P(1), 3, true]);
+  assert.ok(h[0].t, 't = ora del server');
+  s.aggiorna({ programma: P(2), nBlocchi: 4 });                                      // dopo pochi secondi: niente di nuovo
+  await tempo.avanza(C.debounceSalvataggioMs + 1000, s);
+  assert.deepEqual((await leggiStoria()).map((x) => x.programma), [P(1)], 'la prima istantanea non è stata rimpiazzata');
+  await tempo.avanza(C.istantaneaOgniMs, s);                                         // passato l'intervallo, ma nessuna modifica
+  assert.deepEqual((await leggiStoria()).map((x) => x.programma), [P(1)], 'né il battito né il tempo che passa fanno istantanee');
+  s.aggiorna({ programma: P(3), nBlocchi: 5 });
+  await tempo.avanza(C.debounceSalvataggioMs + 1000, s);
+  h = await leggiStoria();
+  assert.equal(h.length, 2);
+  assert.ok(h.some((x) => x.programma === P(3) && x.nBlocchi === 5));
+  s.termina();
+});
+
+test('storia: un salto di blocchi salva il programma di prima e quello di dopo', async () => {
+  await modifica(ANNA, { scadenza: ts(Date.now() + 600 * MIN) });
+  const { s, tempo } = nuovaSessione();
+  await s.avvia();
+  s.aggiorna({ programma: P(1), nBlocchi: 3 });
+  await tempo.avanza(C.debounceSalvataggioMs + 1000, s);
+  s.aggiorna({ programma: P(2), nBlocchi: 3 + C.saltoBlocchi });                       // esattamente la soglia
+  await tempo.avanza(C.debounceSalvataggioMs + 1000, s);
+  const h = await leggiStoria();
+  const prima = h.find((x) => x.tipo === 'prima');
+  const dopo = h.find((x) => x.tipo === 'dopo');
+  assert.ok(prima && dopo, `prima/dopo presenti: ${h.map((x) => x.id)}`);
+  assert.deepEqual([prima.programma, prima.nBlocchi], [P(1), 3]);
+  assert.deepEqual([dopo.programma, dopo.nBlocchi], [P(2), 3 + C.saltoBlocchi]);
+  assert.equal(prima.id.slice(1), dopo.id.slice(1), 'la coppia sta nello stesso posto dell\'anello');
+  s.termina();
+  // un aumento sotto la soglia non è un salto
+  await env.clearFirestore();
+});
+
+test('storia: sotto la soglia non è un salto', async () => {
+  await modifica(ANNA, { scadenza: ts(Date.now() + 600 * MIN) });
+  const { s, tempo } = nuovaSessione();
+  await s.avvia();
+  s.aggiorna({ programma: P(1), nBlocchi: 3 });
+  await tempo.avanza(C.debounceSalvataggioMs + 1000, s);
+  s.aggiorna({ programma: P(2), nBlocchi: 3 + C.saltoBlocchi - 1 });
+  await tempo.avanza(C.debounceSalvataggioMs + 1000, s);
+  assert.equal((await leggiStoria()).filter((x) => x.tipo !== 'periodica').length, 0);
+  s.termina();
+});
+
+test('storia: l\'anello non cresce oltre maxIstantanee, né oltre i posti dei salti', async () => {
+  await modifica(ANNA, { scadenza: ts(Date.now() + 1000 * MIN) });
+  const { s, tempo } = nuovaSessione();
+  await s.avvia();
+  let n = 3;
+  for (let i = 0; i < L.maxIstantanee + 8; i++) {
+    n += 1;
+    s.aggiorna({ programma: P(i + 10), nBlocchi: n });
+    await tempo.avanza(C.istantaneaOgniMs, s);
+  }
+  for (let i = 0; i < L.maxIstantaneeSalto + 3; i++) {                              // tanti salti, in minuti diversi
+    n += C.saltoBlocchi + 1;
+    s.aggiorna({ programma: P(i + 500), nBlocchi: n });
+    await tempo.avanza(C.debounceSalvataggioMs + MINUTO, s);
+  }
+  const h = await leggiStoria();
+  assert.ok(h.filter((x) => x.id.startsWith('p')).length <= L.maxIstantanee, `periodiche: ${h.filter((x) => x.id.startsWith('p')).length}`);
+  assert.ok(h.filter((x) => x.id.startsWith('a')).length <= L.maxIstantaneeSalto);
+  assert.ok(h.filter((x) => x.id.startsWith('d')).length <= L.maxIstantaneeSalto);
+  assert.ok(h.length >= L.maxIstantanee - 2, 'l\'anello si è riempito');
+  s.termina();
+});
+
+test('storia: dopo la consegna non si scrive più nulla nella storia', async () => {
+  const { s, tempo } = nuovaSessione();
+  await s.avvia();
+  s.aggiorna({ programma: P(1), nBlocchi: 3 });
+  await s.consegna();
+  await tempo.avanza(C.istantaneaOgniMs * 2, s);
+  assert.equal((await leggiStoria()).length, 0);
   s.termina();
 });
 

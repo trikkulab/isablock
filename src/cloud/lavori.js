@@ -134,7 +134,19 @@ export function creaLavoriDocente({ sdk, db }) {
     catch (err) { throw traduci(err, 'Si può togliere solo chi non è ancora entrato.'); }
   }
 
-  return { elenca, creaMancanti, impostaScadenza, impostaExtra, aggiungiMinuti, impostaTraccia, togli };
+  // La storia di uno studente (istantanee del programma), dalla più vecchia alla più recente. Costa una lettura per
+  // istantanea (al massimo maxIstantanee + 2 × maxIstantaneeSalto) e si legge solo quando il docente la apre.
+  async function storia(vid, email) {
+    try {
+      const snap = await sdk.getDocs(sdk.collection(db, 'verifiche', vid, 'lavori', email.toLowerCase(), 'storia'));
+      return snap.docs.map((d) => {
+        const x = d.data();
+        return { id: d.id, tipo: x.tipo, programma: x.programma, nBlocchi: x.nBlocchi ?? 0, t: data(x.t) };
+      }).filter((x) => x.t).sort((a, b) => a.t - b.t || a.id.localeCompare(b.id));
+    } catch (err) { throw traduci(err, 'Non posso leggere la storia di questo studente.'); }
+  }
+
+  return { elenca, creaMancanti, impostaScadenza, impostaExtra, aggiungiMinuti, impostaTraccia, togli, storia };
 }
 
 // ── Studente ─────────────────────────────────────────────────────────────
@@ -184,8 +196,17 @@ export function creaLavoroStudente({ sdk, db }, emailUtente, nomeUtente) {
     if (primo) noti.set(vid, true);   // entrato: non si rilegge (il valore non serve, e la lettura potrebbe ingannare)
   }
 
+  // Istantanea del programma nella storia (posto a anello `sid`: la nuova rimpiazza la vecchia). Non tocca il lavoro.
+  // tipo: 'periodica' (id p<k>), 'prima' / 'dopo' un salto di blocchi (id a<k> / d<k>).
+  async function istantanea(vid, sid, { tipo, programma, nBlocchi }) {
+    try {
+      await sdk.setDoc(sdk.doc(db, 'verifiche', vid, 'lavori', mia, 'storia', sid),
+        { programma: String(programma), nBlocchi, t: sdk.serverTimestamp(), tipo });
+    } catch (err) { throw traduci(err, 'Non posso salvare la storia.'); }
+  }
+
   // Lo studente risulta già entrato in questa verifica? (Serve a non rimandare `entrato` neppure nella consegna.)
   const giaEntrato = (vid) => !!noti.get(vid);
 
-  return { mio, salva, giaEntrato };
+  return { mio, salva, istantanea, giaEntrato };
 }
