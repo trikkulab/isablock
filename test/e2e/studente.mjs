@@ -298,6 +298,70 @@ try {
   await page.getByRole('button', { name: 'Ok', exact: true }).click();
   await page.waitForSelector('.banda-verifica', { state: 'detached' });
 
+  // 10) rete caduta: avviso «sei offline», file di emergenza, consegna rifiutata a rete assente, ritorno della rete
+  const versoDb = new RegExp(`:${(process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8186').split(':')[1]}/`);
+  const leggiScaricato = async (download) => (await import('node:fs')).readFileSync(await download.path(), 'utf8');
+  await apriVerifica('vo', { titolo: 'Verifica con la rete che cade', scadenzaMin: 30 });
+  await page.waitForSelector('.modal:not([hidden]) h2:has-text("Verifica aperta")', { timeout: 10000 });
+  await page.getByRole('button', { name: 'Inizia', exact: true }).click();
+  await page.click('button:has-text("Entra in verifica")', { timeout: 2500 }).catch(() => {});
+  await page.waitForSelector('.banda-verifica');
+  await finche(page, async () => !!valoreTesto(await lavoro('vo'), 'programmaHash'), 10000);
+  verifica(!(await page.isVisible('.banda-offline')), 'con la rete non c\'è nessun avviso di rete');
+  await page.context().route(versoDb, (r) => r.abort());                                  // la rete cade
+  await caricaEsempio(page);                                                                // lavoro che il server non vedrà
+  await page.waitForSelector('.banda-offline', { timeout: 120000 });
+  verifica(/Sei offline/.test(await page.textContent('.banda-offline')) && await page.isVisible('.banda-offline button:has-text("Salva su file")'), 'dopo qualche decina di secondi senza server: avviso «Sei offline» con «Salva su file»');
+  await schermata(page, 's-10-offline');
+  const [scarico] = await Promise.all([page.waitForEvent('download'), page.click('.banda-offline button:has-text("Salva su file")')]);
+  const testoFile = await leggiScaricato(scarico);
+  const oggettoFile = JSON.parse(testoFile);
+  verifica(/^anna\..*_emergenza-\d{4}\.isablock$|^anna.*\.isablock$/.test(scarico.suggestedFilename()), `il file ha un nome automatico e breve: ${scarico.suggestedFilename()}`);
+  verifica(oggettoFile.verifica === 'vo' && oggettoFile.studente === ANNA && oggettoFile.nBlocchi > 0 && /^\d\d:\d\d$/.test(oggettoFile.offlineDa) && oggettoFile.nBlocchiSincronizzati !== null, `il file contiene verifica, studente, blocchi e «offline da»: ${JSON.stringify({ ...oggettoFile, programma: '…', impronta: '…' })}`);
+  const controllo = await page.evaluate(async ([t]) => { const m = await import('/src/verifica-file.js'); const r = m.leggiFileEmergenza(t, { verifica: 'vo', studente: 'anna@isarome.it' }); return r.ok; }, [testoFile]);
+  verifica(controllo === true, 'il file passa i controlli del docente (impronta, verifica, studente)');
+  verifica(/Pseudocodice|INIZIO/.test(oggettoFile.programma) || oggettoFile.programma.includes('"blocks"'), 'e contiene il programma scritto offline');
+  await page.click('.banda-verifica button:has-text("Consegna")');
+  verifica(await finche(page, async () => /Sei offline: non posso consegnare online/.test(await page.textContent('.toast.show').catch(() => '') ?? ''), 4000) && !(await page.isVisible('h2:has-text("Consegni il lavoro?")')), 'offline «Consegna» non apre la conferma ma dice di salvare il file');
+  await page.context().unroute(versoDb);
+  await page.waitForSelector('.banda-offline', { state: 'detached', timeout: 120000 });      // Firestore si ricollega con un ritardo crescente
+  verifica(true, 'tornata la rete l\'avviso sparisce');
+  verifica(await finche(page, async () => valoreTesto(await lavoro('vo'), 'programmaHash') !== valoreTesto(await lavoro('vo'), 'x'), 3000), 'e il lavoro riprende a sincronizzarsi');
+  errori.splice(0, errori.length, ...errori.filter((e) => !e.includes('ERR_FAILED')));
+  // con la rete tornata si consegna normalmente (e si libera lo studente per la prova seguente)
+  await page.click('.banda-verifica button:has-text("Consegna")');
+  await page.click('.modal:not([hidden]) button:has-text("Consegna")');
+  await page.waitForSelector('h2:has-text("Lavoro consegnato")', { timeout: 120000 });     // dopo una caduta lunga il canale di scrittura si riapre con ritardo
+  await page.getByRole('button', { name: 'Ok', exact: true }).click();
+  await page.click('#restoreCloseBtn', { timeout: 3000 }).catch(() => {});
+  // il tempo finisce mentre la rete è ancora caduta: «Verifica terminata», con il file
+  await apriVerifica('vp', { titolo: 'Verifica senza rete fino alla fine', scadenzaMin: 1.8 });
+  await page.waitForSelector('.modal:not([hidden]) h2:has-text("Verifica aperta")', { timeout: 10000 });
+  await page.getByRole('button', { name: 'Inizia', exact: true }).click();
+  await page.click('button:has-text("Entra in verifica")', { timeout: 2500 }).catch(() => {});
+  await page.waitForSelector('.banda-verifica');
+  await finche(page, async () => !!valoreTesto(await lavoro('vp'), 'programmaHash'), 10000);
+  await page.context().route(versoDb, (r) => r.abort());
+  await caricaEsempio(page);
+  await page.waitForSelector('h2:has-text("Verifica terminata")', { timeout: 200000 });
+  const corpoFine = await page.textContent('.modal:not([hidden]):last-of-type .modal-box');
+  verifica(/ultime modifiche non sono arrivate al server/.test(corpoFine) && /Salva su file/.test(corpoFine), 'finito il tempo offline: «Verifica terminata», con l\'invito a salvare il file');
+  verifica((await consegne('vp')).length === 0, 'nessuna consegna online (la rete non c\'era)');
+  await schermata(page, 's-10b-terminata-offline');
+  let rifiutata = '';
+  page.once('dialog', async (d) => { rifiutata = d.message(); await d.dismiss(); });
+  await page.getByRole('button', { name: 'Ok', exact: true }).click();
+  verifica(/Non hai ancora salvato il file/.test(rifiutata) && await page.isVisible('h2:has-text("Verifica terminata")'), 'chiudere senza aver salvato il file chiede conferma (e «annulla» lascia la finestra)');
+  const [scarico2] = await Promise.all([page.waitForEvent('download'), page.click('.modal:not([hidden]) button:has-text("Salva su file")')]);
+  const f2 = JSON.parse(await leggiScaricato(scarico2));
+  verifica(f2.verifica === 'vp' && f2.nBlocchi > 0 && f2.studente === ANNA, 'il file di emergenza della verifica terminata è completo');
+  page.once('dialog', (d) => d.dismiss());
+  await page.getByRole('button', { name: 'Ok', exact: true }).click();
+  await page.waitForSelector('h2:has-text("Verifica terminata")', { state: 'detached', timeout: 5000 });
+  verifica(true, 'dopo aver salvato il file si chiude senza domande');
+  await page.context().unroute(versoDb);
+  errori.splice(0, errori.length, ...errori.filter((e) => !e.includes('ERR_FAILED')));
+
   verifica(errori.length === 0, `nessun errore nella pagina${errori.length ? `: ${errori.join(' | ')}` : ''}`);
   riuscito = riepilogo();
 } catch (e) {

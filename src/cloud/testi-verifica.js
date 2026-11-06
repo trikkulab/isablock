@@ -74,6 +74,16 @@ export const testiStudente = Object.freeze({
   scadutoRiga: 'Il tempo è finito e il tuo lavoro è stato consegnato.',
   terminataTitolo: 'Verifica terminata',
   terminataRiga: 'La verifica è terminata (chiusa dal docente, o tempo finito). Il lavoro che avevi salvato resta a disposizione del docente.',
+  // Rete caduta: il lavoro resta su questo computer; il file serve a consegnarlo al docente
+  offlineTesto: 'Sei offline: il tuo lavoro non arriva al server. Puoi continuare a lavorare, resta su questo computer. Se la rete non torna, salva il file e consegnalo al docente.',
+  offlineTempoFinito: 'Il tempo è finito e sei offline: salva il file e consegnalo al docente. Se la rete torna tra pochi secondi, il lavoro si consegna da solo.',
+  offlineSalva: 'Salva su file',
+  offlineSalvato: (nome) => `File salvato: ${nome}. Consegnalo al docente.`,
+  offlineNienteDaSalvare: 'Non c\'è ancora niente da salvare: l\'editor è vuoto.',
+  offlineConsegna: 'Sei offline: non posso consegnare online. Salva il file e consegnalo al docente.',
+  tornataRete: 'Di nuovo online: il tuo lavoro si sta sincronizzando.',
+  terminataConFileRiga: 'La verifica è terminata e le tue ultime modifiche non sono arrivate al server. Salva il file e consegnalo al docente: è l\'unico modo perché il lavoro venga contato.',
+  terminataConFileConferma: 'Non hai ancora salvato il file. Se chiudi, il tuo lavoro resta solo su questo computer. Chiudere lo stesso?',
   dopoFine: 'Torni al lavoro che avevi prima della verifica, se ne avevi uno.',
   ok: 'Ok',
   // Fascia in alto

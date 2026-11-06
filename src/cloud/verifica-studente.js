@@ -111,6 +111,10 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
   let timerBattito = null;
   let timerFine = null;
   let timerBackup = null;
+  let timerOffline = null;
+  let timerGuardia = null;
+  let offline = false;            // il server non risponde da più di `offlineStudenteMs`
+  let inizioOffline = null;       // orologio locale: da quando il server non risponde (anche prima di dichiararsi offline)
   let ripresa = null;             // 'locale' | 'server' | 'uguali' | null: da dove si è ripartiti all'ingresso
   let traccia = null;             // { id, titolo, testoMd, rev } l'ultima vista
   let entrataNuova = false;       // è il primo ingresso in questa verifica
@@ -120,7 +124,7 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
 
   const ora = () => tempo.adesso() + offset;                              // ora del server stimata
   const restanteMs = () => (scadenza ? scadenza.getTime() - ora() : null);
-  const notifica = () => onCambio({ stato, scadenza, tracciaId, restanteMs: restanteMs(), origine: origineConsegna });
+  const notifica = () => onCambio({ stato, scadenza, tracciaId, restanteMs: restanteMs(), origine: origineConsegna, offline, offlineDa: offline ? inizioOffline : null });
 
   function cambiaStato(nuovo) {
     if (stato === nuovo) return;
@@ -131,8 +135,8 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
     notifica();
   }
   function fermaTimer() {
-    for (const t of [timerDebounce, timerBattito, timerFine, timerBackup]) if (t !== null) tempo.annulla(t);
-    timerDebounce = timerBattito = timerFine = timerBackup = null;
+    for (const t of [timerDebounce, timerBattito, timerFine, timerBackup, timerOffline, timerGuardia]) if (t !== null) tempo.annulla(t);
+    timerDebounce = timerBattito = timerFine = timerBackup = timerOffline = timerGuardia = null;
   }
 
   // ── Copia locale ────────────────────────────────────────────────────────
@@ -267,8 +271,28 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
   // A fine tempo la consegna parte da sola. Se non riesce (rete, o altro) NON si lascia perdere: si riprova ogni
   // `riprovaConsegnaMs` finché le regole la accettano (scadenza + grazia); passato quel limite la verifica è terminata e
   // vale l'ultimo lavoro salvato, che il docente raccoglie.
+  // Guardia: oltre scadenza + grazia le regole non accettano più nulla. Se a quel punto la verifica è ancora «in corso» la
+  // consegna è rimasta in sospeso (rete caduta, ma non ancora dichiarata) e non fallirà mai da sola: la verifica è terminata.
+  function guardiaFine() {
+    if (timerGuardia !== null || stato !== 'in-corso') return;
+    timerGuardia = tempo.timeout(() => {
+      timerGuardia = null;
+      if (stato !== 'in-corso') return;
+      if (restanteMs() < -L.graziaSecondi * 1000) { cambiaStato('terminata'); return; }
+      if (restanteMs() <= 0) guardiaFine();                    // se arriva tempo aggiuntivo la guardia smette
+    }, config.riprovaConsegnaMs ?? 5000);
+  }
+
   function consegnaAutomatica() {
     if (stato !== 'in-corso') return;
+    guardiaFine();
+    // Offline la consegna non partirebbe (resterebbe in sospeso, senza mai fallire): si aspetta la rete fino al limite
+    // delle regole, poi la verifica è terminata e lo studente ha il file di emergenza.
+    if (offline) {
+      if (restanteMs() < -L.graziaSecondi * 1000) { cambiaStato('terminata'); return; }
+      timerFine = tempo.timeout(() => { timerFine = null; consegnaAutomatica(); }, config.riprovaConsegnaMs ?? 5000);
+      return;
+    }
     inBackground(async () => {
       try {
         await consegna({ origine: 'automatica' });
@@ -304,6 +328,33 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
     return fatta;
   }
 
+  // ── Rete ────────────────────────────────────────────────────────────────
+  // Offline = il server non risponde da più di `offlineStudenteMs`. Lo dice l'ascolto del lavoro: Firestore segna lo
+  // snapshot come «dalla copia locale» (fromCache) quando non raggiunge il server. Non basta `navigator.onLine`, che non
+  // vede una rete scolastica che accetta il collegamento ma non porta da nessuna parte. Le scritture, offline, restano
+  // in sospeso (non falliscono): per questo l'interfaccia deve saperlo, per offrire il file di emergenza.
+  function reteDaSnapshot(daCache) {
+    if (stato !== 'in-corso') return;
+    if (!daCache) {
+      if (timerOffline !== null) { tempo.annulla(timerOffline); timerOffline = null; }
+      inizioOffline = null;
+      if (offline) { offline = false; notifica(); }
+      return;
+    }
+    if (inizioOffline !== null) return;
+    inizioOffline = tempo.adesso();
+    timerOffline = tempo.timeout(() => { timerOffline = null; if (stato === 'in-corso') { offline = true; notifica(); } }, config.offlineStudenteMs);
+  }
+
+  // Ciò che serve al file di emergenza (src/verifica-file.js): il programma com'è adesso, e quanto ne era arrivato al server.
+  function datiEmergenza() {
+    return {
+      verifica: vid, studente: email, studenteNome: String(nomeUtente || email),
+      programma: corrente.programma, nBlocchi: corrente.nBlocchi, nBlocchiSincronizzati: salvato.nBlocchi,
+      offlineDa: offline || inizioOffline !== null ? inizioOffline : null, senzaSalvare: corrente.programma !== null && haDaScrivere(),
+    };
+  }
+
   // ── Ascolti: il docente può dare tempo, o chiudere la verifica ─────────────
   function stimaOffset(snapLavoro) {
     const d = snapLavoro.data();
@@ -319,7 +370,8 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
   }
 
   function ascolta() {
-    annullaAscolti.push(sdk.onSnapshot(sdk.doc(db, 'verifiche', vid, 'lavori', email), (snap) => {
+    annullaAscolti.push(sdk.onSnapshot(sdk.doc(db, 'verifiche', vid, 'lavori', email), { includeMetadataChanges: true }, (snap) => {
+      reteDaSnapshot(snap.metadata.fromCache);
       if (!snap.exists()) return;
       stimaOffset(snap);
       const d = snap.data();
@@ -413,6 +465,8 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
 
   return {
     avvia, aggiorna, salvaOra, consegna, termina,
+    offline: () => offline,
+    datiEmergenza,
     ora, restanteMs,
     stato: () => stato, scadenza: () => scadenza, tracciaId: () => tracciaId, offset: () => offset,
     programmaSalvato: () => programmaIniziale,              // se non è null, l'interfaccia lo ricarica nell'editor (ripresa)
@@ -421,7 +475,9 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
     salvaBackupOra: () => { if (stato === 'in-corso') scriviBackup(); },   // prima di chiudere la pagina
     tracciaCorrente: () => traccia,
     senzaSalvare: () => corrente.programma !== null && haDaScrivere(),     // modifiche mai arrivate al database
-    fermo: async () => { let c; do { c = coda; await c; } while (c !== coda); },   // si risolve quando le scritture in corso (e quelle che accodano) sono finite
+    // Si risolve quando le scritture in corso (e quelle che accodano) sono finite. Con la rete caduta le scritture restano
+    // in sospeso e non finiscono mai: in quel caso non si aspetta.
+    fermo: async () => { let c; do { if (inizioOffline !== null) return; c = coda; await c; } while (c !== coda); },
     statistiche: () => ({ ...stat }),
   };
 }

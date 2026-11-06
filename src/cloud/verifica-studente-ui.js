@@ -18,6 +18,7 @@ import { verificaConfig } from './verifica-config.js';
 import { testiStudente as T } from './testi-verifica.js';
 import { formatoDataOra } from './data-ora.js';
 import { segnaVerificaInCorso, cancellaVerificaInCorso } from '../verifica-locale.js';
+import { creaFileEmergenza, oraBreve } from '../verifica-file.js';
 
 const C = verificaConfig.client;
 const ZOOM_KEY = 'isablock.traccia.zoom';
@@ -54,6 +55,9 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
   let fallimenti = 0;               // controlli di fila andati male
   let mostrandoFine = false;      // la finestra «consegnato / terminata» è aperta: non si propone altro finché non si chiude
   let banda = null;
+  let bandaOffline = null;        // l'avviso «sei offline» sotto la fascia
+  let offlineStato = null;        // l'ultimo stato di rete comunicato dalla sessione { offline, offlineDa }
+  let fileSalvato = false;        // lo studente ha salvato almeno una volta il file di emergenza
   let timer = null;
   let totaleMs = 0;
   let annullaModifica = null;
@@ -212,6 +216,7 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
       timerEl.textContent = formatoTimer(resta);
       timerEl.dataset.colore = coloreTimer(resta, totaleMs);
       consegna.disabled = sessione.stato() !== 'in-corso';
+      if (bandaOffline) bandaOffline.testo.textContent = resta <= 0 ? T.offlineTempoFinito : T.offlineTesto;     // il tempo può finire mentre si è offline
     };
     aggiorna();
     timer = setInterval(aggiorna, 1000);
@@ -219,6 +224,7 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
 
   function dialogoConsegna() {
     if (!sessione || sessione.stato() !== 'in-corso') return;
+    if (sessione.offline()) { toast(T.offlineConsegna, 'error'); return; }          // offline la consegna resterebbe in sospeso
     const resta = el('p', { class: 'sketch-nota' }, `Tempo rimasto: ${formatoTimer(sessione.restanteMs() ?? 0)}.`);
     const conferma = el('button', { type: 'button', class: 'modal-btn' }, T.consegnaConferma);
     const f = apriFinestra(T.consegnaTitolo, () => { finestraConsegna = null; });
@@ -284,10 +290,49 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
     }
   }
 
+  // ── Rete caduta e file di emergenza ─────────────────────────────────────────
+  // Salva il file con ciò che c'è adesso (`dati` viene da sessione.datiEmergenza()). Restituisce il nome, o null se non c'è niente.
+  function salvaFile(dati, titolo) {
+    if (!dati || dati.programma === null) { toast(T.offlineNienteDaSalvare, 'error'); return null; }
+    const f = creaFileEmergenza({
+      verifica: dati.verifica, titolo, studente: dati.studente, studenteNome: dati.studenteNome, programma: dati.programma,
+      nBlocchi: dati.nBlocchi, nBlocchiSincronizzati: dati.nBlocchiSincronizzati ?? null,
+      offlineDa: dati.offlineDa ? oraBreve(new Date(dati.offlineDa)) : null,
+    });
+    const url = URL.createObjectURL(new Blob([f.testo], { type: 'application/json' }));
+    const a = el('a', { href: url, download: f.nomeFile, hidden: '' });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    fileSalvato = true;
+    toast(T.offlineSalvato(f.nomeFile), 'success');
+    return f.nomeFile;
+  }
+
+  // L'avviso sotto la fascia: compare quando la sessione dichiara la rete caduta, sparisce quando torna.
+  function aggiornaOffline(c) {
+    const era = !!(offlineStato && offlineStato.offline);
+    offlineStato = { offline: !!c.offline, offlineDa: c.offlineDa ?? null };
+    if (c.offline && !bandaOffline && banda) {
+      const testo = el('span', { class: 'banda-offline-testo' });
+      const salva = el('button', { type: 'button', class: 'modal-btn', onclick: () => salvaFile(sessione?.datiEmergenza(), item?.verifica.titolo) }, T.offlineSalva);
+      bandaOffline = el('div', { class: 'banda-offline', role: 'alert' }, testo, salva);
+      bandaOffline.testo = testo;
+      banda.after(bandaOffline);
+    }
+    if (bandaOffline) {
+      if (c.offline) bandaOffline.testo.textContent = (c.restanteMs ?? 1) <= 0 ? T.offlineTempoFinito : T.offlineTesto;
+      else { bandaOffline.remove(); bandaOffline = null; }
+    }
+    if (era && !c.offline) toast(T.tornataRete, 'success');
+  }
+
   // ── Fine della verifica ─────────────────────────────────────────────────────
   function quandoCambia(c) {
     if (c.stato === 'consegnato') fine('consegnato', c.origine);
     else if (c.stato === 'terminata') fine('terminata');
+    else aggiornaOffline(c);
   }
 
   // Ripulisce tutto ciò che la modalità verifica aveva acceso e riporta l'app com'era.
@@ -297,6 +342,7 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
     annullaModifica?.(); annullaModifica = null;
     annullaEsecuzione?.(); annullaEsecuzione = null;
     banda?.remove(); banda = null;
+    bandaOffline?.remove(); bandaOffline = null; offlineStato = null;
     nascondiTraccia();
     window.removeEventListener('pagehide', salvaCopia);
     sessione?.termina();
@@ -314,11 +360,19 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
       ? (origine === 'automatica' ? { titolo: T.scadutoTitolo, riga: T.scadutoRiga } : { titolo: T.consegnatoTitolo, riga: T.consegnatoRiga })
       : { titolo: T.terminataTitolo, riga: T.terminataRiga };
     finestraConsegna?.chiudi();                  // se era aperta la conferma e la consegna è partita da sola
+    // Terminata con modifiche che il server non ha mai ricevuto (rete caduta): il file è l'unico modo di non perderle.
+    // (Un programma vuoto non ha niente da perdere: il file si propone solo se ci sono blocchi.)
+    const emergenza = tipo === 'terminata' && sessione.senzaSalvare() ? sessione.datiEmergenza() : null;
+    const dati = emergenza && emergenza.nBlocchi > 0 ? emergenza : null;
+    const titoloVerifica = item?.verifica.titolo;
+    fileSalvato = false;
     spegni();
     const f = apriFinestra(testo.titolo, () => { mostrandoFine = false; ricontrolla(); }, { bloccante: true });
+    const ok = el('button', { type: 'button', class: 'modal-btn', onclick: () => { if (!dati || fileSalvato || window.confirm(T.terminataConFileConferma)) f.chiudi(); } }, T.ok);
     f.corpo.append(
-      el('p', {}, testo.riga), el('p', { class: 'sketch-nota' }, T.dopoFine),
-      el('div', { class: 'modal-actions' }, el('button', { type: 'button', class: 'modal-btn', onclick: () => f.chiudi() }, T.ok)));
+      el('p', {}, dati ? T.terminataConFileRiga : testo.riga), el('p', { class: 'sketch-nota' }, T.dopoFine),
+      el('div', { class: 'modal-actions' },
+        dati ? el('button', { type: 'button', class: 'modal-btn', onclick: () => salvaFile(dati, titoloVerifica) }, T.offlineSalva) : '', ok));
   }
 
   // ── Entrata e uscita dell'utente ───────────────────────────────────────────

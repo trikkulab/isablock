@@ -547,6 +547,17 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
     di conferma con il confronto «ultimo salvataggio sul server / nel file», la versione che nascerà e «Guarda il programma
     del file»; la consegna nasce con origine `file` sopra le precedenti (che restano), la tabella mostra «Consegnato (v2) ·
     da file». `Apri` dell'editor rifiuta il file di emergenza (non si riapre mai).
+- **Studente senza rete (passo 10a)**: il motore dichiara «offline» quando il server non risponde da `offlineStudenteMs`
+  (45 s): lo dice l'ascolto del lavoro (`includeMetadataChanges`, snapshot `fromCache`), non `navigator.onLine`. Offline
+  le scritture restano in sospeso (non falliscono): l'interfaccia mostra sotto la fascia l'avviso «Sei offline» con
+  «Salva su file» (`sessione.datiEmergenza()` + `creaFileEmergenza`, download dal browser; nel file: ultimo programma,
+  blocchi, quanti ne erano arrivati al server, «offline da hh:mm»), «Consegna» offline non apre la conferma ma rimanda
+  al file, al ritorno della rete l'avviso sparisce da solo (Firestore si ricollega con ritardo crescente: anche decine di
+  secondi). A fine tempo offline la consegna aspetta la rete fino a scadenza+grazia, poi la verifica è «terminata» e la
+  finestra propone il file (solo se ci sono blocchi non arrivati al server; chiudere senza averlo salvato chiede
+  conferma). Una GUARDIA chiude come «terminata» anche una consegna rimasta in sospeso oltre la grazia (rete caduta ma
+  non ancora dichiarata offline). `fermo()` non aspetta le scritture quando la rete è giù. Ancora da fare: riapertura
+  offline della pagina (10c).
 - A verifica chiusa la scheda è di sola lettura.
 - **Le notifiche («toast») stanno sopra le finestre** (livello 3000 contro 2000 delle finestre): prima un messaggio
   che usciva mentre una finestra era aperta finiva nascosto dietro l'oscuramento e non lo vedeva nessuno (valeva

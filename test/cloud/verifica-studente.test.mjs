@@ -32,7 +32,10 @@ const admin = (fn) => env.withSecurityRulesDisabled((ctx) => fn(ctx.firestore())
 const dbDi = (email) => env.authenticatedContext('u-' + email, { email, email_verified: true }).firestore();
 
 beforeEach(async () => {
-  await env.clearFirestore();
+  // Dopo i test con la rete tolta l'emulatore a volte risponde 500 al primo svuotamento: si riprova.
+  for (let i = 0; ; i++) {
+    try { await env.clearFirestore(); break; } catch (err) { if (i >= 4) throw err; await new Promise((r) => setTimeout(r, 500)); }
+  }
   await admin(async (db) => {
     await sdk.setDoc(sdk.doc(db, 'docenti/docente@isarome.it'), { attivo: true });
     await sdk.setDoc(sdk.doc(db, 'corsi/AB12CD'), { materia: 'Informatica', classe: '3AINF', annoScolastico: '2026/27', docenti: ['docente@isarome.it'], iscrizioniAperte: true, attivo: true });
@@ -88,14 +91,14 @@ function tempoSimulato() {
 }
 
 // Sessione di uno studente: conta le scritture del lavoro (le consegne passano da un batch, non da updateDoc).
-function nuovaSessione(email = ANNA, extra = {}) {
+function nuovaSessione(email = ANNA, { db = dbDi(email), ...extra } = {}) {
   const tempo = tempoSimulato();
   const scritture = [];
   const sdkContato = { ...sdk, updateDoc: (rif, dati) => { if (rif.path.includes('/lavori/')) scritture.push(dati); return sdk.updateDoc(rif, dati); } };
   const cambi = [];
   const notifiche = [];
   // calibra: false: con l'orologio finto che salta, l'eco dal server non permette di stimare lo scarto (c'è un test a parte)
-  const s = creaSessione({ sdk: sdkContato, db: dbDi(email) }, email, email.split('@')[0], 'v1', { tempo, onCambio: (c) => { cambi.push(c.stato); notifiche.push(c); }, calibra: false, ...extra });
+  const s = creaSessione({ sdk: sdkContato, db }, email, email.split('@')[0], 'v1', { tempo, onCambio: (c) => { cambi.push(c.stato); notifiche.push(c); }, calibra: false, ...extra });
   return { s, tempo, scritture, cambi, notifiche };
 }
 const P = (n) => JSON.stringify({ formatVersion: 6, blocks: { n } });
@@ -278,6 +281,133 @@ test('storia: dopo la consegna non si scrive più nulla nella storia', async () 
   await tempo.avanza(C.istantaneaOgniMs * 2, s);
   assert.equal((await leggiStoria()).length, 0);
   s.termina();
+});
+
+// ── Rete: offline, file di emergenza ──────────────────────────────────────
+// `disableNetwork` fa quello che fa una rete caduta: l'ascolto passa «dalla copia locale» e le scritture restano in sospeso.
+const senzaRete = (db) => sdk.disableNetwork(db);
+const conRete = (db) => sdk.enableNetwork(db);
+// Chiude sessione e connessione (altrimenti restano aperti ascolti e scritture in sospeso, e il test dopo non riesce a svuotare il database).
+const chiudi = async (s, db) => { s.termina(); await db.terminate().catch(() => {}); };
+const ultimaNotifica = (notifiche) => notifiche[notifiche.length - 1];
+
+test('offline: si dichiara solo dopo offlineStudenteMs senza risposta, e torna online da solo', async () => {
+  await modifica(ANNA, { scadenza: ts(Date.now() + 600 * MIN) });
+  const db = dbDi(ANNA);
+  const { s, tempo, notifiche } = nuovaSessione(ANNA, { db });
+  try {
+    await s.avvia();
+    assert.equal(s.offline(), false);
+    await senzaRete(db);
+    await new Promise((r) => setTimeout(r, 1500));                                      // l'ascolto se ne accorge
+    await tempo.avanza(C.offlineStudenteMs - 5000, s);
+    assert.equal(s.offline(), false, 'una caduta breve non è «offline»');
+    await tempo.avanza(6000, s);
+    assert.equal(s.offline(), true);
+    const n = ultimaNotifica(notifiche);
+    assert.deepEqual([n.offline, typeof n.offlineDa], [true, 'number']);
+    await conRete(db);
+    assert.ok(await finche(() => !s.offline()), 'tornata la rete, non è più offline');
+    assert.equal(ultimaNotifica(notifiche).offline, false);
+    assert.equal(ultimaNotifica(notifiche).offlineDa, null);
+  } finally { await chiudi(s, db); }
+});
+
+test('offline brevissimo: se la rete torna prima della soglia non si dichiara mai offline', async () => {
+  await modifica(ANNA, { scadenza: ts(Date.now() + 600 * MIN) });
+  const db = dbDi(ANNA);
+  const { s, tempo, notifiche } = nuovaSessione(ANNA, { db });
+  try {
+    await s.avvia();
+    await senzaRete(db);
+    await new Promise((r) => setTimeout(r, 1500));
+    await tempo.avanza(10_000, s);
+    await conRete(db);
+    await new Promise((r) => setTimeout(r, 1500));
+    await tempo.avanza(C.offlineStudenteMs * 2, s);
+    assert.equal(s.offline(), false);
+    assert.ok(notifiche.every((n) => !n.offline), 'nessuna notifica «offline»');
+  } finally { await chiudi(s, db); }
+});
+
+test('file di emergenza: i dati sono l\'ultimo programma e quanto ne era arrivato al server', async () => {
+  await modifica(ANNA, { scadenza: ts(Date.now() + 600 * MIN) });
+  const db = dbDi(ANNA);
+  const { s, tempo } = nuovaSessione(ANNA, { db });
+  try {
+    await s.avvia();
+    s.aggiorna({ programma: P(1), nBlocchi: 3 });
+    await tempo.avanza(C.debounceSalvataggioMs + 1000, s);                              // arrivato: 3 blocchi
+    await senzaRete(db);
+    await new Promise((r) => setTimeout(r, 1500));
+    s.aggiorna({ programma: P(2), nBlocchi: 10 });
+    await tempo.avanza(C.offlineStudenteMs + 1000, s);
+    const d = s.datiEmergenza();
+    assert.deepEqual([d.verifica, d.studente, d.programma, d.nBlocchi, d.nBlocchiSincronizzati, d.senzaSalvare], ['v1', ANNA, P(2), 10, 3, true]);
+    assert.equal(typeof d.offlineDa, 'number');
+  } finally { await chiudi(s, db); }
+});
+
+test('offline allo scadere del tempo: la consegna aspetta la rete fino alla grazia, poi la verifica è terminata (con il file)', async () => {
+  await modifica(ANNA, { scadenza: ts(Date.now() + 60 * MIN) });
+  const db = dbDi(ANNA);
+  const { s, tempo, cambi } = nuovaSessione(ANNA, { db });
+  try {
+    await s.avvia();
+    s.aggiorna({ programma: P(1), nBlocchi: 3 });
+    await tempo.avanza(C.debounceSalvataggioMs + 1000, s);
+    await senzaRete(db);
+    await new Promise((r) => setTimeout(r, 1500));
+    s.aggiorna({ programma: P(2), nBlocchi: 12 });
+    await tempo.avanza(60 * MIN - (C.debounceSalvataggioMs + 1000) - 10_000, s);   // mancano 10 s alla scadenza (26 s sono già passati)                                            // quasi allo scadere, già offline da un pezzo
+    assert.equal(s.offline(), true);
+    await tempo.avanza(20_000, s);                                                       // il tempo è finito: la consegna NON parte (offline)
+    assert.equal(s.stato(), 'in-corso');
+    await tempo.avanza((L.graziaSecondi + 10) * 1000, s);                                // oltre la grazia
+    assert.equal(s.stato(), 'terminata');
+    assert.ok(cambi.includes('terminata'));
+    assert.equal(s.datiEmergenza().senzaSalvare, true, 'ci sono modifiche mai arrivate: serve il file');
+    assert.ok(s.datiEmergenza().programma === P(2));
+  } finally { await chiudi(s, db); }
+});
+
+test('la rete cade a ridosso della scadenza (non ancora dichiarata offline): la consegna resta in sospeso ma oltre la grazia la verifica è terminata', async () => {
+  await modifica(ANNA, { scadenza: ts(Date.now() + 60 * MIN) });
+  const db = dbDi(ANNA);
+  const { s, tempo } = nuovaSessione(ANNA, { db });
+  try {
+    await s.avvia();
+    s.aggiorna({ programma: P(1), nBlocchi: 3 });
+    await tempo.avanza(60 * MIN - 20_000 - 0, s);                                      // mancano 20 s: la rete cade ora (meno dei 45 s della soglia)
+    await senzaRete(db);
+    await new Promise((r) => setTimeout(r, 1500));
+    s.aggiorna({ programma: P(2), nBlocchi: 9 });
+    await tempo.avanza(21_000, s);                                                     // il tempo finisce, ma non è ancora «offline»: la consegna parte e non finisce mai
+    assert.equal(s.offline(), false);
+    assert.equal(s.stato(), 'in-corso');
+    await tempo.avanza((L.graziaSecondi + 10) * 1000, s);
+    assert.equal(s.stato(), 'terminata');
+    assert.equal(s.datiEmergenza().senzaSalvare, true);
+  } finally { await chiudi(s, db); }
+});
+
+test('offline allo scadere del tempo, ma la rete torna dentro la grazia: la consegna parte da sola', async () => {
+  await modifica(ANNA, { scadenza: ts(Date.now() + 60 * MIN) });
+  const db = dbDi(ANNA);
+  const { s, tempo } = nuovaSessione(ANNA, { db });
+  try {
+    await s.avvia();
+    s.aggiorna({ programma: P(1), nBlocchi: 3 });
+    await senzaRete(db);
+    await new Promise((r) => setTimeout(r, 1500));
+    await tempo.avanza(60 * MIN + 5000, s);
+    assert.equal(s.stato(), 'in-corso');
+    await conRete(db);
+    assert.ok(await finche(() => !s.offline()));
+    await tempo.avanza(C.riprovaConsegnaMs + 1000, s);
+    assert.ok(await finche(async () => s.stato() === 'consegnato'), `stato: ${s.stato()}`);
+    assert.equal((await leggiConsegne()).length, 1);
+  } finally { await chiudi(s, db); }
 });
 
 test('consegna a mano: porta con sé anche l\'ultima versione non ancora salvata', async () => {
@@ -471,12 +601,12 @@ test('una scrittura rifiutata dalle regole (verifica chiusa) ferma la sessione, 
 
 test('«consegnato» conta solo se confermato dal server: una scrittura locale ancora in attesa non basta', async () => {
   const ascolti = [];
-  const sdkFinto = { ...sdk, onSnapshot: (rif, cb) => { ascolti.push({ percorso: rif.path, cb }); return () => {}; } };
+  const sdkFinto = { ...sdk, onSnapshot: (rif, ...resto) => { ascolti.push({ percorso: rif.path, cb: resto.find((x) => typeof x === 'function') }); return () => {}; } };
   const tempo = tempoSimulato();
   const s = creaSessione({ sdk: sdkFinto, db: dbDi(ANNA) }, ANNA, 'anna', 'v1', { tempo, calibra: false });
   await s.avvia();
   const lavoroListener = ascolti.find((a) => a.percorso.endsWith(`/lavori/${ANNA}`)).cb;
-  const snap = (inAttesa) => ({ exists: () => true, metadata: { hasPendingWrites: inAttesa },
+  const snap = (inAttesa) => ({ exists: () => true, metadata: { hasPendingWrites: inAttesa, fromCache: false },
     data: () => ({ consegnato: true, tracciaId: 't0', scadenza: ts(Date.now() + 60 * MIN), ultimoSegnale: null }) });
   lavoroListener(snap(true));                                       // la nostra scrittura, ancora non confermata dal server
   assert.equal(s.stato(), 'in-corso');
@@ -682,7 +812,7 @@ test('traccia: senza rete (non si legge) si usa quella della copia locale', asyn
   copiaDi(st).salva({ finoA: Date.now() + 3600_000, programma: P(1), hash: hashProgramma(P(1)), hashBase: hashProgramma(P(1)),
     traccia: { id: 't0', titolo: 'Dalla copia', testoMd: 'copia', rev: 0 } });
   await modifica(ANNA, { programma: P(1), programmaHash: hashProgramma(P(1)), entrato: sdk.Timestamp.now() });
-  const sdkSenzaTraccia = { ...sdk, onSnapshot: (rif, ok, ko) => (rif.path.includes('/tracce/') ? (ko(new Error('rete')), () => {}) : sdk.onSnapshot(rif, ok, ko)) };
+  const sdkSenzaTraccia = { ...sdk, onSnapshot: (rif, ...resto) => (rif.path.includes('/tracce/') ? (resto.at(-1)(new Error('rete')), () => {}) : sdk.onSnapshot(rif, ...resto)) };
   const viste = [];
   const tempo = tempoSimulato();
   const s = creaSessione({ sdk: sdkSenzaTraccia, db: dbDi(ANNA) }, ANNA, 'anna', 'v1', { tempo, calibra: false, backup: copiaDi(st), onTraccia: (x) => viste.push(x) });
