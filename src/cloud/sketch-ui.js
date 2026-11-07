@@ -11,6 +11,7 @@ import { nomeCasuale } from './nomi.js';
 import { MAX_SKETCH } from './sketch.js';
 import { etichettaCorso } from './corsi.js';
 import { el, apriFinestra } from './dom.js';
+import { sketchEtichette as S } from './etichette.js';
 
 const formatoData = new Intl.DateTimeFormat('it-IT', {
   day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -132,7 +133,7 @@ export function montaSketch({ toast, programma, commentiUi }) {
       etichettaCommenti(s));
     const azioni = el('div', { class: 'sketch-azioni' },
       el('button', { type: 'button', class: 'modal-btn', onclick: () => apri(s) }, 'Apri'),
-      el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => condividi(s) }, 'Condividi…'),
+      el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => condividi(s) }, S.condividi),
       el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => rinomina(s) }, 'Rinomina'),
       el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => elimina(s) }, 'Elimina'));
     return el('div', { class: 'sketch-riga' }, info, azioni);
@@ -208,7 +209,7 @@ export function montaSketch({ toast, programma, commentiUi }) {
     }
     const azioni = el('div', { class: 'modal-actions' });
     if (s.condivisoCon) {
-      const b = el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => scegli(null) }, 'Smetti di condividere');
+      const b = el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => scegli(null) }, S.smettiDiCondividere);
       tutti.push(b);
       azioni.append(b);
     }

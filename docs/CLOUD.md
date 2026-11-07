@@ -175,7 +175,7 @@ docente ha «Nuovo corso», «Mostra anche i corsi archiviati» e, per ogni cors
 - **Dati del corso** modificabili e **Archivia / Riattiva**. Archiviato: sparisce agli
   studenti, le iscrizioni col codice non funzionano, il docente non vede più gli sketch
   condivisi (riattivando tornano). **Un corso con una verifica aperta non si archivia**: il controllo avviene
-  PRIMA di chiedere conferma, con un avviso nella sezione («Il corso ha una verifica aperta: chiudila prima di
+  PRIMA di chiedere conferma, con un avviso nella sezione («Il corso ha una verifica aperta: terminala prima di
   archiviarlo»). Archiviando un corso le sue verifiche non si archiviano (sono già fuori vista: il pulsante
   «Verifiche» compare solo nei corsi attivi) e tornano com'erano riattivandolo.
 
@@ -419,9 +419,9 @@ Codice: `src/cloud/consegne.js` (`creaConsegneStudente`: `mie`, `miaUltima`, `co
 
 `creaVerificaDocente` compone verifiche, lavori e consegne nelle operazioni che userà l'interfaccia
 (nessuna regola nuova): `crea`, `cambiaFine`, `assegna`, `apri`, `aggiungiIscritti`, `tempoAggiuntivo`,
-`chiudi({raccogli})`, `raccogli`, `riapri`, `caricaFile`, `situazione` (verifica + lavori + consegne in tre
+`chiudi` (raccoglie sempre), `raccogli({daRaccogliere})`, `riapri`, `caricaFile`, `situazione` (verifica + lavori + consegne in tre
 letture, per la tabella). Ciclo: *crea in bozza (con la fine prevista) → tracce → assegna (facoltativo) →
-apri → tempo aggiuntivo / iscritti tardivi → chiudi (+ raccogli) → riapri*.
+apri → tempo aggiuntivo / iscritti tardivi → chiudi (raccoglie da sola) → riapri*.
 - **Scadenza personale = fine prevista + minuti extra**, assoluta nel lavoro. Se la fine cambia in bozza
   (`cambiaFine`) o all'apertura, le scadenze di chi non è entrato si spostano **della stessa differenza,
   extra compresi, in un solo batch** con la modifica della verifica; da aperta cambia solo il default.
@@ -443,6 +443,12 @@ apri → tempo aggiuntivo / iscritti tardivi → chiudi (+ raccogli) → riapri*
   un tempo diversi: una traccia scelta a mano uguale a quella di tutti non conta).
 - `assegnazioni`: una riga per iscritto (email, traccia, minuti in più, entrato, consegnato) per la tabella.
 - `raccogli` si rilancia: crea la versione successiva solo se il lavoro è cambiato dall'ultima consegna.
+- **Conflitto file/raccolta**: se l'ultima consegna di uno studente è di origine `file` e il lavoro sul server è diverso, `raccogli` NON scrive
+  per lui: lo mette in `esito.conflitti` (con consegna, lavoro e un `suggerimento`). Il docente decide nella finestra «file di emergenza già
+  caricato» («Tieni il file», preselezionato, o «Raccogli comunque», con «Confronta» per vedere i due programmi) e la raccolta si rilancia con
+  `daRaccogliere`. Il suggerimento usa solo orari del server (`ultimoSegnale` del lavoro contro `creato` della consegna: dopo → 'lavoro',
+  altrimenti 'file'); `ultimoSegnale` include i battiti, quindi è un indizio, non una prova. `creatoIl` e `offlineDa` del file vengono dal PC dello
+  studente e si mostrano solo come dichiarati (`creatoIl` non è salvato nella consegna). Alla prima chiusura non ci sono conflitti (non esistono ancora file caricati); dopo una riapertura la chiusura raccoglie di nuovo e il conflitto può esserci: la finestra si apre subito dopo la chiusura.
 
 ### Markdown delle tracce (`markdown.js`)
 
@@ -512,13 +518,14 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
   studenti? Non si può annullare»).
 - **Azioni sullo stato** (in alto a destra nella scheda), ognuna con la sua finestra di conferma, i cui testi stanno in
   `testi-verifica.js` (da rivedere senza toccare il codice, e da riusare nella guida):
-  - **Apri verifica…** (bozza): riepilogo (studenti iscritti, tracce e traccia di tutti, quanti hanno una traccia o
+  - **Avvia verifica…** (bozza; fino al 7 nov 2026 «Apri verifica…», rinominata perché «Apri» nell'app vuol già dire aprire uno sketch o una scheda; gli STATI restano «Aperta» e «Chiusa»): riepilogo (studenti iscritti, tracce e traccia di tutti, quanti hanno una traccia o
     un tempo diverso), scelta della fine come **«dura N minuti da adesso»** (proposta 90) oppure **«finisce alle…»**
-    con l'anteprima di quando finirà (calcolata al clic), e l'avvertenza in evidenza **«L'apertura non si
-    annulla: per fermare la verifica dovrai chiuderla»**. Non si apre senza una traccia e una traccia di tutti.
+    con l'anteprima di quando finirà (calcolata al clic), e l'avvertenza in evidenza **«L'avvio non si
+    annulla: la verifica non torna in bozza e non si potrà più eliminare. Per fermarla dovrai terminarla; una verifica
+    terminata si può solo archiviare»**. Non si apre senza una traccia e una traccia di tutti.
     Il testo sul blocco dello studente («dovrà scegliere questa verifica e non potrà usare altro…») resta spento
     (`FUNZIONI.bloccoStudente`) finché non esiste il blocco (passo 7).
-  - **Chiudi verifica…** (aperta): con «Raccogli subito i lavori» già spuntato; dice com'è andata la raccolta.
+  - **Termina verifica…** (aperta; prima «Chiudi verifica…»): raccoglie sempre i lavori subito (nessuna casella: va fatto prima di caricare i file di emergenza); dice com'è andata la raccolta.
   - **Raccogli i lavori**, **Riapri…** (stessa scelta della fine, proposta 30 minuti) e **Archivia…** (chiusa);
     **Ripristina** (archiviata: è l'unica azione). L'elenco ha la casella «Mostra anche le verifiche archiviate».
   - **Situazione (passo 9)**: da aperta o chiusa la scheda ha due schede, «Situazione» (si apre su questa) e «Tracce».
@@ -533,7 +540,11 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
   - **Guarda e Storia**: ogni riga ha «Guarda»: finestra in sola lettura con i blocchi (secondo workspace Blockly,
     `programma.anteprima` in main.js) e i tre codici dagli stessi generatori; segue lo studente (ritardo massimo ~25 s)
     senza letture in più (i dati sono già nella tabella). «Storia…» legge le istantanee (`lavori/<email>/storia`, ≤30
-    letture): cursore, frecce, segni ⚠ sui salti, «In diretta». Le scrive lo studente (best effort, a parte dal
+    letture): cursore, frecce, segni ⚠ sui salti, «In diretta». Nella Storia entrano anche le CONSEGNE (`creato` del server), ordinate nel tempo
+    con le istantanee (`storiaConConsegne` in verifiche-ui.js). A verifica chiusa («Guarda» mostra l'ultima consegna) la partenza è «Ultima
+    consegna», nel suo punto del tempo: le istantanee dopo di lei (per esempio il lavoro di una riapertura) stanno dopo, dichiarate «successive
+    all'ultima consegna… non è una consegna»; le consegne più vecchie sono «Consegna precedente». Se l'ultima consegna è un file e il lavoro
+    sul server è più recente (`ultimoSegnale` dopo `creato`) un avviso lo dice. Le scrive lo studente (best effort, a parte dal
     salvataggio): periodica ogni `istantaneaOgniMs` (5 min) se il programma è cambiato e ha blocchi, in 24 posti A ANELLO
     scelti dall'ora (`p<k>`, k = ora / intervallo mod 24: nessun contatore da ricordare), più la coppia `a<k>`/`d<k>`
     (prima/dopo) quando i blocchi salgono di `saltoBlocchi` o più tra due salvataggi (3 posti). Regole: solo lo studente a
@@ -803,3 +814,33 @@ Il ruolo docente in locale lo danno i `docentiProva` di `scripts/environments.lo
 - Prove: `test/e2e/accesso.mjs` (cloud acceso e spento; con `avviaServer(porta, { cloud })`). Lezione: un attributo `hidden` viene
   annullato da una regola CSS con `display` (visto tre volte: voce di menu, barra delle schede): ogni elemento nascosto con `hidden`
   che ha una classe con `display` ha bisogno di `[hidden] { display: none }`.
+
+### Guide per lo studente e per il docente (passo 14, 7 nov 2026)
+
+- **Testi** (`src/cloud/testi-guida.js`, un posto solo): `sezioni` con due sezioni, «Per lo studente» (6 capitoli: Primi passi, I miei
+  sketch, I commenti del docente, La verifica, Se cade la rete, Dopo la verifica) e «Per il docente» (7: Corsi e iscritti, Sketch condivisi
+  e commenti, Verifica: preparare / avviare / durante / terminare, Dopo: casi particolari), e `aiuti` (le note dei «?»). Ogni capitolo è
+  una lista di blocchi `{p}`, `{h}`, `{ul}`, `{ol}`, `{nota}`; `**così**` è il grassetto, usato per i nomi dei pulsanti.
+- **Etichette** (`src/cloud/etichette.js`): le etichette che la guida nomina (menu del cloud, sketch, corsi, commenti, verifica del docente,
+  consegne dello studente) sono costanti, **lette anche dall'interfaccia** (`ui.js`, `corsi-ui.js`, `gestione-ui.js`, `sketch-ui.js`,
+  `commenti-ui.js`, `verifiche-ui.js`, `verifica-tabella-ui.js`, `verifica-anteprima-ui.js`, `consegne-ui.js`): se una cambia, cambia anche
+  nella guida. Quelle della verifica dello studente restano in `testiStudente` (`testi-verifica.js`). Restano scritte a mano nella
+  guida (e nell'interfaccia): «Copia», «Togli», i titoli «Non entrato», «Aperta/Chiusa», A−/A+.
+- **DOM** (`src/cloud/guida-ui.js`): `paginaGuidaCloud(id)` costruisce la pagina (barra di capitoli + un capitolo alla volta) senza
+  `innerHTML`; registrata in `montaCloud` con `guida.registra` (`cloud-studente`, `cloud-docente`, poi `privacy`). Il menu del cloud ha la voce
+  **«Guida del cloud»** che apre la Guida già sulla sezione del proprio ruolo (`guida.apri(id)`). Con il cloud spento le sezioni non ci sono e
+  la Guida è identica (prova). Le schede della Guida hanno `data-sezione=<id>` (lo usa la prova).
+- **«?»** (`src/cloud/aiuto-ui.js`, `puntoDomanda(chiave)`): un pulsante che apre/chiude una nota di 1-2 frasi, senza finestre. La nota è un riquadro che
+  **galleggia** sopra la pagina (`position: fixed`, posizionato da `aiuto-ui.js` sotto il pulsante o sopra se manca spazio, tenuto dentro lo schermo), con una
+  **freccina** che punta al «?» e il **titolo in grassetto** (il nome del pulsante o del punto spiegato). Si chiude con un secondo clic, Esc, un clic fuori,
+  scorrendo o ridimensionando; una sola nota aperta alla volta. Testi in `aiuti` (`{ titolo, testo }`); **`aiutiAttivi`** (in `testi-guida.js`) dice quali si
+  vedono: oggi solo **stella** (accanto a «Tracce», con più tracce), **fascia** (timer e «Consegna», dello studente) e **offline** («Sei offline»).
+  **Spenti di proposito (7 nov 2026, per scelta di Ivan):** fine prevista, assegnazioni individuali, «Raccogli i lavori», «Carica file…», «Riapri…»: tra un
+  pulsante e l'altro non era chiaro a cosa si riferissero (quello di «Carica file…» stava nell'intestazione «Programma»), e la guida e le finestre di conferma
+  li spiegano già. Per riaccenderne uno: aggiungere la chiave a `aiutiAttivi` (e **tarare il posto**: accanto a un'etichetta, mai tra due pulsanti). Prima
+  versione: nota nel flusso della pagina, rompeva il layout; poi riquadro con bordo a sinistra e «?» grigio: scartati da Ivan dopo averli visti.
+- **Rinomina**: «Apri verifica…» → **«Avvia verifica…»** e «Chiudi verifica…» → **«Termina verifica…»** (finestre di conferma: «Avviare/Terminare la
+  verifica», messaggi, impedimento e avvertenza). L'avvertenza ora dice anche che la verifica non torna in bozza e non si può più eliminare.
+  «Riapri…» e gli stati (Aperta, Chiusa, «Verifica aperta» dello studente) restano.
+- **Prove**: `test/e2e/accesso.mjs` (23 controlli, cloud acceso e spento): ci sono 4 schede nell'ordine giusto, le due guide si aprono, ogni capitolo
+  si apre da solo e ha del testo, nessun testo con `undefined`/segnaposto; nessun controllo dipende dalle parole.

@@ -12,12 +12,15 @@ import { rendiMarkdown } from './markdown.js';
 import { verificaConfig } from './verifica-config.js';
 import { perCampo, daCampo, finePredefinita, formatoDataOra } from './data-ora.js';
 import { creaTabellaLive } from './verifica-tabella-ui.js';
+import { contaBlocchi } from './verifica-tabella.js';
 import { apriAnteprima } from './verifica-anteprima-ui.js';
 import { scegliFileEmergenza } from './verifica-file-ui.js';
 import { scaricaPdfSchede } from './pdf-ui.js';
 import { ordinaSchede, nomeFilePdf, nomeFilePdfTutte } from './scheda-stampa.js';
 import { etichettaCorso } from './corsi.js';
-import { testoApertura, testoChiusura, testoRiapertura, testoArchivia, esitoRaccolta } from './testi-verifica.js';
+import { verificaDocenteEtichette as E } from './etichette.js';
+import { puntoDomanda } from './aiuto-ui.js';
+import { testoApertura, testoChiusura, testoRiapertura, testoArchivia, testoConflitto, esitoRaccolta } from './testi-verifica.js';
 
 const L = verificaConfig.regole;
 const C = verificaConfig.client;
@@ -80,8 +83,8 @@ export function montaVerifiche({ toast, programma = null }) {
   };
   const chiudiTutte = () => { for (const f of [...finestre]) f.chiudi(); finestre = new Set(); };
   const badge = (stato) => el('span', { class: 'stato-corso', 'data-stato': stato }, STATI[stato] ?? stato);
-  const campo = (etichetta, input, nota) => el('label', { class: 'gestione-campo' },
-    el('span', { class: 'sketch-data' }, etichetta), input, nota ? el('span', { class: 'sketch-nota verifica-nota' }, nota) : '');
+  const campo = (etichetta, input, nota, aiuto) => el('label', { class: 'gestione-campo' },
+    el('span', { class: 'sketch-data' }, etichetta, aiuto ? puntoDomanda(aiuto) : ''), input, nota ? el('span', { class: 'sketch-nota verifica-nota' }, nota) : '');
 
   // ── Elenco delle verifiche di un corso ────────────────────────────────────
   function elenco(corso) {
@@ -91,10 +94,10 @@ export function montaVerifiche({ toast, programma = null }) {
     casellaArchiviate.checked = mostraArchiviate;
     casellaArchiviate.addEventListener('change', () => { mostraArchiviate = casellaArchiviate.checked; ricarica(); });
     f.corpo.append(
-      el('p', { class: 'sketch-nota' }, 'Qui prepari le verifiche del corso: scrivi le tracce, e quando è il momento apri la verifica.'),
+      el('p', { class: 'sketch-nota' }, 'Qui prepari le verifiche del corso: scrivi le tracce, e quando è il momento avviala.'),
       el('div', { class: 'sketch-riga corsi-docente-barra' },
-        el('button', { type: 'button', class: 'modal-btn', onclick: () => nuova(corso, ricarica) }, 'Nuova verifica'),
-        el('label', { class: 'sketch-data' }, casellaArchiviate, ' Mostra anche le verifiche archiviate')),
+        el('button', { type: 'button', class: 'modal-btn', onclick: () => nuova(corso, ricarica) }, E.nuova),
+        el('label', { class: 'sketch-data' }, casellaArchiviate, ' ' + E.mostraArchiviate)),
       el('h3', { class: 'corsi-titolo' }, 'Verifiche'), lista);
 
     async function ricarica() {
@@ -132,7 +135,7 @@ export function montaVerifiche({ toast, programma = null }) {
     const titolo = el('input', { type: 'text', class: 'sketch-nome', maxlength: String(L.maxTitoloVerifica), autocomplete: 'off',
       placeholder: 'Per esempio: Verifica di novembre' });
     const fine = el('input', { type: 'datetime-local', class: 'sketch-nome', value: perCampo(finePredefinita()) });
-    const crea = el('button', { type: 'button', class: 'modal-btn' }, 'Crea in bozza');
+    const crea = el('button', { type: 'button', class: 'modal-btn' }, E.creaInBozza);
     const invia = async () => {
       const d = daCampo(fine.value);
       if (!titolo.value.trim()) { toast('Scrivi il titolo della verifica.', 'error'); return; }
@@ -151,9 +154,9 @@ export function montaVerifiche({ toast, programma = null }) {
     crea.addEventListener('click', invia);
     f.corpo.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') invia(); });
     f.corpo.append(
-      el('p', { class: 'sketch-nota' }, 'La verifica nasce in bozza: gli studenti non la vedono finché non la apri.'),
+      el('p', { class: 'sketch-nota' }, 'La verifica nasce in bozza: gli studenti non la vedono finché non la avvii.'),
       campo('Titolo', titolo),
-      campo('Fine prevista', fine, 'Provvisoria: all\'apertura potrai scegliere la durata a partire da quel momento.'),
+      campo('Fine prevista', fine, 'Provvisoria: all\'avvio potrai scegliere la durata a partire da quel momento.', 'fine'),
       el('div', { class: 'modal-actions' }, crea, el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => f.chiudi() }, 'Annulla')));
     titolo.focus();
   }
@@ -230,7 +233,7 @@ export function montaVerifiche({ toast, programma = null }) {
     f.corpo.append(
       el('div', { class: 'verifica-testata' },
         campo('Titolo', titolo),
-        campo(bozza() ? 'Fine prevista (provvisoria)' : 'Fine prevista', fine),
+        campo(bozza() ? 'Fine prevista (provvisoria)' : 'Fine prevista', fine, null, 'fine'),
         el('div', { class: 'verifica-stato' }, badge(stato()), verifica.archiviata ? badge('archiviata') : '', esito)),
       avviso ? el('p', { class: 'sketch-nota verifica-avviso' }, avviso) : '');
 
@@ -239,10 +242,10 @@ export function montaVerifiche({ toast, programma = null }) {
     // La situazione live (passo 9) sta nella scheda «Situazione», sotto.
     const azioni = el('div', { class: 'verifica-azioni' });
     const bottone = (testo, fn, primario = false) => el('button', { type: 'button', class: `modal-btn${primario ? '' : ' secondary'}`, onclick: fn }, testo);
-    if (bozza()) azioni.append(bottone('Apri verifica…', () => dialogoApertura(), true));
-    else if (stato() === 'aperta') azioni.append(bottone('Chiudi verifica…', () => dialogoChiusura(), true));
-    else if (verifica.archiviata) azioni.append(bottone('Ripristina', () => ripristinaVerifica()));
-    else azioni.append(bottone('Raccogli i lavori', () => raccogliLavori()), bottone('Riapri…', () => dialogoRiapertura()), bottone('Archivia…', () => archiviaVerifica()));
+    if (bozza()) azioni.append(bottone(E.avvia, () => dialogoApertura(), true));
+    else if (stato() === 'aperta') azioni.append(bottone(E.termina, () => dialogoChiusura(), true));
+    else if (verifica.archiviata) azioni.append(bottone(E.ripristina, () => ripristinaVerifica()));
+    else azioni.append(bottone(E.raccogli, () => raccogliLavori()), puntoDomanda('raccogli'), bottone(E.riapri, () => dialogoRiapertura()), puntoDomanda('riapri'), bottone(E.archivia, () => archiviaVerifica()));
     f.corpo.append(azioni);
 
     // Dopo un cambio di stato la scheda si richiude e si riapre aggiornata.
@@ -277,30 +280,28 @@ export function montaVerifiche({ toast, programma = null }) {
       const quando = scegliFine({ durataMin: C.durataPredefinitaMin });
       const { righe, avvertenza } = testoApertura(r);
       dialogo({
-        titolo: `Aprire la verifica «${verifica.titolo}»?`, righe, avvertenza, extra: [quando.elemento], etichetta: 'Apri la verifica',
-        impedimento: r.tracce === 0 || !r.tracciaPredefinita ? 'Prima di aprire serve almeno una traccia, e una traccia di tutti.' : null,
+        titolo: `Avviare la verifica «${verifica.titolo}»?`, righe, avvertenza, extra: [quando.elemento], etichetta: 'Avvia la verifica',
+        impedimento: r.tracce === 0 || !r.tracciaPredefinita ? 'Prima di avviare serve almeno una traccia, e una traccia di tutti.' : null,
         async onConferma(d) {
           const c = quando.calcola();
           if (c.errore) throw new Error(c.errore);
           await vd.apri(vid, { fine: c.fine });
           d.chiudi();
-          toast(`Verifica aperta: finisce ${formatoDataOra.format(c.fine)}.`, 'success');
+          toast(`Verifica avviata: finisce ${formatoDataOra.format(c.fine)}.`, 'success');
           riapriScheda();
         },
       });
     }
 
     function dialogoChiusura() {
-      const raccogli = el('input', { type: 'checkbox' });
-      raccogli.checked = true;
       dialogo({
-        titolo: `Chiudere la verifica «${verifica.titolo}»?`, righe: testoChiusura.righe, etichetta: 'Chiudi la verifica',
-        extra: [el('label', { class: 'scegli-fine-riga' }, raccogli, ` ${testoChiusura.raccogli}`)],
+        titolo: `Terminare la verifica «${verifica.titolo}»?`, righe: testoChiusura.righe, etichetta: 'Termina la verifica',
         async onConferma(d) {
-          const esitoChiusura = await vd.chiudi(vid, { raccogli: raccogli.checked });
+          const esitoChiusura = await vd.chiudi(vid);
           d.chiudi();
-          toast(esitoChiusura ? `Verifica chiusa. Lavori: ${esitoRaccolta(esitoChiusura)}.` : 'Verifica chiusa.', 'success');
+          toast(`Verifica terminata. Lavori: ${esitoRaccolta(esitoChiusura)}.`, 'success');
           riapriScheda();
+          if (esitoChiusura.conflitti.length) dialogoConflitti(esitoChiusura.conflitti);
         },
       });
     }
@@ -321,7 +322,56 @@ export function montaVerifiche({ toast, programma = null }) {
     }
 
     async function raccogliLavori() {
-      try { toast(`Lavori: ${esitoRaccolta(await vd.raccogli(vid))}.`, 'success'); } catch (err) { toast(messaggio(err), 'error'); }
+      try {
+        const esito = await vd.raccogli(vid);
+        toast(`Lavori: ${esitoRaccolta(esito)}.`, 'success');
+        if (esito.conflitti.length) dialogoConflitti(esito.conflitti);
+      } catch (err) { toast(messaggio(err), 'error'); }
+    }
+
+    // Studenti con un file di emergenza già caricato e un lavoro sul server diverso: niente è stato scritto, decide il docente.
+    // Per ognuno «Tieni il file» (preselezionato) o «Raccogli comunque»; «Confronta» mostra i due programmi.
+    function dialogoConflitti(conflitti) {
+      const d = apri(testoConflitto.titolo);
+      const scelte = new Map(conflitti.map((c) => [c.email, 'file']));
+      const ora = (t) => (t ? formatoDataOra.format(t) : 'non disponibile');
+      const righe = conflitti.map((c) => {
+        const nome = c.nome || c.email;
+        const radio = (valore, testo) => {
+          const i = el('input', { type: 'radio', name: `conflitto-${c.email}`, value: valore });
+          i.checked = scelte.get(c.email) === valore;
+          i.addEventListener('change', () => scelte.set(c.email, valore));
+          return el('label', { class: 'scegli-fine-riga' }, i, ` ${testo}`);
+        };
+        const confronta = () => {
+          if (!programma || !programma.anteprima) return;
+          apriAnteprima({ apri, programma, email: c.email, nome: `${nome} (dal file)`, titolo: `${nome}: file di emergenza`,
+            segui: (_e, cb) => { cb({ programma: c.consegna.programma, nBlocchi: null, consegnato: true, ultimoSegnale: null }); return () => {}; } });
+          apriAnteprima({ apri, programma, email: c.email, nome: `${nome} (sul server)`, titolo: `${nome}: lavoro sul server`,
+            segui: (_e, cb) => { cb({ programma: c.lavoro.programma, nBlocchi: c.lavoro.nBlocchi, consegnato: false, ultimoSegnale: c.lavoro.ultimoSegnale }); return () => {}; } });
+        };
+        return el('fieldset', { class: 'verifica-conflitto' },
+          el('legend', {}, `${nome} (${c.email})`),
+          el('p', { class: 'sketch-nota' }, `File caricato come v${c.consegna.versione} il ${ora(c.consegna.creato)} (ora del server)${c.consegna.offlineDa ? `; lo studente dichiara di essere stato offline da ${c.consegna.offlineDa} (orologio del suo computer)` : ''}. Ultimo segnale dello studente sul server: ${ora(c.lavoro.ultimoSegnale)}. Blocchi: ${c.lavoro.nBlocchi ?? '?'} sul server.`),
+          el('p', { class: 'sketch-nota' }, testoConflitto.suggerimento[c.suggerimento ?? 'nessuno']),
+          radio('file', testoConflitto.tieni), radio('raccogli', testoConflitto.raccoglicomunque),
+          programma && programma.anteprima ? el('button', { type: 'button', class: 'modal-btn secondary', onclick: confronta }, 'Confronta') : '');
+      });
+      const conferma = el('button', { type: 'button', class: 'modal-btn' }, testoConflitto.conferma);
+      conferma.addEventListener('click', async () => {
+        const daRaccogliere = conflitti.filter((c) => scelte.get(c.email) === 'raccogli').map((c) => c.email);
+        if (!daRaccogliere.length) { d.chiudi(); return; }
+        conferma.disabled = true;
+        try {
+          const esito = await vd.raccogli(vid, { daRaccogliere });
+          d.chiudi();
+          toast(`Lavori: ${esitoRaccolta(esito)}.`, 'success');
+        } catch (err) { toast(messaggio(err), 'error'); conferma.disabled = false; }
+      });
+      d.corpo.append(
+        ...testoConflitto.righe.map((t) => el('p', {}, t)), ...righe,
+        el('p', { class: 'sketch-nota' }, testoConflitto.nota),
+        el('div', { class: 'modal-actions' }, conferma, el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => d.chiudi() }, 'Chiudi')));
     }
     async function archiviaVerifica() {
       if (!window.confirm(`Archivio la verifica «${verifica.titolo}»?\n${testoArchivia}`)) return;
@@ -344,13 +394,13 @@ export function montaVerifiche({ toast, programma = null }) {
 
     function disegnaElenco() {
       colonnaElenco.textContent = '';
-      colonnaElenco.append(el('h3', { class: 'corsi-titolo' }, `Tracce (${tracce.length} su ${L.maxTracce})`));
+      colonnaElenco.append(el('h3', { class: 'corsi-titolo' }, `Tracce (${tracce.length} su ${L.maxTracce})`, ...(tracce.length >= 2 ? [puntoDomanda('stella')] : [])));
       const piu = tracce.length >= 2;      // con una sola traccia non serve dire quale vale per tutti
       for (const t of tracce) {
         const predefinita = t.id === verifica.tracciaDefault;
         let segno = '';
         if (piu && predefinita) {
-          segno = el('span', { class: 'traccia-predef', title: 'Traccia per tutti', role: 'img', 'aria-label': 'Traccia per tutti' }, '★');
+          segno = el('span', { class: 'traccia-predef', title: 'Traccia per tutti', role: 'img', 'aria-label': 'Traccia per tutti' }, E.stella);
         } else if (piu && bozza()) {
           segno = el('button', { type: 'button', class: 'traccia-usa', title: 'Usa questa traccia per tutti', 'aria-label': `Usa «${t.titolo}» per tutti`,
             onclick: () => usaPerTutti(t.id) }, '☆');
@@ -362,7 +412,7 @@ export function montaVerifiche({ toast, programma = null }) {
       if (selezione === 'nuova') {
         colonnaElenco.append(el('div', { class: 'traccia-voce attiva' }, el('span', { class: 'traccia-nome traccia-bozza' }, 'Nuova traccia (non salvata)')));
       }
-      const aggiungi = el('button', { type: 'button', class: 'modal-btn secondary traccia-aggiungi', onclick: () => seleziona('nuova') }, '+ Nuova traccia');
+      const aggiungi = el('button', { type: 'button', class: 'modal-btn secondary traccia-aggiungi', onclick: () => seleziona('nuova') }, E.nuovaTraccia);
       aggiungi.disabled = !scrivibile() || tracce.length >= L.maxTracce;
       colonnaElenco.append(aggiungi);
     }
@@ -421,7 +471,7 @@ export function montaVerifiche({ toast, programma = null }) {
         placeholder: 'Per esempio: Versione A' });
       titoloTraccia.value = esistente?.titolo ?? `Traccia ${tracce.length + 1}`;
       const salvaBtn = el('button', { type: 'button', class: 'modal-btn' },
-        esistente && !bozza() ? 'Pubblica modifica' : 'Salva');
+        esistente && !bozza() ? E.pubblicaModifica : 'Salva');
       editor = creaEditorMarkdown({ testo: esistente?.testoMd ?? '', max: L.maxTestoTraccia, onSalva: () => salva() });
       const origineTitolo = esistente?.titolo ?? '';
       const origineTesto = esistente?.testoMd ?? '';
@@ -512,7 +562,7 @@ export function montaVerifiche({ toast, programma = null }) {
     const esitoAss = el('span', { class: 'sketch-data verifica-esito', 'aria-live': 'polite' });
     const corpoAss = el('div', { class: 'assegnazioni-corpo', hidden: '' });
     const toggleAss = el('button', { type: 'button', class: 'assegnazioni-toggle', 'aria-expanded': 'false' });
-    const etichettaToggle = () => `${assAperta ? '▾' : '▸'} Assegnazioni individuali (traccia e tempo)`;
+    const etichettaToggle = () => `${assAperta ? '▾' : '▸'} ${E.assegnazioni}`;
     toggleAss.textContent = etichettaToggle();
     toggleAss.addEventListener('click', () => {
       assAperta = !assAperta;
@@ -522,15 +572,22 @@ export function montaVerifiche({ toast, programma = null }) {
       // aprendo, la finestra scorre fino alle assegnazioni (altrimenti le righe restano sotto il bordo)
       if (assAperta) aggiornaAssegnazioni().then(() => toggleAss.scrollIntoView({ block: 'start', behavior: 'smooth' }));
     });
-    const sezioneAss = scrivibile() ? el('div', { class: 'assegnazioni' }, el('div', { class: 'sketch-riga' }, toggleAss, esitoAss), corpoAss) : null;
+    const sezioneAss = scrivibile() ? el('div', { class: 'assegnazioni' }, el('div', { class: 'sketch-riga' }, toggleAss, puntoDomanda('extra'), esitoAss), corpoAss) : null;
     if (sezioneAss) f.corpo.append(sezioneAss);
 
     // --- Situazione live (verifica aperta o chiusa): l'altra faccia della scheda, accanto a «Tracce» ------------
     // Una verifica aperta si apre sulla situazione; la bozza non ha ancora studenti da seguire.
     if (!bozza()) {
       let tabella;
+      // La storia dell'anteprima: istantanee del lavoro e consegne dello studente, tutte con l'ora del server
+      const storiaConConsegne = async (email) => {
+        const [istantanee, consegne] = await Promise.all([vd.lavori.storia(vid, email), vd.consegne.elenca(vid)]);
+        const sue = consegne.filter((c) => c.studenteEmail === email && c.creato).map((c) => ({
+          id: c.id, tipo: 'consegna', programma: c.programma, nBlocchi: contaBlocchi(c.programma), t: c.creato, versione: c.versione, origine: c.origine }));
+        return [...istantanee, ...sue].sort((a, b) => a.t - b.t || (a.versione ?? 0) - (b.versione ?? 0));
+      };
       const guarda = programma && programma.anteprima
-        ? (email, nome) => apriAnteprima({ apri, programma, segui: (e, cb) => tabella.segui(e, cb), caricaStoria: () => vd.lavori.storia(vid, email), email, nome })
+        ? (email, nome) => apriAnteprima({ apri, programma, segui: (e, cb) => tabella.segui(e, cb), caricaStoria: () => storiaConConsegne(email), email, nome })
         : null;
       const caricaFile = (email, nome) => scegliFileEmergenza({ apri, programma, vd, vid, email, nome, toast, ...tabella.stato(email) });
       // Scheda in PDF: una per consegna (la valida, cioè l'ultima versione), con la traccia che aveva lo studente.
@@ -557,7 +614,7 @@ export function montaVerifiche({ toast, programma = null }) {
       tabella = creaTabellaLive({ vd, vid, toast, guarda, caricaFile, scaricaPdf: conPdf ? scaricaPdf : null, scaricaTutti: conPdf ? scaricaTutti : null });
       chiudiTabella = tabella.distruggi;
       const pannelloSituazione = el('div', { class: 'situazione' }, tabella.elemento);
-      const schede = [['situazione', 'Situazione'], ['tracce', 'Tracce']];
+      const schede = [['situazione', E.situazione], ['tracce', 'Tracce']];
       const bottoni = new Map();
       const mostra = (cosa) => {
         pannelloSituazione.hidden = cosa !== 'situazione';
@@ -656,7 +713,7 @@ export function montaVerifiche({ toast, programma = null }) {
       const bulkTraccia = el('select', { class: 'assegnazioni-traccia', 'aria-label': 'Traccia per i selezionati' }, ...opzioni(true));
       bulkTraccia.value = '__nessuna';
       const bulkMin = el('input', { type: 'number', min: '0', max: '1000', step: '1', class: 'assegnazioni-minuti', placeholder: '—', 'aria-label': 'Minuti in più per i selezionati' });
-      const applica = el('button', { type: 'button', class: 'modal-btn secondary' }, 'Applica ai selezionati');
+      const applica = el('button', { type: 'button', class: 'modal-btn secondary' }, E.applica);
       applica.addEventListener('click', async () => {
         const scelti = caselle.filter(([, c]) => c.checked).map(([r]) => r);
         if (scelti.length === 0) { toast('Seleziona almeno uno studente.', 'error'); return; }
@@ -713,7 +770,7 @@ export function montaVerifiche({ toast, programma = null }) {
     }
     if (bozza()) {
       f.corpo.append(el('div', { class: 'verifica-piede' },
-        el('button', { type: 'button', class: 'modal-btn secondary', onclick: eliminaQuestaVerifica }, 'Elimina verifica')));
+        el('button', { type: 'button', class: 'modal-btn secondary', onclick: eliminaQuestaVerifica }, E.elimina)));
     }
 
     selezione = tracce[0]?.id ?? null;

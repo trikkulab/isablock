@@ -150,10 +150,11 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
   // Tempo aggiuntivo a uno studente: sposta la sua scadenza (anche all'indietro, con minuti negativi).
   const tempoAggiuntivo = (vid, email, minuti) => lavori.aggiungiMinuti(vid, email, minuti);
 
-  // aperta -> chiusa. Con `raccogli: true` raccoglie subito. Restituisce l'esito della raccolta (o null).
-  async function chiudi(vid, { raccogli = false } = {}) {
+  // aperta -> chiusa, e raccoglie subito i lavori (sempre: dopo la chiusura il lavoro non cambia più, e raccogliere
+  // PRIMA di caricare eventuali file di emergenza è l'ordine giusto). Restituisce l'esito della raccolta.
+  async function chiudi(vid) {
     await verifiche.chiudi(vid);
-    return raccogli ? consegne.raccogli(vid, await lavori.elenca(vid)) : null;
+    return consegne.raccogli(vid, await lavori.elenca(vid));
   }
 
   // Archivia una verifica CHIUSA (la nasconde dall'elenco del docente; gli studenti vedono ancora la propria consegna)
@@ -172,11 +173,12 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
     return { titolo: verifica.titolo, iscritti: righe.length, tracce: tracce.length, tracciaPredefinita: predefinita?.titolo ?? null, diversi };
   }
 
-  // Raccolta (a verifica chiusa): rilanciabile.
-  async function raccogli(vid) {
+  // Raccolta (a verifica chiusa): rilanciabile. Gli studenti con un conflitto (ultima consegna da file, lavoro diverso)
+  // tornano in `conflitti` e non si toccano; per raccoglierli comunque si rilancia con `daRaccogliere` (le loro email).
+  async function raccogli(vid, { daRaccogliere = [] } = {}) {
     const v = await verifiche.leggi(vid);
     if (v.stato !== 'chiusa') throw vuoto('stato', 'Si raccoglie a verifica chiusa.');
-    return consegne.raccogli(vid, await lavori.elenca(vid));
+    return consegne.raccogli(vid, await lavori.elenca(vid), { daRaccogliere });
   }
 
   // chiusa -> aperta, PER TUTTI, in un solo batch atomico con la verifica:

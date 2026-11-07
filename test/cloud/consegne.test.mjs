@@ -122,6 +122,57 @@ test('raccolta: solo a verifica chiusa', async () => {
   assert.deepEqual([r.create, r.rifiutate], [[], [ANNA]]);
 });
 
+test('raccolta dopo un file di emergenza: conflitto, niente scritto finché il docente non decide', async () => {
+  const ld = lavoriDoc();
+  await ld.creaMancanti('v1', iscritti, { tracciaDefault: 't0', scadenza: fine() });
+  await salvaDi(ANNA).salva('v1', { programma: prog(1), nBlocchi: 2 });
+  await salvaDi(DARIO).salva('v1', { programma: prog(7), nBlocchi: 4 });
+  await stato('chiusa');
+  const cd = consDoc();
+  const lavori = Object.fromEntries((await ld.elenca('v1')).map((l) => [l.email, l]));
+  // il file di Anna viene caricato PRIMA della raccolta (l'ordine sbagliato)
+  await cd.caricaFile('v1', lavori[ANNA], { programma: prog(99), impronta: 'f00d', offlineDa: '10:42', nBlocchiSincronizzati: 1, nomeFile: 'a.isablock' });
+  const r = await cd.raccogli('v1', await ld.elenca('v1'));
+  assert.deepEqual(r.create, [DARIO]);                                                  // chi non ha conflitti si raccoglie
+  assert.deepEqual(r.conflitti.map((c) => c.email), [ANNA]);
+  assert.deepEqual([r.conflitti[0].consegna.versione, r.conflitti[0].consegna.programma, r.conflitti[0].lavoro.programma], [1, prog(99), prog(1)]);
+  assert.equal(r.conflitti[0].suggerimento, 'file');                                    // nessun segnale dopo il caricamento del file
+  assert.equal(cd.ultimePerStudente(await cd.elenca('v1'))[ANNA].origine, 'file');      // niente scritto: vale ancora il file
+  const r2 = await cd.raccogli('v1', await ld.elenca('v1'));                            // rilanciata senza decisione: stesso risultato
+  assert.deepEqual([r2.create, r2.conflitti.length], [[], 1]);
+  // il docente accetta di raccogliere comunque: nasce la versione successiva, il file resta nello storico
+  const r3 = await cd.raccogli('v1', await ld.elenca('v1'), { daRaccogliere: [ANNA] });
+  assert.deepEqual([r3.create, r3.conflitti], [[ANNA], []]);
+  assert.deepEqual((await cd.elenca('v1')).filter((c) => c.studenteEmail === ANNA).map((c) => [c.versione, c.origine]), [[1, 'file'], [2, 'raccolta']]);
+});
+
+test('raccolta prima, file dopo: nessun conflitto e vale il file', async () => {
+  const ld = lavoriDoc();
+  await ld.creaMancanti('v1', [ANNA], { tracciaDefault: 't0', scadenza: fine() });
+  await salvaDi(ANNA).salva('v1', { programma: prog(1) });
+  await stato('chiusa');
+  const cd = consDoc();
+  const lavori = await ld.elenca('v1');
+  assert.deepEqual((await cd.raccogli('v1', lavori)).create, [ANNA]);
+  await cd.caricaFile('v1', lavori[0], { programma: prog(99), impronta: 'f00d', offlineDa: null, nBlocchiSincronizzati: null, nomeFile: 'a.isablock' });
+  assert.equal(cd.ultimePerStudente(await cd.elenca('v1'))[ANNA].origine, 'file');
+});
+
+test('raccolta dopo un file e una riapertura: il lavoro più recente sul server suggerisce di raccogliere', async () => {
+  const ld = lavoriDoc();
+  await ld.creaMancanti('v1', [ANNA], { tracciaDefault: 't0', scadenza: fine() });
+  await salvaDi(ANNA).salva('v1', { programma: prog(1) });
+  await stato('chiusa');
+  const cd = consDoc();
+  await cd.caricaFile('v1', (await ld.elenca('v1'))[0], { programma: prog(99), impronta: 'f00d', offlineDa: null, nBlocchiSincronizzati: null, nomeFile: 'a.isablock' });
+  await stato('aperta');
+  await new Promise((ok) => setTimeout(ok, 50));                                        // l'ora del server avanza
+  await salvaDi(ANNA).salva('v1', { programma: prog(2) });
+  await stato('chiusa');
+  const r = await cd.raccogli('v1', await ld.elenca('v1'));
+  assert.deepEqual([r.create, r.conflitti.map((c) => c.suggerimento)], [[], ['lavoro']]);
+});
+
 test('file di emergenza: nuova versione, anche per chi non è mai entrato', async () => {
   const ld = lavoriDoc();
   await ld.creaMancanti('v1', iscritti, { tracciaDefault: 't0', scadenza: fine() });

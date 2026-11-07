@@ -11,7 +11,7 @@ export const MAX_NOME_CORSO = 60;
 export const TENTATIVI_CODICE = 5;
 
 export const messaggioVerificheAperte = (n) => (n === 1
-  ? 'Il corso ha una verifica aperta: chiudila prima di archiviarlo.'
+  ? 'Il corso ha una verifica aperta: terminala prima di archiviarlo.'
   : `Il corso ha ${n} verifiche aperte: chiudile prima di archiviarlo.`);
 
 export class ErroreGestione extends Error {

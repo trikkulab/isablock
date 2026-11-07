@@ -101,6 +101,21 @@ try {
   verifica(/^(\d{2}:\d{2}|\d:\d{2}:\d{2})$/.test(timer) && /^(29|28):/.test(timer), `il timer mostra il tempo rimasto: ${timer}`);
   verifica((await page.getAttribute('.banda-verifica-timer', 'data-colore')) === 'verde', 'con molto tempo il timer è verde');
   await schermata(page, 's-3-verifica');
+  // il «?» della fascia: una nota che galleggia, si apre con un clic e si chiude con Esc o con un clic fuori (senza guardare le parole)
+  const punto = await page.$('.banda-verifica .punto-domanda');
+  verifica(!!punto, 'la fascia ha il «?»');
+  const notaDi = (b) => b.evaluate((x) => { const n = document.getElementById(x.getAttribute('aria-controls')); const r = n.getBoundingClientRect(); return { nascosta: n.hidden, fissa: getComputedStyle(n).position === 'fixed', dentro: r.left >= 0 && r.top >= 0 && r.right <= window.innerWidth && r.bottom <= window.innerHeight, titolo: n.querySelector('.nota-aiuto-titolo')?.textContent.length > 0 }; });
+  const altezzaBanda = await page.$eval('.banda-verifica', (e) => e.getBoundingClientRect().height);
+  verifica((await notaDi(punto)).nascosta, 'la nota del «?» parte chiusa');
+  await punto.click();
+  const aperta = await notaDi(punto);
+  verifica(!aperta.nascosta && aperta.fissa && aperta.dentro && aperta.titolo && (await page.$eval('.banda-verifica', (e) => e.getBoundingClientRect().height)) === altezzaBanda, 'si apre con un clic: galleggia dentro lo schermo, ha il titolo e non cambia la fascia');
+  await schermata(page, 's-3b-punto-domanda');
+  await page.keyboard.press('Escape');
+  verifica((await notaDi(punto)).nascosta, 'Esc la chiude');
+  await punto.click();
+  await page.click('.banda-verifica-titolo');
+  verifica((await notaDi(punto)).nascosta, 'un clic fuori la chiude');
 
   // 4) cosa è spento e cosa c'è
   verifica(await page.isDisabled('#btnLoad') && await page.isDisabled('#btnSave') && await page.isDisabled('#exampleSelect'), 'Apri, Salva ed esempi sono spenti');

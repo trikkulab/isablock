@@ -1264,3 +1264,22 @@ body.modo-verifica .autosave-info { display: none; }
 .informativa-dettaglio[hidden] { display: none; }
 .informativa-gruppo { margin: 0.8rem 0 0.2rem; font-size: 0.95rem; }
 .informativa-testo .cloud-dati { margin-top: 0.2rem; }
+
+/* Il «?» accanto ai punti delicati (aiuto-ui.js): la nota è un riquadro che galleggia sopra la pagina (position: fixed,
+   messo da aiuto-ui.js sotto il pulsante), così non sposta niente del layout. */
+.aiuto { display: inline; margin-left: 0.35rem; font-weight: normal; }
+.punto-domanda { width: 1.25rem; height: 1.25rem; padding: 0; border: 1px solid currentColor; border-radius: 50%; background: none; color: inherit; font: inherit; font-size: 0.75rem; font-weight: 700; line-height: 1; cursor: pointer; vertical-align: middle; opacity: 0.8; }
+.punto-domanda:hover, .punto-domanda[aria-expanded="true"] { opacity: 1; }
+.nota-aiuto { position: fixed; z-index: 2500; width: min(24rem, calc(100vw - 16px)); box-sizing: border-box; padding: 0.6rem 0.8rem; background: #fff; color: #222; border: 1px solid #b8b6c8; border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); font-size: 0.85rem; font-weight: normal; line-height: 1.45; text-align: left; text-transform: none; white-space: normal; }
+.nota-aiuto[hidden] { display: none; }
+.nota-aiuto-titolo { display: block; margin-bottom: 0.15rem; }
+/* La freccina che punta al «?»: in alto se la nota sta sotto il pulsante, in basso se sta sopra (classe .sopra). La posizione orizzontale la dà aiuto-ui.js. */
+.nota-aiuto::before { content: ''; position: absolute; top: -6px; left: var(--freccia-x, 20px); width: 10px; height: 10px; background: #fff; border-left: 1px solid #b8b6c8; border-top: 1px solid #b8b6c8; transform: rotate(45deg); }
+.nota-aiuto.sopra::before { top: auto; bottom: -6px; border: 0; border-right: 1px solid #b8b6c8; border-bottom: 1px solid #b8b6c8; }
+.guida-cloud-capitoli { margin: 0 0 0.8rem; }
+.guida-cloud-pagina[hidden] { display: none; }
+.guida-cloud-pagina h3 { margin: 0.2rem 0 0.5rem; font-size: 1.05rem; }
+.guida-cloud-pagina h4 { margin: 0.9rem 0 0.2rem; font-size: 0.95rem; }
+.guida-cloud-pagina p, .guida-cloud-pagina li { line-height: 1.5; }
+.guida-cloud-pagina ul, .guida-cloud-pagina ol { margin: 0.2rem 0 0.6rem; padding-left: 1.3rem; }
+.guida-cloud-nota { padding: 0.4rem 0.7rem; border-left: 3px solid var(--accent, #3b6fd4); background: rgba(127, 127, 127, 0.12); border-radius: 4px; }

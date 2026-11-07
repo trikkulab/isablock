@@ -5,6 +5,7 @@
 import { el, apriFinestra } from './dom.js';
 import { contestoCorso } from './corsi.js';
 import { analizzaElencoEmail, annoCorrente, MAX_MATERIA, MAX_CLASSE, MAX_NOME_CORSO, messaggioVerificheAperte } from './gestione-corsi.js';
+import { corsiEtichette as C } from './etichette.js';
 
 const MAX_INCOLLA = 60; // email per volta: oltre, si divide in due giri
 
@@ -28,7 +29,7 @@ export function montaGestione({ toast, dopoCambio }) {
 
   // --- Nuovo corso -------------------------------------------------------
   function nuovoCorso() {
-    const f = apri('Nuovo corso');
+    const f = apri(C.nuovoCorso);
     const materia = campo('Materia', { value: 'Informatica', maxlength: String(MAX_MATERIA) });
     const classe = campo('Classe (es. 3AINF)', { maxlength: String(MAX_CLASSE) });
     const anno = campo('Anno scolastico', { value: annoCorrente(), maxlength: '7', placeholder: '2026/27' });
@@ -99,7 +100,7 @@ export function montaGestione({ toast, dopoCambio }) {
           await rileggi();
         });
         if (ok && aperta()) { disegnaCodice(); dopoCambio?.(); }
-      } }, corso.iscrizioniAperte ? 'Chiudi le iscrizioni' : 'Apri le iscrizioni');
+      } }, corso.iscrizioniAperte ? C.chiudiIscrizioni : C.apriIscrizioni);
       boxCodice.append(sezione('Codice per gli studenti',
         el('div', { class: 'sketch-riga corso-riga' },
           el('strong', { class: 'codice-grande' }, corso.id),
@@ -224,7 +225,7 @@ export function montaGestione({ toast, dopoCambio }) {
         const ok = await esegui(async () => { await gestione.impostaAttivo(corso.id, !corso.attivo); await rileggi(); },
           corso.attivo ? 'Corso attivato di nuovo.' : 'Corso archiviato.');
         if (ok) { dopoCambio?.(); if (aperta()) disegnaArchivia(); }
-      } }, corso.attivo ? 'Archivia il corso' : 'Riattiva il corso');
+      } }, corso.attivo ? C.archivia : C.riattiva);
       boxArchivia.append(sezione(corso.attivo ? 'Fine anno' : 'Corso archiviato',
         el('p', { class: 'sketch-nota' }, corso.attivo
           ? 'Un corso non si cancella: si archivia, e sparisce dagli elenchi degli studenti.'

@@ -72,17 +72,18 @@ Percorso (verifiche): **Corsi → corso → «Verifiche» → «Nuova verifica»
    la stella ★ = traccia «per tutti» (compare solo con più tracce); «Assegnazioni individuali (traccia e tempo)» (sezione chiusa
    di default perché la finestra può essere proiettata): traccia diversa e/o minuti in più per studente, «Applica ai selezionati».
    Una verifica in bozza si può eliminare («Elimina verifica»).
-2. **Aprire**: «Apri verifica…» → riepilogo (quanti iscritti la vedranno subito, tracce, chi ha traccia o tempo diversi), scelta
+2. **Aprire**: «Avvia verifica…» (dal 7 nov 2026; prima «Apri verifica…») → riepilogo (quanti iscritti la vedranno subito, tracce, chi ha traccia o tempo diversi), scelta
    «dura N minuti da adesso» oppure «finisce alle…». **L'apertura non si annulla** (le regole non possono contare chi è già
    entrato): per fermarla si CHIUDE. Gli studenti, all'accesso, dovranno scegliere la verifica.
 3. **Durante**: scheda **«Situazione»** (si apre da sola) con una riga per studente: stato (Non entrato, Scrive, Ha eseguito, Errore,
    Consegnato), blocchi con la variazione degli ultimi minuti e ⚠ se sono saliti di colpo (programma incollato), esecuzioni, connessione
    («offline da N min» dopo 4 minuti senza segnali), tempo rimasto. **«Guarda»**: il programma dello studente in sola lettura, che si
-   aggiorna da solo (ritardo massimo ~25 s); «Storia…» con cursore, ◀ ▶, segni ⚠ e «In diretta» per rivedere come è evoluto (circa le
+   aggiorna da solo (ritardo massimo ~25 s); «Storia…» con cursore, ◀ ▶, segni ⚠ e «In diretta» (a verifica chiusa «Ultima consegna», con le consegne al loro posto nel tempo) per rivedere come è evoluto (circa le
    ultime 2 ore, un'istantanea ogni ~5 minuti più il prima/dopo di un salto: NON è un registro di ogni modifica). Una traccia si
    può correggere anche a verifica aperta («Pubblica modifica»): gli studenti vedono l'avviso. Tempo in più: nessun motivo scritto.
-4. **Chiudere e raccogliere**: «Chiudi verifica…» (con «Raccogli i lavori» già spuntato): crea le consegne dal lavoro com'è; chi non
-   è mai entrato non ha consegna. «Raccogli i lavori» si può rilanciare. Una verifica aperta o chiusa **non si cancella** (le
+4. **Chiudere e raccogliere**: «Termina verifica…» (prima «Chiudi verifica…»): raccoglie subito, in automatico, i lavori e crea le consegne dal lavoro com'è; chi non
+   è mai entrato non ha consegna. «Raccogli i lavori» si può rilanciare (per esempio dopo una riapertura); se per uno studente c'è già un file di
+   emergenza caricato e il lavoro sul server è diverso, non scrive niente e chiede al docente «Tieni il file» o «Raccogli comunque» (con «Confronta»). Una verifica aperta o chiusa **non si cancella** (le
    consegne sono immutabili): si **archivia** («Archivia…», solo chiuse; si ritrova con «Mostra anche le verifiche archiviate»).
 5. **Chi non ha potuto consegnare (senza rete)**: lo studente porta il file di emergenza; sulla sua riga, a verifica chiusa, **«Carica
    file…»**: controllo dell'impronta (ferma i ritocchi semplici, NON è sicurezza), conferma con il confronto «ultimo salvataggio

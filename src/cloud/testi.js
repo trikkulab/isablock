@@ -32,7 +32,7 @@ export const gruppiDati = [
     titolo: 'Il tuo account e i corsi',
     voci: [
       'Il tuo nome e la tua email della scuola, che arrivano dal tuo account Google, per riconoscerti.',
-      'I corsi a cui ti iscrivi con il codice. Il docente può anche iscriverti lui: in quel caso la tua email scolastica compare nell’elenco degli iscritti del corso (che vede il docente) anche prima del tuo primo accesso.',
+      'I corsi a cui ti iscrivi con il codice. Il docente può anche iscriverti direttamente: in quel caso la tua email scolastica compare nell’elenco degli iscritti del corso (che vede il docente) anche prima del tuo primo accesso.',
       'Sul tuo computer, per riaprire IsaBlock anche quando non c’è rete, il browser ricorda il tuo nome, la tua email e il tuo ruolo (studente o docente). Si cancella quando esci.',
     ],
   },
@@ -51,7 +51,7 @@ export const gruppiDati = [
       'Se il docente ti assegna una verifica: mentre la svolgi, il tuo programma viene salvato online di tanto in tanto (solo se è cambiato), insieme al numero di blocchi, a quante volte l’hai eseguito e con quale esito, a quando sei entrato in verifica, all’ultimo segnale di connessione e, ogni qualche minuto, al numero di blocchi in quel momento (serve a vedere come procede il lavoro). Lo vede il docente del corso, anche mentre scrivi: non gli altri studenti.',
       'Durante la verifica, ogni circa 5 minuti (se il programma è cambiato) e quando i blocchi aumentano di colpo, viene salvata anche un’istantanea del tuo programma: il docente può così rivedere come è evoluto il lavoro. Se ne tengono solo le più recenti (circa le ultime 2 ore): le nuove sostituiscono le vecchie.',
       'Nella verifica il docente può darti una traccia e un tempo diversi da quelli degli altri, senza che sia scritto il motivo; sul server resta anche quale versione della traccia hai già visto.',
-      'Quando consegni (o scade il tempo, o il docente raccoglie i lavori) viene salvata una copia della consegna che nessuno può più modificare. Se la verifica viene riaperta puoi consegnare di nuovo: le consegne precedenti restano e vale l’ultima. Le consegne non si eliminano da IsaBlock. Dopo la chiusura le rivedi da «Le mie consegne».',
+      'Quando consegni (o scade il tempo, o il docente termina la verifica) viene salvata una copia della consegna che nessuno può più modificare. Se la verifica viene riaperta puoi consegnare di nuovo: le consegne precedenti restano e vale l’ultima. Le consegne non si eliminano da IsaBlock. Dopo la chiusura le rivedi da «Le mie consegne».',
       'Durante una verifica una copia del tuo lavoro e del testo della traccia resta anche nel browser di questo computer, per non perderli se si chiude la pagina o cade la rete. Si cancella quando consegni; se la verifica finisce con modifiche non arrivate al server resta fino a circa una settimana. Se manca la rete puoi salvare un «file di emergenza», che contiene il tuo nome, la tua email e il tuo programma: lo consegni tu al docente, che lo carica come tua consegna.',
       'Il docente può scaricare le tue consegne in PDF (con il tuo nome, la traccia e il tuo programma) per tenerle in archivio.',
     ],

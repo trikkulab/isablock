@@ -14,6 +14,7 @@ export function creaGuida({ modale, barra, pagine }) {
       b.type = 'button';
       b.className = 'verifica-scheda';
       b.setAttribute('role', 'tab');
+      b.dataset.sezione = id;
       b.textContent = s.titolo;
       b.addEventListener('click', () => mostra(id));
       s.bottone = b;

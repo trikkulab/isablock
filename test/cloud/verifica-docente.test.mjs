@@ -199,7 +199,7 @@ test('durante la verifica: gli studenti lavorano, il docente dà tempo; poi chiu
   assert.deepEqual(sit.lavori.map((l) => [l.email, !!l.entrato, l.consegnato]), [[ANNA, true, true], [BRUNO, true, false], [CARLA, false, false]]);
   assert.deepEqual(Object.keys(sit.ultime), [ANNA]);
   await assert.rejects(d.raccogli(vid), (e) => e.codice === 'stato');            // a verifica aperta non si raccoglie
-  const esito = await d.chiudi(vid, { raccogli: true });
+  const esito = await d.chiudi(vid);
   assert.deepEqual([esito.create, esito.giaAggiornati, esito.nonEntrati], [[BRUNO], [ANNA], [CARLA]]);
   const dopo = await d.situazione(vid);
   assert.equal(dopo.verifica.stato, 'chiusa');
@@ -215,7 +215,7 @@ test('riapertura: riprendono tutti, anche con la scadenza già passata; il tempo
   await lavoroDi(CARLA).salva(vid, { programma: prog(1) });
   await d.tempoAggiuntivo(vid, BRUNO, 15);
   await d.tempoAggiuntivo(vid, CARLA, -(3 * 60));                                // Carla: scadenza nel passato
-  await d.chiudi(vid, { raccogli: true });
+  await d.chiudi(vid);
   await assert.rejects(lavoroDi(CARLA).salva(vid, { programma: prog(2) }), (e) => e.codice === 'negato');   // chiusa
   const fine = tra(ORA);
   assert.equal((await d.riapri(vid, { fine })).sbloccati, 0);                    // nessuno aveva consegnato da sé: solo raccolti
@@ -224,9 +224,8 @@ test('riapertura: riprendono tutti, anche con la scadenza già passata; il tempo
   assert.ok(vicino(lav[CARLA].scadenza.getTime(), fine.getTime()), 'Carla (tempo in meno) riparte dalla nuova fine, non prima');
   await lavoroDi(BRUNO).salva(vid, { programma: prog(2) });
   await lavoroDi(CARLA).salva(vid, { programma: prog(2) });
-  await d.chiudi(vid);
-  const esito = await d.raccogli(vid);
-  assert.deepEqual([esito.create.sort(), esito.giaAggiornati], [[BRUNO, CARLA].sort(), []]);
+  const esito = await d.chiudi(vid);                                             // la chiusura raccoglie da sola
+  assert.deepEqual([esito.create.sort(), esito.giaAggiornati, esito.conflitti], [[BRUNO, CARLA].sort(), [], []]);
   assert.equal((await d.situazione(vid)).ultime[BRUNO].versione, 2);
 });
 

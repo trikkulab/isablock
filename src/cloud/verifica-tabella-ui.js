@@ -5,6 +5,8 @@
 import { el } from './dom.js';
 import { verificaConfig } from './verifica-config.js';
 import { costruisciRighe, riepilogo, ordinaRighe, testoDurata, STATI_RIGA } from './verifica-tabella.js';
+import { verificaDocenteEtichette as E } from './etichette.js';
+import { puntoDomanda } from './aiuto-ui.js';
 
 const C = verificaConfig.client;
 
@@ -24,17 +26,17 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
   const ordine = el('select', { class: 'tabella-ordine', 'aria-label': 'Ordine delle righe' },
     el('option', { value: 'email' }, 'Ordina per nome'), el('option', { value: 'attenzione' }, 'Prima chi richiede attenzione'));
   ordine.addEventListener('change', () => { modo = ordine.value; disegna(); });
-  const intestazione = (testo, titolo) => el('th', titolo ? { title: titolo } : {}, testo);
+  const intestazione = (testo, titolo, aiuto) => el('th', titolo ? { title: titolo } : {}, testo, aiuto ? puntoDomanda(aiuto) : '');
   const tabella = el('table', { class: 'tabella-live' },
     el('thead', {}, el('tr', {},
       intestazione('Studente'), intestazione('Stato'),
       intestazione('Blocchi', `Blocchi adesso e variazione negli ultimi ${C.finestraIncrementoMin} minuti`),
       intestazione('Esecuzioni', 'Numero di esecuzioni e esito dell\'ultima'),
-      intestazione('Connessione'), intestazione('Tempo'), intestazione('Programma'))),
+      intestazione('Connessione'), intestazione('Tempo'), intestazione('Programma', null, 'caricaFile'))),
     corpo);
   tabella.hidden = true;
   // «Scarica PDF di tutti»: solo a verifica chiusa (si mostra quando arriva lo stato), un solo PDF con una scheda per ogni consegna.
-  const btnPdfTutti = el('button', { type: 'button', class: 'modal-btn secondary', hidden: '', title: 'Un solo PDF (A4) con la scheda di ogni consegna, in ordine alfabetico per cognome', onclick: () => scaricaTutti?.() }, 'Scarica PDF di tutti');
+  const btnPdfTutti = el('button', { type: 'button', class: 'modal-btn secondary', hidden: '', title: 'Un solo PDF (A4) con la scheda di ogni consegna, in ordine alfabetico per cognome', onclick: () => scaricaTutti?.() }, E.scaricaPdfTutti);
   const elemento = el('div', { class: 'tabella-corpo' },
     el('div', { class: 'tabella-testata' }, sommario, el('span', { class: 'tabella-azioni' }, btnPdfTutti, ordine)), vuota, tabella);
 
@@ -67,9 +69,9 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
         cella(x, x.connessione ? el('span', { class: 'tabella-conn', 'data-conn': x.connessione.stato }, x.connessione.stato === 'offline' ? testoOffline(x.connessione.da) : 'online') : '–'),
         cella(x, x.timer ? el('span', { class: 'tabella-timer', 'data-colore': x.timer.colore }, x.timer.restante > 0 ? testoDurata(x.timer.restante) : 'scaduto') : '–'),
         cella(x,
-          guarda ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Guarda il programma (sola lettura)', onclick: () => guarda(x.email, x.nome) }, 'Guarda') : '',
-          scaricaPdf && ultimo.verifica.stato === 'chiusa' && x.versioneConsegna !== null ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Scarica la scheda di consegna di questo studente in PDF (A4)', onclick: () => scaricaPdf(x.email) }, 'Scarica PDF') : '',
-          caricaFile && ultimo.verifica.stato === 'chiusa' ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Carica il file di emergenza di questo studente come nuova consegna', onclick: () => caricaFile(x.email, x.nome) }, 'Carica file…') : '')));
+          guarda ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Guarda il programma (sola lettura)', onclick: () => guarda(x.email, x.nome) }, E.guarda) : '',
+          scaricaPdf && ultimo.verifica.stato === 'chiusa' && x.versioneConsegna !== null ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Scarica la scheda di consegna di questo studente in PDF (A4)', onclick: () => scaricaPdf(x.email) }, E.scaricaPdf) : '',
+          caricaFile && ultimo.verifica.stato === 'chiusa' ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Carica il file di emergenza di questo studente come nuova consegna', onclick: () => caricaFile(x.email, x.nome) }, E.caricaFile) : '')));
     }
   }
 

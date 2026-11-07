@@ -138,15 +138,32 @@ export function creaConsegneDocente({ sdk, db }, emailDocente) {
 
   // Raccolta (a verifica chiusa): per ogni studente ENTRATO crea una consegna dal lavoro com'è.
   // Si può rilanciare: salta chi ha già una consegna uguale al lavoro; se dopo una riapertura il
-  // lavoro è cambiato, crea la versione successiva. Restituisce { create, giaAggiornati, nonEntrati, rifiutate }.
-  async function raccogli(vid, lavori) {
+  // lavoro è cambiato, crea la versione successiva.
+  // CONFLITTO: se l'ultima consegna viene da un file di emergenza e il lavoro sul server è diverso, raccogliere
+  // metterebbe sopra il file (che vale l'ultima versione) un lavoro che può essere più vecchio, e le consegne non
+  // si correggono. Per questi studenti NON si scrive niente: finiscono in `conflitti`, e decide il docente rilanciando
+  // con `daRaccogliere` (le email per cui accetta di raccogliere comunque). Chi non ha conflitti si raccoglie sempre.
+  // Per aiutare la scelta, `suggerimento` confronta due orari DEL SERVER (mai quelli del file, che vengono dal PC dello
+  // studente): l'ultimo segnale dello studente è dopo il caricamento del file → 'lavoro' (ha lavorato dopo), altrimenti 'file'.
+  // Restituisce { create, giaAggiornati, nonEntrati, rifiutate, conflitti }.
+  async function raccogli(vid, lavori, { daRaccogliere = [] } = {}) {
     const { corsoId, titolo } = await intestazione(sdk, db, vid).catch((e) => { throw traduci(e); });
     const ultime = ultimePerStudente(await elenca(vid));
-    const esito = { create: [], giaAggiornati: [], nonEntrati: [], rifiutate: [] };
+    const accettati = new Set(daRaccogliere);
+    const esito = { create: [], giaAggiornati: [], nonEntrati: [], rifiutate: [], conflitti: [] };
     await Promise.all(lavori.map(async (l) => {
       if (!l.programma) { esito.nonEntrati.push(l.email); return; }
       const u = ultime[l.email];
       if (u && u.programma === l.programma) { esito.giaAggiornati.push(l.email); return; }
+      if (u && u.origine === 'file' && !accettati.has(l.email)) {
+        esito.conflitti.push({
+          email: l.email, nome: l.studenteNome ?? l.email,
+          consegna: { versione: u.versione, creato: u.creato, offlineDa: u.offlineDa, nBlocchiSincronizzati: u.nBlocchiSincronizzati, programma: u.programma },
+          lavoro: { programma: l.programma, nBlocchi: l.nBlocchi ?? null, ultimoSegnale: l.ultimoSegnale ?? null },
+          suggerimento: u.creato && l.ultimoSegnale ? (l.ultimoSegnale.getTime() > u.creato.getTime() ? 'lavoro' : 'file') : null,
+        });
+        return;
+      }
       const n = u ? u.versione + 1 : 1;
       if (n > L.maxVersioniConsegna) { esito.rifiutate.push(l.email); return; }
       try {

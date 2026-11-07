@@ -12,6 +12,7 @@
 // hanno solo un contorno (classe CSS).
 import { el } from './dom.js';
 import { MAX_TESTO, nuoviPerSketch, dellaStessaCreazione } from './commenti.js';
+import { commentiEtichette as K } from './etichette.js';
 
 const formatoData = new Intl.DateTimeFormat('it-IT', {
   day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
@@ -178,7 +179,7 @@ export function montaCommenti({ toast, programma, dopoCambioConteggio }) {
     areaTesto.value = bozza;
     conteggio = el('span', { class: 'sketch-data' }, bozza ? `${bozza.length}/${MAX_TESTO}` : '');
     areaTesto.addEventListener('input', () => { conteggio.textContent = `${areaTesto.value.length}/${MAX_TESTO}`; });
-    btnInvia = el('button', { type: 'button', class: 'modal-btn', onclick: invia }, 'Aggiungi commento');
+    btnInvia = el('button', { type: 'button', class: 'modal-btn', onclick: invia }, K.aggiungi);
     const form = el('div', { class: 'commenti-modulo' }, areaTesto,
       el('div', { class: 'commenti-modulo-riga' }, rigaBlocco, conteggio, btnInvia));
     aggiornaModulo();
@@ -192,7 +193,7 @@ export function montaCommenti({ toast, programma, dopoCambioConteggio }) {
     rigaBlocco.textContent = '';
     if (bersaglio) {
       rigaBlocco.append(`Sul blocco: ${bersaglio.testo || '(senza descrizione)'} · `,
-        el('button', { type: 'button', class: 'commento-togli', onclick: () => { bersaglio = null; aggiornaModulo(); } }, 'Sull\'intero sketch'));
+        el('button', { type: 'button', class: 'commento-togli', onclick: () => { bersaglio = null; aggiornaModulo(); } }, K.interoSketch));
     } else {
       rigaBlocco.append('Sull\'intero sketch · clicca un blocco per commentare quello');
     }

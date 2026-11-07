@@ -18,15 +18,32 @@ export function testoApertura({ iscritti, tracce, tracciaPredefinita, diversi })
     `Tracce: ${tracce}${tracciaPredefinita ? ` (per tutti: ${tracciaPredefinita})` : ''}.${diversi
       ? ` Con una traccia o un tempo diverso: ${plurale(diversi, '1 studente', `${diversi} studenti`)}.` : ''}`,
   ];
-  return { righe, avvertenza: "L'apertura non si annulla: per fermare la verifica dovrai chiuderla." };
+  return { righe, avvertenza: "L'avvio non si annulla: la verifica non torna in bozza e non si potrà più eliminare. Per fermarla dovrai terminarla; una verifica terminata si può solo archiviare." };
 }
 
 export const testoChiusura = {
   righe: [
     'Chi sta ancora lavorando non potrà più salvare. I lavori già salvati restano.',
-    'Se non raccogli ora, potrai farlo dopo dalla verifica chiusa.',
+    'Appena la verifica è terminata, IsaBlock raccoglie i lavori: crea le consegne dal lavoro com\'è in quel momento. Chi non è mai entrato non ha una consegna.',
   ],
-  raccogli: 'Raccogli subito i lavori (consigliato)',
+};
+
+// Raccolta rilanciata dal docente con un file di emergenza già caricato: la scelta è sua
+export const testoConflitto = {
+  titolo: 'Attenzione: file di emergenza già caricato',
+  righe: [
+    'Per questi studenti l\'ultima consegna viene da un file di emergenza, e il lavoro sul server è diverso. Se raccogli, il lavoro del server diventa la nuova ultima versione e prende il posto del file (il file resta nello storico). Le consegne non si possono correggere.',
+    'Di solito il file è il lavoro più recente (lo studente era offline). Ma dopo una riapertura può essere il contrario. La scelta e la responsabilità sono tue: confronta i due programmi con «Confronta».',
+  ],
+  tieni: 'Tieni il file',
+  raccoglicomunque: 'Raccogli comunque',
+  conferma: 'Conferma le scelte',
+  nota: 'Chi lasci su «Tieni il file» non viene toccato: potrai rilanciare la raccolta in qualsiasi momento.',
+  suggerimento: {
+    file: 'Sembra più recente il file: il server non ha segnali dello studente dopo il caricamento del file.',
+    lavoro: 'Sembra più recente il lavoro sul server: lo studente ha dato segnali dopo il caricamento del file (verifica riaperta?). Controlla con «Confronta».',
+    nessuno: 'Non so dire quale sia più recente: confronta i due programmi.',
+  },
 };
 
 export const testoRiapertura = {
@@ -39,8 +56,9 @@ export const testoRiapertura = {
 export const testoArchivia = 'La verifica sparisce dall\'elenco (la ritrovi con «Mostra anche le archiviate»). Gli studenti vedono ancora la propria consegna. Per riaprirla dovrai prima ripristinarla.';
 
 // Messaggio dopo la raccolta
-export function esitoRaccolta({ create, giaAggiornati, nonEntrati, rifiutate }) {
+export function esitoRaccolta({ create, giaAggiornati, nonEntrati, rifiutate, conflitti = [] }) {
   const parti = [`raccolti ${create.length}`];
+  if (conflitti.length) parti.push(`da decidere ${conflitti.length}`);
   if (giaAggiornati.length) parti.push(`già consegnati ${giaAggiornati.length}`);
   if (nonEntrati.length) parti.push(`non entrati ${nonEntrati.length}`);
   if (rifiutate.length) parti.push(`non raccolti ${rifiutate.length}`);

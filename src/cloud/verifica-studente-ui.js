@@ -17,6 +17,7 @@ import { rendiMarkdown } from './markdown.js';
 import { verificaConfig } from './verifica-config.js';
 import { testiStudente as T } from './testi-verifica.js';
 import { formatoDataOra } from './data-ora.js';
+import { puntoDomanda } from './aiuto-ui.js';
 import { segnaVerificaInCorso, aggiornaVerificaInCorso, leggiVerificaInCorso, cancellaVerificaInCorso } from '../verifica-locale.js';
 import { creaFileEmergenza, oraBreve } from '../verifica-file.js';
 
@@ -231,7 +232,7 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
     banda = el('div', { class: 'banda-verifica', role: 'region', 'aria-label': 'Verifica in corso' },
       el('span', { class: 'banda-verifica-etichetta' }, T.fasciaEtichetta),
       el('span', { class: 'banda-verifica-titolo', title: titolo }, titolo),
-      timerEl, consegna);
+      timerEl, consegna, puntoDomanda('fascia'));
     document.querySelector('header.toolbar').after(banda);
     totaleMs = item.verifica.apertaIl && sessione.scadenza() ? Math.max(0, sessione.scadenza().getTime() - item.verifica.apertaIl.getTime()) : (sessione.restanteMs() ?? 0);
     const aggiorna = () => {
@@ -348,7 +349,7 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
     if (c.offline && !bandaOffline && banda) {
       const testo = el('span', { class: 'banda-offline-testo' });
       const salva = el('button', { type: 'button', class: 'modal-btn', onclick: () => salvaFile(sessione?.datiEmergenza(), item?.verifica.titolo) }, T.offlineSalva);
-      bandaOffline = el('div', { class: 'banda-offline', role: 'alert' }, testo, salva);
+      bandaOffline = el('div', { class: 'banda-offline', role: 'alert' }, testo, puntoDomanda('offline'), salva);
       bandaOffline.testo = testo;
       banda.after(bandaOffline);
     }

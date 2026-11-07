@@ -5,6 +5,7 @@ import { el, apriFinestra } from './dom.js';
 import { normalizzaCodice, contestoCorso, etichettaCorso } from './corsi.js';
 import { montaGestione } from './gestione-ui.js';
 import { montaVerifiche } from './verifiche-ui.js';
+import { corsiEtichette as C, sketchEtichette as S } from './etichette.js';
 
 const formatoData = new Intl.DateTimeFormat('it-IT', {
   day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -34,7 +35,7 @@ export function montaCorsi({ toast, programma, commentiUi, dopoCaricamento }) {
     const campo = el('input', { type: 'text', class: 'sketch-nome codice-corso', maxlength: '24',
       placeholder: 'Codice del corso', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false',
       'aria-label': 'Codice del corso' });
-    const vai = el('button', { type: 'button', class: 'modal-btn' }, 'Unisciti');
+    const vai = el('button', { type: 'button', class: 'modal-btn' }, C.unisciti);
     const lista = el('div', { class: 'corsi-lista' });
 
     async function iscriviti() {
@@ -79,7 +80,7 @@ export function montaCorsi({ toast, programma, commentiUi, dopoCaricamento }) {
           el('div', { class: 'sketch-info' },
             el('strong', {}, `${s.autoreNome} — ${s.nome}`),
             el('span', { class: 'sketch-data' }, s.modificato ? `salvato il ${formatoData.format(s.modificato)}` : '')),
-          el('button', { type: 'button', class: 'modal-btn', onclick: () => apri(s) }, 'Apri')));
+          el('button', { type: 'button', class: 'modal-btn', onclick: () => apri(s) }, S.apri)));
       }
     }
 
@@ -126,9 +127,9 @@ export function montaCorsi({ toast, programma, commentiUi, dopoCaricamento }) {
         const contesto = contestoCorso(c);
         const sezione = el('div', { class: 'condivisi-sezione' });
         const azioni = el('div', { class: 'sketch-azioni' },
-          docente && c.attivo ? el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => mostraCondivisi(c, sezione) }, 'Sketch condivisi') : '',
-          docente && c.attivo ? el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => verificheUi.elenco(c) }, 'Verifiche') : '',
-          docente ? el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => gestioneUi.gestisci(c) }, 'Gestisci') : '',
+          docente && c.attivo ? el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => mostraCondivisi(c, sezione) }, C.sketchCondivisi) : '',
+          docente && c.attivo ? el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => verificheUi.elenco(c) }, C.verifiche) : '',
+          docente ? el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => gestioneUi.gestisci(c) }, C.gestisci) : '',
           el('span', { class: 'cloud-badge', 'data-ruolo': docente ? 'docente' : 'studente' }, docente ? 'Docente' : 'Studente'));
         lista.append(el('div', { class: `corso-blocco${c.attivo ? '' : ' corso-archiviato'}` },
           el('div', { class: 'sketch-riga corso-riga' },
@@ -148,7 +149,7 @@ export function montaCorsi({ toast, programma, commentiUi, dopoCaricamento }) {
     archiviati.addEventListener('change', () => { mostraArchiviati = archiviati.checked; aggiorna(); });
     const iscrizione = ruolo === 'docente'
       ? [el('div', { class: 'sketch-riga corsi-docente-barra' },
-          el('button', { type: 'button', class: 'modal-btn', onclick: () => gestioneUi.nuovoCorso() }, 'Nuovo corso'),
+          el('button', { type: 'button', class: 'modal-btn', onclick: () => gestioneUi.nuovoCorso() }, C.nuovoCorso),
           el('label', { class: 'sketch-data' }, archiviati, ' Mostra anche i corsi archiviati'))]
       : [el('p', { class: 'sketch-nota' }, 'Per entrare in un corso scrivi il codice che ti ha dato il docente.'),
          el('div', { class: 'corsi-iscrizione' }, campo, vai)];

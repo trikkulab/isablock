@@ -17,6 +17,12 @@ try {
   page.on('dialog', async (d) => { dialoghi.push(d.message()); if (rispondi === 'dismiss') await d.dismiss(); else await d.accept(); });
 
   // 1) un corso
+  // il menu del cloud porta alla Guida, già sulla sezione del proprio ruolo
+  await page.click('.cloud-menu-btn');
+  await page.click('.cloud-voce:has-text("Guida del cloud")');
+  verifica(await page.isVisible('#helpModal') && await page.isVisible('.guida-cloud'), 'dal menu «Guida del cloud» si apre la Guida sulla sezione del ruolo');
+  verifica(await page.$eval('#guidaSchede .verifica-scheda.attiva', (e) => e.dataset.sezione) === 'cloud-docente', '…ed è quella del docente');
+  await page.click('#helpCloseBtn');
   await page.click('.cloud-menu-btn');
   verifica(!(await page.isVisible('.cloud-voce:has-text("Le mie consegne")')), 'il docente non ha la voce «Le mie consegne» (è per gli studenti)');
   await page.click('.cloud-voce:has-text("Corsi")');
@@ -274,24 +280,26 @@ try {
   const vicinoA = (iso, minuti) => Math.abs(new Date(iso).getTime() - (Date.now() + minuti * 60000)) < 3 * 60000;   // tolleranza: il test impiega qualche secondo
   const toastContiene = (re) => page.waitForFunction((r) => new RegExp(r).test(document.querySelector('.toast.show')?.textContent ?? ''), re.source, { timeout: 6000 }).then(() => true).catch(() => false);
 
-  await page.click('button:has-text("Apri verifica")');
-  await page.waitForSelector('h2:has-text("Aprire la verifica")');
+  // i «?» del docente accanto a campi e pulsanti sono spenti (aiutiAttivi): nella scheda non compare niente
+  verifica((await page.$$('.verifica-testata .punto-domanda, .verifica-azioni .punto-domanda, .assegnazioni .punto-domanda')).length === 0, 'i «?» spenti non compaiono nella scheda della verifica');
+  await page.click('button:has-text("Avvia verifica")');
+  await page.waitForSelector('h2:has-text("Avviare la verifica")');
   const dialogoApertura = await page.textContent('.modal:last-of-type .modal-box');
   verifica(/Gli studenti iscritti \(3\) la vedranno subito/.test(dialogoApertura), 'conferma di apertura: dice per quanti studenti e che la vedranno subito');
   verifica(/Tracce: 1 \(per tutti: Versione A\)/.test(dialogoApertura), '…quante tracce e quale è per tutti');
-  verifica(/L'apertura non si annulla: per fermare la verifica dovrai chiuderla\./.test(dialogoApertura), '…e avverte che l\'apertura non si annulla');
+  verifica(/L'avvio non si annulla: la verifica non torna in bozza e non si potrà più eliminare\. Per fermarla dovrai terminarla/.test(dialogoApertura), '…e avverte che l\'avvio non si annulla');
   verifica(/Finirà/.test(dialogoApertura), '…e mostra quando finirà');
   verifica(/dovrà scegliere questa verifica e non potrà usare altro in IsaBlock finché non consegna o non scade il tempo/.test(dialogoApertura), '…e dice cosa succede allo studente (il blocco ora esiste)');
   await schermata(page, 'v-8-apertura');
   await page.fill('[aria-label="Minuti dall\'apertura"]', '60');
-  await page.click('button:has-text("Apri la verifica")');
-  await page.waitForSelector('.verifica-azioni button:has-text("Chiudi verifica")');
+  await page.click('button:has-text("Avvia la verifica")');
+  await page.waitForSelector('.verifica-azioni button:has-text("Termina verifica")');
   verifica(await stato2() === 'aperta', 'la verifica è aperta');
   const fine2 = (await leggi(`verifiche/${vid2}`)).fields.fine.timestampValue;
   verifica(vicinoA(fine2, 60), `finisce tra 60 minuti da adesso (${fine2})`);
   verifica(await finche(async () => ((await leggi(`verifiche/${vid2}/lavori`)).documents ?? []).every((d) => d.fields.tracciaId?.stringValue === 't0') && ((await leggi(`verifiche/${vid2}/lavori`)).documents ?? []).length === 3),
     'i 3 iscritti hanno la loro assegnazione, con la traccia vera (t0)');
-  verifica(!(await page.isVisible('button:has-text("Archivia")')) && !(await page.isVisible('button:has-text("Apri verifica")')), 'aperta: non si può archiviare né riaprire');
+  verifica(!(await page.isVisible('button:has-text("Archivia")')) && !(await page.isVisible('button:has-text("Avvia verifica")')), 'aperta: non si può archiviare né riaprire');
   await schermata(page, 'v-9-aperta');
 
   // situazione live: tre studenti non entrati, poi Anna scrive e la riga cambia da sola
@@ -357,7 +365,7 @@ try {
   verifica(!(await page.isVisible('.anteprima-cursore')), 'Guarda: il cursore compare solo dopo aver aperto la storia');
   await page.click('button:has-text("Storia…")');
   await page.waitForSelector('.anteprima-cursore');
-  verifica((await page.getAttribute('.anteprima-cursore', 'max')) === '3' && /In diretta · 3 istantanee/.test(await page.textContent('.anteprima-etichetta')), 'Storia: 3 istantanee e il cursore è «in diretta»');
+  verifica((await page.getAttribute('.anteprima-cursore', 'max')) === '3' && /^In diretta/.test(await page.textContent('.anteprima-etichetta')) && /3 istantanee/.test(await page.textContent('.anteprima-riepilogo')), 'Storia: 3 istantanee e il cursore è «in diretta»');
   verifica((await page.$$('.anteprima-salti button')).length === 1, 'Storia: un segno di salto (⚠) con la sua ora');
   await page.click('.anteprima-salti button');
   verifica(/prima del salto/.test(await page.textContent('.anteprima-etichetta')) && /non è il programma attuale/.test(await page.textContent('.anteprima-etichetta')), 'Storia: il segno porta al programma di prima del salto, dichiarando che non è l\'attuale');
@@ -394,7 +402,7 @@ try {
   dialoghi.length = 0;
   await page.click('button:has-text("Archivia il corso")');
   await page.waitForSelector('.verifica-avviso-errore:not([hidden])');
-  verifica(/Il corso ha una verifica aperta: chiudila prima di archiviarlo\./.test(await page.textContent('.verifica-avviso-errore:not([hidden])')), 'archiviare il corso con una verifica aperta: avviso nella sezione');
+  verifica(/Il corso ha una verifica aperta: terminala prima di archiviarlo\./.test(await page.textContent('.verifica-avviso-errore:not([hidden])')), 'archiviare il corso con una verifica aperta: avviso nella sezione');
   verifica(dialoghi.length === 0, '…senza chiedere prima una conferma generica');
   verifica((await leggi(`corsi/${corsoId}`)).fields.attivo.booleanValue === true, '…e il corso è ancora attivo');
   await page.keyboard.press('Escape');                                                    // Gestisci
@@ -402,11 +410,11 @@ try {
   // chiusura con raccolta
   await page.click('button:has-text("Verifiche")');
   await page.click('.sketch-riga:has-text("Verifica per la vista stretta") button:has-text("Apri")');
-  await page.click('button:has-text("Chiudi verifica")');
-  await page.waitForSelector('h2:has-text("Chiudere la verifica")');
-  verifica(await page.isChecked('.modal:last-of-type input[type="checkbox"]'), 'chiusura: «Raccogli subito i lavori» è già spuntato');
-  await page.click('button:has-text("Chiudi la verifica")');
-  verifica(await toastContiene(/Verifica chiusa\. Lavori: raccolti 1, non entrati 2\./), 'chiusura: dice com\'è andata la raccolta (Anna è entrata, gli altri no)');
+  await page.click('button:has-text("Termina verifica")');
+  await page.waitForSelector('h2:has-text("Terminare la verifica")');
+  verifica(!(await page.$('.modal:last-of-type input[type="checkbox"]')) && /raccoglie i lavori/.test(await page.textContent('.modal:last-of-type .modal-box')), 'chiusura: nessuna casella, il testo dice che i lavori si raccolgono subito');
+  await page.click('button:has-text("Termina la verifica")');
+  verifica(await toastContiene(/Verifica terminata\. Lavori: raccolti 1, non entrati 2\./), 'chiusura: dice com\'è andata la raccolta (Anna è entrata, gli altri no)');
   await page.waitForSelector('.verifica-azioni button:has-text("Archivia")');
   verifica(await stato2() === 'chiusa', 'la verifica è chiusa');
   verifica(await page.isVisible('button:has-text("Raccogli i lavori")') && await page.isVisible('button:has-text("Riapri")'), 'chiusa: si può raccogliere, riaprire, archiviare');
@@ -467,7 +475,7 @@ try {
   verifica(await finche(async () => (await page.$$('.anteprima-blocchi .blocklyBlockCanvas [data-id]')).length > 3), 'Guarda dopo il caricamento del file: mostra il programma della consegna (non «non ha scritto niente»)');
   const infoBruno = await page.textContent('.anteprima-info');
   const riscontroBruno = (infoBruno.match(/riscontro ([0-9A-F]{4}-[0-9A-F]{4})/) || [])[1] ?? null;
-  verifica(/consegna v1 \(da file\) · 12 blocchi/.test(infoBruno) && !!riscontroBruno && !(await page.isVisible('.anteprima-vuoto')), `…e dice che è la consegna v1 da file, con il numero di blocchi e il codice di riscontro (${riscontroBruno})`);
+  verifica(/ultima consegna: v1 \(da file\) · 12 blocchi/.test(infoBruno) && !!riscontroBruno && !(await page.isVisible('.anteprima-vuoto')), `…e dice che è l\'ultima consegna, v1 da file, con il numero di blocchi e il codice di riscontro (${riscontroBruno})`);
   await page.keyboard.press('Escape');
   verifica(await finche(async () => (await page.textContent('.tabella-live tbody tr:has-text("bruno@isarome.it") td:nth-child(3)')).trim() === '12'), 'la tabella mostra i blocchi della consegna da file (12), anche per chi non è mai entrato');
 
@@ -533,7 +541,7 @@ try {
   verifica(dialoghi.length === 1 && /Archivio la verifica/.test(dialoghi[0]) && /Mostra anche le archiviate/.test(dialoghi[0]), 'archivia: chiede conferma e spiega dove si ritrova');
   await page.waitForSelector('text=Nessuna verifica da mostrare');
   verifica(true, 'archiviata: sparisce dall\'elenco (che dice quante sono nascoste)');
-  await page.check('text=Mostra anche le verifiche archiviate');
+  await page.check('label:has-text("Mostra anche le verifiche archiviate") input');
   await page.waitForSelector('.verifica-archiviata');
   verifica(await page.isVisible('.verifica-archiviata .stato-corso[data-stato="archiviata"]'), 'con la casella si rivede, con il badge «Archiviata»');
   await schermata(page, 'v-10-archiviate');
@@ -549,12 +557,32 @@ try {
   await page.waitForSelector('h2:has-text("Riaprire la verifica")');
   verifica(await page.inputValue('[aria-label="Minuti dall\'apertura"]') === '30', 'riapertura: la durata proposta è 30 minuti');
   await page.click('button:has-text("Riapri la verifica")');
-  await page.waitForSelector('.verifica-azioni button:has-text("Chiudi verifica")');
+  await page.waitForSelector('.verifica-azioni button:has-text("Termina verifica")');
   verifica(await stato2() === 'aperta' && vicinoA((await leggi(`verifiche/${vid2}`)).fields.fine.timestampValue, 30), 'riaperta: finisce tra 30 minuti');
   // chiusa di nuovo, il corso ora si può archiviare
-  await page.click('.verifica-azioni button:has-text("Chiudi verifica")');
-  await page.click('button:has-text("Chiudi la verifica")');
+  await page.click('.verifica-azioni button:has-text("Termina verifica")');
+  await page.click('button:has-text("Termina la verifica")');
   await page.waitForSelector('.verifica-azioni button:has-text("Archivia")');
+  // Anna ha un file di emergenza come ultima consegna e un lavoro diverso sul server: la raccolta non scrive, chiede al docente
+  await page.waitForSelector('h2:has-text("file di emergenza già caricato")');
+  const conflitto = await page.textContent('.modal:last-of-type .modal-box');
+  verifica(/Anna Rossi/.test(conflitto) && /Tieni il file/.test(conflitto) && /Raccogli comunque/.test(conflitto) && /Confronta/.test(conflitto), 'riaperta e terminata di nuovo: la finestra di conflitto elenca Anna con le due scelte e «Confronta»');
+  verifica(await page.isChecked('.modal:last-of-type input[value="file"]'), '…e «Tieni il file» è preselezionato');
+  await page.click('.modal:last-of-type button:has-text("Conferma le scelte")');
+  verifica(!(await leggi(`verifiche/${vid2}/consegne`)).documents?.some((d) => d.name.endsWith('/anna@isarome.it_3')), '…confermando senza cambiare, non nasce nessuna consegna nuova per Anna');
+  // «Guarda» apre sull'ultima consegna (la v2 da file); la Storia la mette al suo posto nel tempo
+  await page.click('.tabella-live tbody tr:has-text("Anna Rossi") button:has-text("Guarda")');
+  await page.waitForSelector('.anteprima-info:has-text("ultima consegna: v2 (da file)")');
+  verifica(true, 'Guarda a verifica chiusa: «ultima consegna: v2 (da file)»');
+  await page.click('button:has-text("Storia")');
+  await page.waitForSelector('.anteprima-storia:not([hidden])');
+  const etic = await page.textContent('.anteprima-etichetta');
+  verifica(/^Ultima consegna: v2 \(da file\) · caricata alle .* · 12 blocchi/.test(etic) && !/In diretta/.test(etic), `Storia a verifica chiusa: l'etichetta descrive la consegna mostrata («${etic}»)`);
+  verifica(/Nella Storia: 2 consegne e \d+ istantane/.test(await page.textContent('.anteprima-riepilogo')) && !/istantane/.test(etic), '…e la riga fissa dice cosa contiene la Storia, separata dall\'etichetta');
+  verifica((await page.textContent('.anteprima-storia')).includes('Ultima consegna'), '…e il pulsante si chiama «Ultima consegna»');
+  await page.click('.anteprima-storia button[aria-label="Istantanea precedente"]');
+  verifica(/Consegna precedente \(v1|Istantanea del lavoro/.test(await page.textContent('.anteprima-etichetta')) && /non è l'ultima consegna|non è una consegna/.test(await page.textContent('.anteprima-etichetta')), 'andando indietro: consegna precedente o istantanea, dichiarate come tali');
+  await page.keyboard.press('Escape');
   await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
   await page.click('button:has-text("Gestisci")');
   await page.click('button:has-text("Archivia il corso")');

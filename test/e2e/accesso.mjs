@@ -50,14 +50,39 @@ try {
   await page.click('#btnHelp');
   await page.waitForSelector('#guidaSchede .verifica-scheda');
   await page.waitForFunction(() => document.querySelectorAll('#guidaSchede .verifica-scheda').length >= 2, null, { timeout: 15000 });
-  const schede = await page.$$eval('#guidaSchede .verifica-scheda', (x) => x.map((e) => e.textContent));
-  verifica(JSON.stringify(schede) === JSON.stringify(['Editor', 'Privacy e dati']) && await page.isVisible('#guidaSchede'), `con il cloud la Guida ha la barra delle sezioni: ${JSON.stringify(schede)}`);
+  const ids = await page.$$eval('#guidaSchede .verifica-scheda', (x) => x.map((e) => e.dataset.sezione));
+  verifica(JSON.stringify(ids) === JSON.stringify(['editor', 'cloud-studente', 'cloud-docente', 'privacy']) && await page.isVisible('#guidaSchede'), `con il cloud la Guida ha la barra delle sezioni: ${JSON.stringify(ids)}`);
   verifica(await page.isVisible('#guidaEditor') && /Trascina i blocchi/.test(await page.textContent('#guidaEditor')), 'si apre sull\'Editor, com\'è sempre stata');
-  await page.click('#guidaSchede .verifica-scheda:has-text("Privacy e dati")');
+  await page.click('#guidaSchede [data-sezione="privacy"]');
   verifica(!(await page.isVisible('#guidaEditor')) && (await page.$$eval('#guidaPagine .informativa-testo li', (x) => x.length)) === attesi, 'la sezione «Privacy e dati» mostra tutta l\'informativa');
   verifica((await page.$$eval('#guidaPagine .informativa-gruppo', (x) => x.length)) === 3, '…divisa in tre gruppi');
   await schermata(page, 'a-3-guida-privacy');
-  await page.click('#guidaSchede .verifica-scheda:has-text("Editor")');
+  // Le guide per lo studente e per il docente: ci sono, si aprono, ogni capitolo si apre da solo (senza guardare le parole)
+  for (const id of ['cloud-studente', 'cloud-docente']) {
+    await page.click(`#guidaSchede [data-sezione="${id}"]`);
+    const capitoli = await page.$$('#guidaPagine .guida-cloud:visible .guida-cloud-capitoli .verifica-scheda');
+    verifica(!(await page.isVisible('#guidaEditor')) && capitoli.length >= 4, `la sezione ${id} si apre e ha ${capitoli.length} capitoli`);
+    let apertiBene = true;
+    for (let i = 0; i < capitoli.length; i++) {
+      await capitoli[i].click();
+      const visibili = await page.$$eval('#guidaPagine .guida-pagina:not([hidden]) .guida-cloud-pagina', (x) => x.filter((e) => !e.hidden).map((e) => e.textContent.length));
+      if (visibili.length !== 1 || visibili[0] < 80) apertiBene = false;
+    }
+    verifica(apertiBene, `…ogni capitolo di ${id} si apre da solo e ha del testo`);
+    if (id === 'cloud-studente') await schermata(page, 'a-3b-guida-studente');
+    else await schermata(page, 'a-3c-guida-docente');
+  }
+  // Le etichette dei pulsanti vengono da etichette.js: ogni capitolo che nomina un pulsante lo scrive in grassetto, e il testo non ha segnaposto rimasti
+  verifica(await page.evaluate(async () => {
+    const { sezioni } = await import('/src/cloud/testi-guida.js');
+    const tutto = JSON.stringify(sezioni);
+    return !/undefined|\$\{|\[object/.test(tutto);
+  }), 'i testi delle guide non hanno etichette mancanti (undefined) né segnaposto');
+  verifica(await page.evaluate(async () => {
+    const { aiuti, aiutiAttivi } = await import('/src/cloud/testi-guida.js');
+    return [...aiutiAttivi].every((k) => aiuti[k] && aiuti[k].titolo && aiuti[k].testo) && Object.values(aiuti).every((a) => a.titolo && a.testo);
+  }), 'ogni «?» ha titolo e testo, e quelli attivi esistono');
+  await page.click('#guidaSchede [data-sezione="editor"]');
   verifica(await page.isVisible('#guidaEditor') && !(await page.isVisible('#guidaPagine .informativa-testo')), 'si torna all\'Editor');
   await page.keyboard.press('Escape');
   await page.click('#btnHelp');

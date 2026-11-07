@@ -17,6 +17,9 @@ import { montaConsegne } from './consegne-ui.js';
 import { montaVerificaStudente } from './verifica-studente-ui.js';
 import { el, apriFinestra } from './dom.js';
 import { titoloAccesso, introAccesso, titoloDati, apriTuttoEtichetta, chiudiTuttoEtichetta } from './testi.js';
+import { menuCloud as M } from './etichette.js';
+import { paginaGuidaCloud } from './guida-ui.js';
+import { sezioni, idSezioneStudente, idSezioneDocente } from './testi-guida.js';
 import { riassuntoInformativa, testoCompletoInformativa, paginaPrivacy } from './informativa-ui.js';
 
 const SESSIONE_KEY = 'isablock.cloud.sessione';
@@ -33,6 +36,9 @@ function eraEntrato() {
 
 export function montaCloud({ contenitore, toast, programma, guida = null }) {
   // Con il cloud la Guida ha anche la sezione «Privacy e dati» (l'informativa completa, sempre raggiungibile).
+  // Le guide per lo studente e per il docente, e la privacy (con il cloud spento la Guida non ha queste sezioni).
+  guida?.registra(idSezioneStudente, sezioni[idSezioneStudente].titolo, () => paginaGuidaCloud(idSezioneStudente));
+  guida?.registra(idSezioneDocente, sezioni[idSezioneDocente].titolo, () => paginaGuidaCloud(idSezioneDocente));
   guida?.registra('privacy', 'Privacy e dati', paginaPrivacy);
   contenitore.hidden = false;
   contenitore.textContent = '';
@@ -61,15 +67,16 @@ export function montaCloud({ contenitore, toast, programma, guida = null }) {
   const badge = el('span', { class: 'cloud-badge' });
   const voce = (testo, fn) => el('button', { type: 'button', role: 'menuitem', class: 'cloud-voce',
     onclick: () => { chiudiMenu(); fn(); } }, testo);
-  const voceConsegne = voce('Le mie consegne', () => consegneUi.apri());     // solo per gli studenti (vedi mostra)
+  const voceConsegne = voce(M.consegne, () => consegneUi.apri());     // solo per gli studenti (vedi mostra)
   const dropdown = el('div', { class: 'cloud-dropdown', role: 'menu', hidden: '' },
     el('div', { class: 'cloud-dd-testa' }, el('div', {}, intNome, intEmail), badge),
-    voce('Salva nel cloud', () => sketchUi.salva()),
-    voce('I miei sketch', () => sketchUi.elenco()),
-    voce('Corsi', () => corsiUi.apri()),
+    voce(M.salva, () => sketchUi.salva()),
+    voce(M.sketch, () => sketchUi.elenco()),
+    voce(M.corsi, () => corsiUi.apri()),
     voceConsegne,
     el('hr', { class: 'cloud-sep' }),
-    voce('Esci', () => cloud && cloud.auth.esci()));
+    voce(M.guida, () => guida?.apri(ruoloCorrente === 'docente' ? idSezioneDocente : idSezioneStudente)),
+    voce(M.esci, () => cloud && cloud.auth.esci()));
   const menu = el('span', { class: 'cloud-menu', hidden: '' }, btnMenu, dropdown);
   contenitore.append(btnAccedi, menu);
 
@@ -120,6 +127,7 @@ export function montaCloud({ contenitore, toast, programma, guida = null }) {
 
   // --- Stato di accesso ---------------------------------------------------
   let cloud = null;
+  let ruoloCorrente = 'studente';   // per aprire la Guida sulla sezione giusta
   let caricamento = null;
   let dialogo = null; // finestra di accesso aperta
 
@@ -134,6 +142,7 @@ export function montaCloud({ contenitore, toast, programma, guida = null }) {
       intEmail.textContent = utente.email;
       badge.textContent = utente.ruolo === 'docente' ? 'Docente' : 'Studente';
       badge.dataset.ruolo = utente.ruolo;
+      ruoloCorrente = utente.ruolo;
       memo(true);
       dialogo?.chiudi();
       const corsi = cloud.corsiPer(utente.email, utente.ruolo);

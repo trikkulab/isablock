@@ -5,6 +5,7 @@
 import { el } from './dom.js';
 import { contaBlocchi } from './verifica-tabella.js';
 import { codiceRiscontro } from './scheda-stampa.js';
+import { verificaDocenteEtichette as E } from './etichette.js';
 
 const CODICI = [['pseudocode', 'Pseudocodice'], ['c', 'C'], ['python', 'Python']];
 const ora = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -40,44 +41,85 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, ema
   anteprima = programma.anteprima({ blocchi, codici: pre });
   requestAnimationFrame(() => anteprima?.ridimensiona());
 
-  // ── Storia: il cursore va dalla prima istantanea a «in diretta» (l'ultimo posto) ─────────────────────────────────
-  let punti = null;         // istantanee lette, dalla più vecchia; null finché non si apre la storia
-  let posizione = null;     // indice in `punti`, o null = in diretta
+  // ── Storia: il cursore va dal punto più vecchio a «in diretta» (l'ultimo posto) ─────────────────────────────────
+  // I punti sono istantanee del lavoro e consegne (tipo 'consegna'), tutti in ordine di tempo del server. A verifica chiusa
+  // il posto di partenza non è l'ultimo ma l'ULTIMA CONSEGNA, nel suo punto del tempo: quello che viene dopo (per esempio
+  // il lavoro fatto in una riapertura) sta dopo di lei e si vede, ma è dichiarato «successivo, non è una consegna».
+  let punti = null;         // punti letti, dal più vecchio; null finché non si apre la storia
+  let posizione = null;     // indice in `punti`, o null = il posto di partenza (in diretta, oppure l'ultima consegna)
   let ultimoLavoro = null;  // l'ultimo stato in diretta ricevuto: { lavoro, consegna, verifica }
-  const bStoria = el('button', { type: 'button', class: 'modal-btn secondary' }, 'Storia…');
+  const bStoria = el('button', { type: 'button', class: 'modal-btn secondary' }, E.storia);
   const cursore = el('input', { type: 'range', min: '0', max: '0', step: '1', class: 'anteprima-cursore', 'aria-label': 'Momento del programma' });
   const eticCursore = el('span', { class: 'anteprima-etichetta', 'aria-live': 'polite' });
   const bIndietro = el('button', { type: 'button', class: 'modal-btn secondary', title: 'Istantanea precedente', 'aria-label': 'Istantanea precedente' }, '◀');
   const bAvanti = el('button', { type: 'button', class: 'modal-btn secondary', title: 'Istantanea successiva', 'aria-label': 'Istantanea successiva' }, '▶');
   const bDiretta = el('button', { type: 'button', class: 'modal-btn secondary' }, 'In diretta');
+  const avvisoConsegna = el('p', { class: 'verifica-avviso', role: 'note', hidden: '' });
   const saltiEl = el('div', { class: 'anteprima-salti' });
+  // Cosa contiene la Storia (non cambia con la posizione). Nascosta per ora: la finestra ha già molte righe in alto e lo
+  // spazio per i blocchi serve; per riaverla basta togliere `hidden`.
+  const riepilogo = el('p', { class: 'sketch-nota anteprima-riepilogo', hidden: '' });
   const barraStoria = el('div', { class: 'anteprima-storia', hidden: '' },
-    el('div', { class: 'sketch-riga' }, bIndietro, cursore, bAvanti, bDiretta), eticCursore, saltiEl);
+    el('div', { class: 'sketch-riga' }, bIndietro, cursore, bAvanti, bDiretta), eticCursore, saltiEl, riepilogo);
   const ore = (d) => ora.format(d);
   const nomiTipo = { prima: 'prima del salto', dopo: 'dopo il salto', periodica: '' };
-  const segno = (p) => (p.tipo === 'periodica' ? '' : ' ⚠');
+  const segno = (p) => (p.tipo === 'periodica' || p.tipo === 'consegna' ? '' : ' ⚠');
+  const dalla = (o) => (o === 'file' ? ' (da file)' : o === 'raccolta' ? ' (raccolta)' : o === 'studente' ? ' (dello studente)' : '');
+  const quando = (o) => (o === 'file' ? 'caricata alle' : o === 'raccolta' ? 'raccolta alle' : 'consegnata alle');
+
+  // A verifica chiusa si parte dall'ultima consegna; altrimenti dal lavoro in diretta.
+  const modoConsegna = () => !!(ultimoLavoro && sorgente(ultimoLavoro).etichetta);
+  // Indice, in `punti`, dell'ultima consegna (versione più alta), o -1.
+  function indiceUltima() {
+    let k = -1;
+    punti.forEach((p, i) => { if (p.tipo === 'consegna' && (k < 0 || p.versione > punti[k].versione)) k = i; });
+    return k;
+  }
+  // Il posto di partenza: l'indice dell'ultima consegna in modo consegna, altrimenti dopo l'ultimo punto (in diretta).
+  const partenza = () => { const k = modoConsegna() ? indiceUltima() : -1; return k >= 0 ? k : punti.length; };
+  const ultimoPosto = () => (partenza() === punti.length ? punti.length : punti.length - 1);
+  const posizioneEffettiva = () => (posizione === null ? partenza() : posizione);
+  const normalizza = (i) => (i === partenza() ? null : i);
 
   function mostraPosizione() {
-    cursore.max = String(punti.length);
-    cursore.value = String(posizione === null ? punti.length : posizione);
-    bIndietro.disabled = posizione === 0 || punti.length === 0;
-    bAvanti.disabled = posizione === null;
+    const attuale = posizioneEffettiva();
+    const consegnaTesto = modoConsegna();
+    bDiretta.textContent = consegnaTesto ? 'Ultima consegna' : 'In diretta';
+    cursore.max = String(ultimoPosto());
+    cursore.value = String(attuale);
+    bIndietro.disabled = attuale === 0 || punti.length === 0;
+    bAvanti.disabled = attuale >= ultimoPosto();
     bDiretta.disabled = posizione === null;
     if (posizione === null) {
-      eticCursore.textContent = punti.length ? `In diretta · ${punti.length} istantanee salvate (una ogni 5 minuti circa, più i salti di blocchi)` : 'Nessuna istantanea salvata finora.';
+      // L'etichetta descrive sempre ciò che si sta guardando, come negli altri posti
+      const c = ultimoLavoro && ultimoLavoro.consegna;
+      const n = ultimoLavoro ? sorgente(ultimoLavoro).nBlocchi : null;
+      const blocchiTesto = n === null || n === undefined ? '' : ` · ${n} blocchi`;
+      eticCursore.textContent = consegnaTesto && c
+        ? `Ultima consegna: v${c.versione}${dalla(c.origine)}${c.creato ? ` · ${quando(c.origine)} ${ore(c.creato)}` : ''}${blocchiTesto}`
+        : `In diretta${blocchiTesto}`;
       if (ultimoLavoro) disegna(ultimoLavoro);
     } else {
       const p = punti[posizione];
-      eticCursore.textContent = `Com'era alle ${ore(p.t)} · ${p.nBlocchi} blocchi${nomiTipo[p.tipo] ? ` · ${nomiTipo[p.tipo]}` : ''} — non è il programma attuale`;
+      const u = consegnaTesto ? punti[indiceUltima()] : null;
+      if (p.tipo === 'consegna') {
+        eticCursore.textContent = consegnaTesto
+          ? `Consegna precedente (v${p.versione}${dalla(p.origine)}) · ${quando(p.origine)} ${ore(p.t)} · ${p.nBlocchi} blocchi — non è l'ultima consegna`
+          : `Consegna v${p.versione}${dalla(p.origine)} · ${quando(p.origine)} ${ore(p.t)} · ${p.nBlocchi} blocchi`;
+        info.textContent = `${nome || email} · consegna v${p.versione}${dalla(p.origine)}`;
+      } else {
+        const dopo = u && p.t > u.t ? ` · successiva all'ultima consegna (v${u.versione})` : '';
+        eticCursore.textContent = `Istantanea del lavoro alle ${ore(p.t)} · ${p.nBlocchi} blocchi${nomiTipo[p.tipo] ? ` · ${nomiTipo[p.tipo]}` : ''}${dopo} — ${consegnaTesto ? 'non è una consegna' : 'non è il programma attuale'}`;
+        info.textContent = `${nome || email} · istantanea delle ${ore(p.t)}`;
+      }
       vuoto.hidden = true; blocchi.hidden = false;
       if (anteprima.mostra(p.programma)) ultimo = p.programma;
-      info.textContent = `${nome || email} · istantanea delle ${ore(p.t)}`;
     }
   }
-  const vai = (i) => { posizione = i; mostraPosizione(); };
-  cursore.addEventListener('input', () => vai(Number(cursore.value) >= punti.length ? null : Number(cursore.value)));
-  bIndietro.addEventListener('click', () => vai(posizione === null ? punti.length - 1 : Math.max(0, posizione - 1)));
-  bAvanti.addEventListener('click', () => vai(posizione !== null && posizione + 1 < punti.length ? posizione + 1 : null));
+  const vai = (i) => { posizione = i === null ? null : normalizza(i); mostraPosizione(); };
+  cursore.addEventListener('input', () => vai(Number(cursore.value)));
+  bIndietro.addEventListener('click', () => vai(Math.max(0, posizioneEffettiva() - 1)));
+  bAvanti.addEventListener('click', () => vai(Math.min(ultimoPosto(), posizioneEffettiva() + 1)));
   bDiretta.addEventListener('click', () => vai(null));
 
   async function apriStoria() {
@@ -87,15 +129,19 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, ema
     bStoria.textContent = 'Aggiorna la storia';
     barraStoria.hidden = false;
     saltiEl.textContent = '';
+    const nCons = punti.filter((p) => p.tipo === 'consegna').length;
+    const nIst = punti.length - nCons;
+    riepilogo.textContent = `Nella Storia: ${nCons === 0 ? 'nessuna consegna' : nCons === 1 ? '1 consegna' : `${nCons} consegne`} e ${nIst === 0 ? 'nessuna istantanea' : nIst === 1 ? '1 istantanea' : `${nIst} istantanee`} del lavoro (una ogni 5 minuti circa, più i salti di blocchi).`;
     const salti = punti.map((p, i) => [p, i]).filter(([p]) => p.tipo === 'prima');
     if (salti.length) {
       saltiEl.append(el('span', { class: 'sketch-nota' }, 'Salti di blocchi: '),
         ...salti.map(([p, i]) => el('button', { type: 'button', class: 'avviso-link', title: 'Mostra il programma subito prima del salto', onclick: () => vai(i) }, `⚠ ${ore(p.t)}`)));
     }
-    if (posizione !== null && posizione >= punti.length) posizione = null;
+    if (posizione !== null && posizione > ultimoPosto()) posizione = null;
     mostraPosizione();
   }
   if (caricaStoria) { bStoria.addEventListener('click', apriStoria); info.after(bStoria, barraStoria); }
+  info.after(avvisoConsegna);
 
   let ultimo = null;   // l'ultimo programma mostrato (testo del JSON)
   annulla = segui(email, (lavoro, consegna = null, verifica = null) => {
@@ -111,11 +157,20 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, ema
     const dallaConsegna = consegna && consegna.programma && (verifica?.stato === 'chiusa' || !lavoro.programma);
     if (!dallaConsegna) return lavoro;
     const come = consegna.origine === 'file' ? ' (da file)' : consegna.origine === 'raccolta' ? ' (raccolta)' : '';
-    return { programma: consegna.programma, nBlocchi: contaBlocchi(consegna.programma), consegnato: false, ultimoSegnale: null, etichetta: ` · consegna v${consegna.versione}${come}`, riscontro: codiceRiscontro(consegna.programma) };
+    return { programma: consegna.programma, nBlocchi: contaBlocchi(consegna.programma), consegnato: false, ultimoSegnale: null, etichetta: ` · ultima consegna: v${consegna.versione}${come}`, riscontro: codiceRiscontro(consegna.programma) };
+  }
+
+  // Il lavoro sul server è più recente di una consegna da file di emergenza: lo dice, perché la raccolta è da decidere.
+  function segnalaConflitto({ lavoro, consegna }, daConsegna) {
+    const c = daConsegna && consegna && consegna.origine === 'file' && lavoro.programma && lavoro.programma !== consegna.programma
+      && lavoro.ultimoSegnale && consegna.creato && lavoro.ultimoSegnale.getTime() > consegna.creato.getTime();
+    avvisoConsegna.hidden = !c;
+    if (c) avvisoConsegna.textContent = 'Sul server c\'è un lavoro più recente dell\'ultima consegna: la raccolta è da decidere. Lo vedi nella Storia, dopo la consegna.';
   }
 
   function disegna(stato) {
     const lavoro = sorgente(stato);
+    segnalaConflitto(stato, !!lavoro.etichetta);
     if (!lavoro.programma) {
       if (ultimo !== '') { anteprima.vuota(); ultimo = ''; }
       vuoto.hidden = false; blocchi.hidden = true;

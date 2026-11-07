@@ -7,6 +7,7 @@ import { formatoDataOra } from './data-ora.js';
 import { etichettaCorso } from './corsi.js';
 import { apriAnteprima } from './verifica-anteprima-ui.js';
 import { contaBlocchi } from './verifica-tabella.js';
+import { consegneEtichette as K, menuCloud as M } from './etichette.js';
 
 const ORIGINE = {
   studente: 'consegnata da te',
@@ -58,14 +59,14 @@ export function montaConsegne({ toast, programma, dopoCaricamento = () => {} }) 
       el('div', { class: 'consegna-info' },
         el('strong', {}, `v${c.versione}${valida ? ' · quella che vale' : ''}`),
         el('span', { class: 'sketch-data' }, [ORIGINE[c.origine] ?? c.origine, c.creato ? formatoDataOra.format(c.creato) : '', n === null ? '' : `${n} blocchi`].filter(Boolean).join(' · '))),
-      el('button', { type: 'button', class: 'modal-btn', onclick: () => guarda(v, c) }, 'Guarda'),
-      el('button', { type: 'button', class: 'modal-btn secondary', title: 'Apre una copia nell\'editor, per lavorarci', onclick: () => apriInEditor(v, c) }, 'Apri nell\'editor'),
-      el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => scarica(c.programma, `${slug(v.titolo)}_consegna-v${c.versione}.json`) }, 'Salva su file'));
+      el('button', { type: 'button', class: 'modal-btn', onclick: () => guarda(v, c) }, K.guarda),
+      el('button', { type: 'button', class: 'modal-btn secondary', title: 'Apre una copia nell\'editor, per lavorarci', onclick: () => apriInEditor(v, c) }, K.apriNellEditor),
+      el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => scarica(c.programma, `${slug(v.titolo)}_consegna-v${c.versione}.json`) }, K.salvaSuFile));
   }
 
   async function apri() {
     if (!api || finestra) return;
-    const f = apriFinestra('Le mie consegne', () => { finestra = null; }, { larga: true });
+    const f = apriFinestra(M.consegne, () => { finestra = null; }, { larga: true });
     finestra = f;
     const lista = el('div', { class: 'corsi-lista' }, el('p', { class: 'sketch-nota' }, 'Carico…'));
     f.corpo.append(

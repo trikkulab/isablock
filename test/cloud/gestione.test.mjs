@@ -166,7 +166,7 @@ test('un corso con una verifica aperta non si archivia: prima si chiude la verif
   await semina('v-chiusa', 'chiusa');
   await semina('v-aperta', 'aperta');
   assert.equal(await g.verificheAperte(c.id), 1);
-  await assert.rejects(g.impostaAttivo(c.id, false), (e) => e instanceof ErroreGestione && e.codice === 'verifiche-aperte' && e.message === 'Il corso ha una verifica aperta: chiudila prima di archiviarlo.');
+  await assert.rejects(g.impostaAttivo(c.id, false), (e) => e instanceof ErroreGestione && e.codice === 'verifiche-aperte' && e.message === 'Il corso ha una verifica aperta: terminala prima di archiviarlo.');
   assert.equal((await g.leggi(c.id)).attivo, true);    // il corso non è stato toccato
   await semina('v-aperta2', 'aperta');
   assert.equal(await g.verificheAperte(c.id), 2);
