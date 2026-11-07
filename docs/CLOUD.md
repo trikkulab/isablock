@@ -448,7 +448,7 @@ apri → tempo aggiuntivo / iscritti tardivi → chiudi (raccoglie da sola) → 
   caricato» («Tieni il file», preselezionato, o «Raccogli comunque», con «Confronta» per vedere i due programmi) e la raccolta si rilancia con
   `daRaccogliere`. Il suggerimento usa solo orari del server (`ultimoSegnale` del lavoro contro `creato` della consegna: dopo → 'lavoro',
   altrimenti 'file'); `ultimoSegnale` include i battiti, quindi è un indizio, non una prova. `creatoIl` e `offlineDa` del file vengono dal PC dello
-  studente e si mostrano solo come dichiarati (`creatoIl` non è salvato nella consegna). Alla prima chiusura non ci sono conflitti (non esistono ancora file caricati); dopo una riapertura la chiusura raccoglie di nuovo e il conflitto può esserci: la finestra si apre subito dopo la chiusura.
+  studente e si mostrano solo come dichiarati (`creatoIl` non è salvato nella consegna). «Confronta» apre UNA finestra (`verifica-confronto-ui.js`): due colonne (file a sinistra, server a destra) e un solo selettore Blocchi/Pseudocodice/C/Python che le cambia insieme; nelle viste di testo le righe presenti solo da una parte sono evidenziate con `diff-righe.js` (sottosequenza comune più lunga, confronto esatto: il testo viene dallo stesso motore, quindi cambiano solo le stringhe scritte a mano; prova `test/diff-righe.mjs`), nei blocchi nessuna evidenziazione. L'anteprima di `main.js` espone `testi()` ed `evidenzia()` per questo. Alla prima chiusura non ci sono conflitti (non esistono ancora file caricati); dopo una riapertura la chiusura raccoglie di nuovo e il conflitto può esserci: la finestra si apre subito dopo la chiusura.
 
 ### Markdown delle tracce (`markdown.js`)
 

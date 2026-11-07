@@ -568,6 +568,22 @@ try {
   const conflitto = await page.textContent('.modal:last-of-type .modal-box');
   verifica(/Anna Rossi/.test(conflitto) && /Tieni il file/.test(conflitto) && /Raccogli comunque/.test(conflitto) && /Confronta/.test(conflitto), 'riaperta e terminata di nuovo: la finestra di conflitto elenca Anna con le due scelte e «Confronta»');
   verifica(await page.isChecked('.modal:last-of-type input[value="file"]'), '…e «Tieni il file» è preselezionato');
+  // «Confronta»: una sola finestra con due colonne e un solo selettore (Blocchi / Pseudocodice / C / Python)
+  await page.click('.modal:last-of-type button:has-text("Confronta")');
+  await page.waitForSelector('h2:has-text("Confronto: Anna Rossi")');
+  verifica((await page.$$('.confronto-colonna')).length === 2 && (await page.$$('.confronto-colonne')).length === 1, 'Confronta: una sola finestra con due colonne affiancate');
+  const testate = await page.$$eval('.confronto-testata', (e) => e.map((x) => x.textContent));
+  verifica(/File di emergenza/.test(testate[0]) && /Lavoro sul server/.test(testate[1]), '…file a sinistra, lavoro del server a destra, con orario e blocchi');
+  verifica(await finche(async () => (await page.$$('.confronto-blocchi .blocklyBlockCanvas [data-id]')).length > 3), '…vista «Blocchi» all\'inizio, con i blocchi disegnati');
+  verifica((await page.$$eval('.confronto-colonna .anteprima-blocchi', (e) => e.map((x) => !x.hidden))).every(Boolean), '…i blocchi si vedono in entrambe le colonne');
+  await page.click('.modal:last-of-type [role="tab"]:has-text("Pseudocodice")');
+  verifica((await page.$$eval('.confronto-codice:not([hidden])', (e) => e.length)) === 2 && (await page.$$eval('.confronto-blocchi:not([hidden])', (e) => e.length)) === 0, 'selettore su «Pseudocodice»: cambiano entrambe le colonne insieme');
+  verifica((await page.$$('.confronto-codice:not([hidden]) .riga-diversa')).length > 0, '…e le righe che ci sono solo da una parte sono evidenziate');
+  await page.click('.modal:last-of-type [role="tab"]:has-text("Python")');
+  verifica((await page.$$eval('.confronto-codice:not([hidden])', (e) => e.length)) === 2, 'selettore su «Python»: ancora due colonne');
+  await schermata(page, 'v-9f-confronto');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('h2:has-text("Confronto: Anna Rossi")', { state: 'detached' });
   await page.click('.modal:last-of-type button:has-text("Conferma le scelte")');
   verifica(!(await leggi(`verifiche/${vid2}/consegne`)).documents?.some((d) => d.name.endsWith('/anna@isarome.it_3')), '…confermando senza cambiare, non nasce nessuna consegna nuova per Anna');
   // «Guarda» apre sull'ultima consegna (la v2 da file); la Storia la mette al suo posto nel tempo

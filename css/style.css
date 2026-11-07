@@ -1220,6 +1220,16 @@ body.modo-verifica .autosave-info { display: none; }
 }
 .anteprima-codice[hidden], .anteprima-blocchi[hidden] { display: none; }
 @media (max-width: 800px) { .anteprima-corpo { grid-template-columns: 1fr; height: auto; } .anteprima-blocchi { height: 45vh; } .anteprima-codice { max-height: 40vh; } }
+/* Confronto affiancato (verifica-confronto-ui.js): due colonne, un solo selettore */
+.confronto-colonne { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.8rem; margin-top: 0.5rem; }
+.confronto-colonna { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+.confronto-testata { display: flex; flex-direction: column; }
+.confronto-blocchi, .confronto-codice { height: 55vh; min-height: 16rem; }
+.confronto-codice { flex: none; }
+.confronto-codice[hidden], .confronto-blocchi[hidden] { display: none; }
+.riga-diversa { display: block; position: relative; min-height: 1.5em; background: rgba(255, 213, 79, 0.28); border-left: 3px solid #e0a800; margin-left: -0.9rem; padding-left: calc(0.9rem - 3px); }
+.riga-diversa::before { content: '≠'; position: absolute; left: 0.2rem; font-weight: 700; color: #ffd54f; user-select: none; }
+@media (max-width: 800px) { .confronto-colonne { grid-template-columns: 1fr; } .confronto-blocchi, .confronto-codice { height: 45vh; } }
 .anteprima-storia { margin: 0.4rem 0; }
 .anteprima-storia .sketch-riga { align-items: center; gap: 0.4rem; }
 .anteprima-cursore { flex: 1; min-width: 8rem; }

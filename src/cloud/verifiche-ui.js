@@ -14,6 +14,7 @@ import { perCampo, daCampo, finePredefinita, formatoDataOra } from './data-ora.j
 import { creaTabellaLive } from './verifica-tabella-ui.js';
 import { contaBlocchi } from './verifica-tabella.js';
 import { apriAnteprima } from './verifica-anteprima-ui.js';
+import { apriConfronto } from './verifica-confronto-ui.js';
 import { scegliFileEmergenza } from './verifica-file-ui.js';
 import { scaricaPdfSchede } from './pdf-ui.js';
 import { ordinaSchede, nomeFilePdf, nomeFilePdfTutte } from './scheda-stampa.js';
@@ -343,13 +344,11 @@ export function montaVerifiche({ toast, programma = null }) {
           i.addEventListener('change', () => scelte.set(c.email, valore));
           return el('label', { class: 'scegli-fine-riga' }, i, ` ${testo}`);
         };
-        const confronta = () => {
-          if (!programma || !programma.anteprima) return;
-          apriAnteprima({ apri, programma, email: c.email, nome: `${nome} (dal file)`, titolo: `${nome}: file di emergenza`,
-            segui: (_e, cb) => { cb({ programma: c.consegna.programma, nBlocchi: null, consegnato: true, ultimoSegnale: null }); return () => {}; } });
-          apriAnteprima({ apri, programma, email: c.email, nome: `${nome} (sul server)`, titolo: `${nome}: lavoro sul server`,
-            segui: (_e, cb) => { cb({ programma: c.lavoro.programma, nBlocchi: c.lavoro.nBlocchi, consegnato: false, ultimoSegnale: c.lavoro.ultimoSegnale }); return () => {}; } });
-        };
+        const confronta = () => apriConfronto({
+          apri, programma, titolo: `Confronto: ${nome}`,
+          sinistra: { titolo: 'File di emergenza', dettaglio: `${c.consegna.creato ? `caricato il ${ora(c.consegna.creato)} · ` : ''}${contaBlocchi(c.consegna.programma)} blocchi`, programma: c.consegna.programma },
+          destra: { titolo: 'Lavoro sul server', dettaglio: `${c.lavoro.ultimoSegnale ? `ultimo segnale il ${ora(c.lavoro.ultimoSegnale)} · ` : ''}${c.lavoro.nBlocchi ?? contaBlocchi(c.lavoro.programma)} blocchi`, programma: c.lavoro.programma },
+        });
         return el('fieldset', { class: 'verifica-conflitto' },
           el('legend', {}, `${nome} (${c.email})`),
           el('p', { class: 'sketch-nota' }, `File caricato come v${c.consegna.versione} il ${ora(c.consegna.creato)} (ora del server)${c.consegna.offlineDa ? `; lo studente dichiara di essere stato offline da ${c.consegna.offlineDa} (orologio del suo computer)` : ''}. Ultimo segnale dello studente sul server: ${ora(c.lavoro.ultimoSegnale)}. Blocchi: ${c.lavoro.nBlocchi ?? '?'} sul server.`),

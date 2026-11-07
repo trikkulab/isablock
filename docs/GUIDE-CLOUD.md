@@ -83,7 +83,7 @@ Percorso (verifiche): **Corsi → corso → «Verifiche» → «Nuova verifica»
    può correggere anche a verifica aperta («Pubblica modifica»): gli studenti vedono l'avviso. Tempo in più: nessun motivo scritto.
 4. **Chiudere e raccogliere**: «Termina verifica…» (prima «Chiudi verifica…»): raccoglie subito, in automatico, i lavori e crea le consegne dal lavoro com'è; chi non
    è mai entrato non ha consegna. «Raccogli i lavori» si può rilanciare (per esempio dopo una riapertura); se per uno studente c'è già un file di
-   emergenza caricato e il lavoro sul server è diverso, non scrive niente e chiede al docente «Tieni il file» o «Raccogli comunque» (con «Confronta»). Una verifica aperta o chiusa **non si cancella** (le
+   emergenza caricato e il lavoro sul server è diverso, non scrive niente e chiede al docente «Tieni il file» o «Raccogli comunque» (con «Confronta»: una finestra a due colonne, file e server, con un solo selettore Blocchi/Pseudocodice/C/Python e le righe diverse evidenziate nei codici). Una verifica aperta o chiusa **non si cancella** (le
    consegne sono immutabili): si **archivia** («Archivia…», solo chiuse; si ritrova con «Mostra anche le verifiche archiviate»).
 5. **Chi non ha potuto consegnare (senza rete)**: lo studente porta il file di emergenza; sulla sua riga, a verifica chiusa, **«Carica
    file…»**: controllo dell'impronta (ferma i ritocchi semplici, NON è sicurezza), conferma con il confronto «ultimo salvataggio

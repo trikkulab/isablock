@@ -565,7 +565,9 @@ function creaAnteprima({ blocchi, codici }) {
   const rimettiPrincipale = () => { try { Blockly.common.setMainWorkspace(workspace); } catch { /* versione di Blockly senza questa funzione */ } };
   rimettiPrincipale();
   const pannelli = { pseudocode: codici.pseudocode, c: codici.c, python: codici.python };
+  let ultimi = null;   // gli ultimi tre testi con i loro token: servono a riscriverli evidenziando delle righe
   const scrivi = (testi, token) => {
+    ultimi = { testi, token };
     for (const k of Object.keys(pannelli)) pannelli[k].innerHTML = renderSegment(testi[k], token[k], 0, testi[k].length);
   };
   let distrutta = false;
@@ -585,6 +587,26 @@ function creaAnteprima({ blocchi, codici }) {
         if (prima) ws.scroll(x, y);
         return true;
       } catch { return false; }
+    },
+    // I tre testi generati adesso ({ pseudocode, c, python }), o null.
+    testi() { return ultimi ? ultimi.testi : null; },
+    // Riscrive i tre codici evidenziando le righe indicate: righe = { pseudocode, c, python }, ognuno un Set di indici (da 0).
+    // Ogni riga evidenziata è un blocco a tutta larghezza (class riga-diversa); le altre restano com'erano.
+    evidenzia(righe) {
+      if (distrutta || !ultimi) return;
+      for (const k of Object.keys(pannelli)) {
+        const testo = ultimi.testi[k];
+        const segnate = righe[k] ?? new Set();
+        const linee = testo.split('\n');
+        let html = '';
+        let inizio = 0;
+        linee.forEach((linea, i) => {
+          const parte = renderSegment(testo, ultimi.token[k], inizio, inizio + linea.length);
+          html += segnate.has(i) ? `<span class="riga-diversa">${parte}</span>` : parte + (i < linee.length - 1 ? '\n' : '');
+          inizio += linea.length + 1;
+        });
+        pannelli[k].innerHTML = html;
+      }
     },
     vuota() {
       if (distrutta) return;
