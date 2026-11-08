@@ -6,6 +6,8 @@ import { el } from './dom.js';
 import { leggiFileEmergenza, nomeCoerente, oraBreve } from '../verifica-file.js';
 import { formatoDataOra } from './data-ora.js';
 import { apriAnteprima } from './verifica-anteprima-ui.js';
+import { apriConfronto } from './verifica-confronto-ui.js';
+import { contaBlocchi } from './verifica-tabella.js';
 
 const messaggio = (err) => (err && err.message) || 'Qualcosa è andato storto. Riprova.';
 
@@ -49,6 +51,15 @@ function confermaCaricamento({ apri, programma, vd, vid, email, nome, lavoro, ul
     apri, programma, email, nome: `${chi} (dal file)`,
     segui: (_e, cb) => { cb({ programma: file.programma, nBlocchi: file.nBlocchi, consegnato: true, ultimoSegnale: null }); return () => {}; },
   }));
+  // Confronto con la consegna già presente (di solito quella automatica fatta alla chiusura): è la versione che il file sostituirebbe.
+  const haConsegna = ultimaConsegna && ultimaConsegna.programma;
+  const confronta = programma && programma.anteprima && haConsegna
+    ? el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => apriConfronto({
+      apri, programma, titolo: `Confronto: ${chi}`,
+      sinistra: { titolo: 'File di emergenza', dettaglio: `${file.nBlocchi} blocchi`, programma: file.programma },
+      destra: { titolo: `Consegna v${ultimaConsegna.versione}`, dettaglio: `${ultimaConsegna.origine ? `origine «${ultimaConsegna.origine}» · ` : ''}${contaBlocchi(ultimaConsegna.programma) ?? '?'} blocchi`, programma: ultimaConsegna.programma },
+    }) }, `Confronta con la consegna v${ultimaConsegna.versione}`)
+    : '';
   f.corpo.append(
     el('p', {}, `File di emergenza di ${file.studenteNome} (${email}).`),
     nomeCoerente(nomeFile, email) ? '' : el('p', { class: 'verifica-avviso', role: 'note' },
@@ -57,7 +68,8 @@ function confermaCaricamento({ apri, programma, vd, vid, email, nome, lavoro, ul
     el('table', { class: 'tabella-live' },
       el('tbody', {},
         el('tr', {}, el('th', { scope: 'row' }, 'Ultimo salvataggio arrivato al server'), el('td', {}, sulServer)),
+        haConsegna ? el('tr', {}, el('th', { scope: 'row' }, 'Ultima consegna'), el('td', {}, `v${ultimaConsegna.versione}${ultimaConsegna.origine ? ` (${ultimaConsegna.origine})` : ''} · ${contaBlocchi(ultimaConsegna.programma) ?? '?'} blocchi`)) : '',
         el('tr', {}, el('th', { scope: 'row' }, 'Nel file'), el('td', {}, `${file.nBlocchi} blocchi`)))),
     el('p', { class: 'sketch-nota' }, `Diventa la versione v${n} della consegna (origine «file»). Le versioni precedenti restano e vale l'ultima.`),
-    el('div', { class: 'modal-actions' }, caricare, guarda, el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => f.chiudi() }, 'Annulla')));
+    el('div', { class: 'modal-actions' }, caricare, guarda, confronta, el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => f.chiudi() }, 'Annulla')));
 }
