@@ -1324,7 +1324,7 @@ body.modo-verifica .autosave-info { display: none; }
 .sala-chk { margin: 0; flex: none; }
 .sala-nome { font-weight: 600; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sala-disegno { flex: 1; min-height: 0; margin: 3px 0; border-radius: 5px; background: #fff; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; overflow: hidden; }
-.sala-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+.sala-img { max-width: 100%; max-height: 100%; height: auto; object-fit: contain; display: block; }
 .sala-img[hidden], .sala-img-vuoto[hidden] { display: none; }
 .sala-img-vuoto { color: #9aa5b0; }
 .sala-info { font-size: 0.8rem; color: #5f6b76; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
@@ -1342,3 +1342,6 @@ body.modo-verifica .autosave-info { display: none; }
 .sala-primo .anteprima-blocchi { min-height: 0; }
 .sala-primo .anteprima-lato { min-height: 0; }
 .sala-primo .anteprima-codice { min-height: 0; }
+@keyframes sala-cambiato { 0%, 60% { box-shadow: 0 0 0 4px rgba(46, 160, 67, 0.55); border-color: #2ea043; } 100% { box-shadow: 0 0 0 0 rgba(46, 160, 67, 0); } }
+.sala-tessera.cambiato { border-color: #2ea043; animation: sala-cambiato 2.5s ease-out; }
+@media (prefers-reduced-motion: reduce) { .sala-tessera.cambiato { animation: none; box-shadow: 0 0 0 3px #2ea043; } }

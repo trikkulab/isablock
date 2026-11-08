@@ -9,6 +9,8 @@ import { testoDurata } from './verifica-tabella.js';
 
 const PROPORZIONE = 1.25;      // larghezza/altezza di una tessera, per scegliere quante colonne
 const ALTEZZA_MIN = 120;       // px: sotto questa altezza la griglia scorre invece di rimpicciolire le tessere
+const INGRANDIMENTO_MAX = 1.5; // l'immagine non cresce oltre 1,5 volte la misura dei blocchi nell'editor (poi si sgrana)
+const LAMPEGGIO_MS = 2500;     // quanto resta il segno «programma cambiato» sulla tessera
 const MAX_IMMAGINI = 120;      // programmi già disegnati che si tengono a mente
 const MODI = [['tutti', 'Tutti'], ['bisogno', 'Chi ha bisogno'], ['scelti', 'Scelti']];
 
@@ -40,7 +42,7 @@ export function iniziali(nome, email) {
 // `caricaStoria(email)` e `osserva(email)` come in apriAnteprima. Restituisce la finestra, o null se mancano i mezzi.
 export function apriSala({ apri, tabella, programma, caricaStoria = null, osserva = null, titolo = 'Sala' }) {
   if (!programma || !programma.renderBlocchi || !programma.anteprima) return null;
-  const f = apri(titolo, () => { chiuso = true; clearInterval(giro); smetti(); chiudiPrimo(); osservaLarghezza.disconnect(); document.removeEventListener('fullscreenchange', aggiornaIntero); if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {}); coda.length = 0; renderer?.then((r) => r && r.distruggi()); }, { piena: true });
+  const f = apri(titolo, () => { chiuso = true; clearInterval(giro); smetti(); for (const t of tessere.values()) clearTimeout(t.timerCambio); chiudiPrimo(); osservaLarghezza.disconnect(); document.removeEventListener('fullscreenchange', aggiornaIntero); if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {}); coda.length = 0; renderer?.then((r) => r && r.distruggi()); }, { piena: true });
   let chiuso = false;
   let modo = 'tutti';
   let conIniziali = false;
@@ -191,8 +193,22 @@ export function apriSala({ apri, tabella, programma, caricaStoria = null, osserv
 
   // ── Disegno dei blocchi: uno alla volta, solo se il programma è cambiato ───
   const programmaDi = (x, chiusa) => (chiusa && x.ultimaConsegna?.programma) || x.lavoro?.programma || x.ultimaConsegna?.programma || '';
-  function mostraImmagine(t, dataUrl) {
-    if (dataUrl) { t.img.src = dataUrl; t.img.hidden = false; t.vuotoImg.hidden = true; } else { t.img.hidden = true; t.vuotoImg.hidden = false; }
+  // `img`: { dataUrl, larghezzaPx } o null. La larghezza è quella dei blocchi a scala 1: con il tetto, un programma piccolo
+  // non diventa gigante; uno grande resta rimpicciolito (max-width/max-height 100%) e si vede intero.
+  function mostraImmagine(t, img) {
+    if (img) {
+      t.img.src = img.dataUrl;
+      t.img.style.width = `${Math.round(img.larghezzaPx * INGRANDIMENTO_MAX)}px`;
+      t.img.hidden = false; t.vuotoImg.hidden = true;
+    } else { t.img.hidden = true; t.vuotoImg.hidden = false; }
+  }
+  // Segno breve sulla tessera: il programma è cambiato (si riavvia l'animazione anche se già in corso).
+  function segnaCambiato(t) {
+    clearTimeout(t.timerCambio);
+    t.el.classList.remove('cambiato');
+    void t.el.offsetWidth;
+    t.el.classList.add('cambiato');
+    t.timerCambio = setTimeout(() => t.el.classList.remove('cambiato'), LAMPEGGIO_MS);
   }
   async function lavora() {
     if (inLavoro) return;
@@ -203,18 +219,20 @@ export function apriSala({ apri, tabella, programma, caricaStoria = null, osserv
         const t = tessere.get(email);
         if (!t || !t.voluto || t.programma === t.voluto) continue;
         const testo = t.voluto;
-        let url = cache.get(testo);
+        let url = cache.get(testo);   // { dataUrl, larghezzaPx } | null
         if (url === undefined) {
           renderer ??= programma.renderBlocchi().catch(() => null);
           const r = await renderer;
           if (chiuso || !r) break;
           const out = await r.rendi(testo);
-          url = out && out.immagine ? out.immagine.dataUrl : null;
+          url = out && out.immagine ? { dataUrl: out.immagine.dataUrl, larghezzaPx: out.immagine.larghezzaPx } : null;
           if (cache.size >= MAX_IMMAGINI) cache.delete(cache.keys().next().value);
           cache.set(testo, url);
         }
+        const eraDisegnato = !!t.programma;
         t.programma = testo;
         mostraImmagine(t, url);
+        if (eraDisegnato) segnaCambiato(t);
         await new Promise((ok) => setTimeout(ok, 0));   // lascia respirare la pagina tra un disegno e l'altro
       }
     } finally { inLavoro = false; }

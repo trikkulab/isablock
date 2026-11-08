@@ -432,9 +432,11 @@ try {
   // …e nemmeno un salvataggio che cambia il programma (qui: un nuovo blocco di commento sciolto) sposta la vista
   const mod2 = JSON.parse(json1); mod2.blocks.blocks[0].x = (mod2.blocks.blocks[0].x ?? 0) + 10;
   await aggiorna(lavoroAnna, { programma: S(JSON.stringify(mod2)), programmaHash: S('h4'), ultimoSegnale: T(Date.now()) });
+  verifica(await page.waitForSelector('.sala-tessera[data-email="anna@isarome.it"].cambiato', { state: 'attached', timeout: 4000 }).then(() => true, () => false), 'Sala: quando il programma cambia la tessera lampeggia');
   await page.waitForTimeout(2000);
   const vista1 = await vista();
   verifica(vista1[0] === vista0[0] && vista1[1] === vista0[1], 'Sala: un programma che cambia di poco non sposta la vista del primo piano');
+  verifica(await page.evaluate(() => { const i = document.querySelector('.sala-tessera[data-email="anna@isarome.it"] .sala-img'); return i.style.width !== '' && parseInt(i.style.width) < i.naturalWidth; }), 'Sala: l\'immagine ha un tetto di ingrandimento (meno della sua misura piena)');
   await page.keyboard.press('Escape');
   verifica(!(await page.isVisible('.sala-barra')) && await page.isVisible('.tabella-live'), 'Sala: Esc chiude solo la Sala, la tabella resta');
   verifica(await page.evaluate(() => !!window.Blockly.getMainWorkspace().getParentSvg().closest('#blocklyDiv')), 'dopo la Sala il workspace principale di Blockly è ancora quello dell\'editor');
