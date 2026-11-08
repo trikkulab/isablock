@@ -1108,6 +1108,7 @@ button.commento-blocco { cursor: pointer; }
 .modal-box.verifica-box { max-width: min(1100px, 94vw); width: 94vw; max-height: 92vh; overflow-y: auto; }
 .stato-corso[data-stato="bozza"] { background: #fff4d6; color: #7a5200; }
 .stato-corso[data-stato="aperta"] { background: #dff5e6; color: #14663a; }
+.stato-corso[data-stato="scaduta"] { background: #fde8d4; color: #8a3b00; }
 .stato-corso[data-stato="chiusa"] { background: #e8ebef; color: #3e4c59; }
 .verifica-testata { display: grid; grid-template-columns: 1fr minmax(13rem, 16rem) auto; gap: 0.8rem; align-items: end; }
 .verifica-stato { display: flex; align-items: center; gap: 0.6rem; padding-bottom: 0.55rem; min-height: 2.4rem; }

@@ -26,7 +26,7 @@ import { testoApertura, testoChiusura, testoRiapertura, testoArchivia, testoConf
 
 const L = verificaConfig.regole;
 const C = verificaConfig.client;
-const STATI = { bozza: 'Bozza', aperta: 'Aperta', chiusa: 'Chiusa', archiviata: 'Archiviata' };
+const STATI = { bozza: 'Bozza', aperta: 'Aperta', scaduta: 'Aperta · tempo scaduto', chiusa: 'Chiusa', archiviata: 'Archiviata' };
 
 // Scelta della fine di una verifica che si apre (o si riapre): «dura N minuti da adesso» oppure «finisce alle...».
 // Il calcolo si fa al momento del clic (calcola()), non quando si apre la finestra: «da adesso» deve voler dire adesso.
@@ -189,6 +189,17 @@ export function montaVerifiche({ toast, programma = null }) {
     f.corpo.textContent = '';
 
     const stato = () => verifica.stato;
+    // Allo scadere del tempo il documento resta «aperta» finché il docente non la termina (gli studenti invece sono già usciti):
+    // qui si mostra comunque che il tempo è finito. Vale quando la fine prevista e le scadenze individuali (tempo in più) sono passate.
+    let lavoriLive = () => [];
+    const tempoScaduto = () => {
+      if (verifica.stato !== 'aperta' || !verifica.fine) return false;
+      const limite = verifica.fine.getTime() + L.graziaSecondi * 1000;
+      if (Date.now() <= limite) return false;
+      return !lavoriLive().some((x) => x.lavoro && x.lavoro.scadenza && !x.lavoro.consegnato && !x.ultimaConsegna
+        && x.lavoro.scadenza.getTime() + L.graziaSecondi * 1000 > Date.now());
+    };
+    const statoVisto = () => (tempoScaduto() ? 'scaduta' : stato());
     const bozza = () => stato() === 'bozza';
     const scrivibile = () => stato() !== 'chiusa';          // tracce e dati modificabili (a verifica aperta: con «Pubblica»)
     const titoloFinestra = () => { intestazione.textContent = `Verifica: ${verifica.titolo} · ${corso.nome}`; };
@@ -232,12 +243,23 @@ export function montaVerifiche({ toast, programma = null }) {
         ? 'Verifica chiusa e archiviata: non compare nell\'elenco finché non la ripristini. Le tracce si possono solo leggere.'
         : 'Verifica chiusa: le tracce si possono solo leggere.',
     }[stato()];
+    const avvisoScaduta = 'Il tempo è finito: gli studenti sono già usciti dalla verifica. Per chiuderla e raccogliere i lavori usa «Termina verifica…».';
+    const testoStato = el('span', { class: 'stato-corso', 'data-stato': statoVisto() }, STATI[statoVisto()]);
+    const testoAvviso = avviso ? el('p', { class: 'sketch-nota verifica-avviso' }, tempoScaduto() ? avvisoScaduta : avviso) : '';
     f.corpo.append(
       el('div', { class: 'verifica-testata' },
         campo('Titolo', titolo),
         campo(bozza() ? 'Fine prevista (provvisoria)' : 'Fine prevista', fine, null, 'fine'),
-        el('div', { class: 'verifica-stato' }, badge(stato()), verifica.archiviata ? badge('archiviata') : '', esito)),
-      avviso ? el('p', { class: 'sketch-nota verifica-avviso' }, avviso) : '');
+        el('div', { class: 'verifica-stato' }, testoStato, verifica.archiviata ? badge('archiviata') : '', esito)),
+      testoAvviso);
+    // Aggiorna a vista lo stato quando il tempo scade (o torna aperta, se si sposta la fine) senza richiudere la scheda.
+    const aggiornaScadenza = () => {
+      const v = statoVisto();
+      testoStato.dataset.stato = v;
+      testoStato.textContent = STATI[v];
+      if (avviso) testoAvviso.textContent = v === 'scaduta' ? avvisoScaduta : avviso;
+    };
+    const timerScadenza = setInterval(() => { if (!finestre.has(f)) clearInterval(timerScadenza); else aggiornaScadenza(); }, 5000);
 
     // --- Azioni sullo stato: aprire, chiudere (e raccogliere), riaprire, archiviare ------
     // Ogni cambio di stato passa da una finestra di conferma con il testo che il docente deve leggere (testi-verifica.js).
@@ -626,6 +648,8 @@ export function montaVerifiche({ toast, programma = null }) {
         : null;
       tabella = creaTabellaLive({ vd, vid, toast, guarda, sala, caricaFile, scaricaPdf: conPdf ? scaricaPdf : null, scaricaTutti: conPdf ? scaricaTutti : null });
       chiudiTabella = tabella.distruggi;
+      lavoriLive = tabella.tutti;
+      aggiornaScadenza();
       const pannelloSituazione = el('div', { class: 'situazione' }, tabella.elemento);
       const schede = [['situazione', E.situazione], ['tracce', 'Tracce']];
       const bottoni = new Map();
