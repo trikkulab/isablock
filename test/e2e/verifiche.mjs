@@ -4,7 +4,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { avviaServer } from './server.mjs';
-import { avviaBrowser, accedi, abilitaDocente, leggi, scrivi, aggiorna, S, T, valoreTesto, verifica, riepilogo, schermata, MOD } from './aiuti.mjs';
+import { avviaBrowser, accedi, abilitaDocente, leggi, scrivi, aggiorna, S, T, valoreTesto, verifica, riepilogo, schermata, MOD, N } from './aiuti.mjs';
 
 const { server } = await avviaServer();
 const browser = await avviaBrowser();
@@ -391,6 +391,57 @@ try {
   await page.keyboard.press('Escape');
   verifica(await page.isVisible('.tabella-live'), 'Guarda: Esc chiude solo la finestra, la tabella resta');
   verifica(await page.evaluate(() => !!window.Blockly.getMainWorkspace().getParentSvg().closest('#blocklyDiv')), 'dopo Guarda il workspace principale di Blockly è ancora quello dell\'editor');
+  // ── Sala: tutti gli studenti in una griglia a tutto schermo, con un primo piano ─────────────────────────────
+  await aggiorna(lavoroAnna, { programma: S(json1), programmaHash: S('h3'), nBlocchi: { integerValue: '8' }, ultimoSegnale: T(Date.now()) });
+  await aggiorna(`verifiche/${vid2}/lavori/bruno@isarome.it`, { entrato: T(Date.now() - 20 * 60000), ultimoSegnale: T(Date.now() - 10 * 60000), studenteNome: S('Bruno Verdi'),
+    programma: S(json1), programmaHash: S('hb'), nBlocchi: { integerValue: '8' } });
+  await page.click('.tabella-azioni button:has-text("Sala")');
+  await page.waitForSelector('.sala-tessera');
+  verifica((await page.$$('.sala-tessera')).length === 3 && await page.isVisible('.sala-barra'), 'Sala: una tessera per ogni iscritto (3), con la barra in alto');
+  verifica(await finche(async () => (await page.$$('.sala-img:not([hidden])')).length === 2), 'Sala: i blocchi di chi ha scritto sono un\'immagine (Anna e Bruno), Carla no');
+  verifica(await page.evaluate(() => { const r = document.querySelector('.sala-box').getBoundingClientRect(); return r.width >= innerWidth - 2 && r.height >= innerHeight - 2; }), 'Sala: occupa tutto lo schermo');
+  verifica((await page.$$('.sala-primo:not([hidden])')).length === 0, 'Sala: senza primo piano la griglia prende tutto');
+  await schermata(page, 'v-sala-1-tutti');
+  await page.click('.sala-btn:has-text("Chi ha bisogno")');
+  verifica((await page.$$('.sala-tessera')).length === 2, 'Sala: «Chi ha bisogno» tiene Anna (salto) e Bruno (offline), non Carla');
+  await page.click('.sala-btn:has-text("Scelti")');
+  verifica((await page.$$('.sala-tessera')).length === 0 && /Nessuno scelto/.test(await page.textContent('.sala-vuota')), 'Sala: «Scelti» senza spunte dice cosa fare');
+  await page.click('.sala-btn:has-text("Tutti")');
+  await page.check('.sala-tessera[data-email="bruno@isarome.it"] .sala-chk');
+  await page.click('.sala-btn:has-text("Scelti")');
+  verifica((await page.$$('.sala-tessera')).length === 1, 'Sala: «Scelti» mostra solo chi ha la spunta');
+  await page.click('.sala-btn:has-text("Tutti")');
+  await page.click('.sala-btn:has-text("Iniziali")');
+  verifica(/^AR$/.test(await page.textContent('.sala-tessera[data-email="anna@isarome.it"] .sala-nome')), 'Sala: con «Iniziali» il nome diventa AR');
+  await page.click('.sala-btn:has-text("Iniziali")');
+  await page.click('.sala-tessera[data-email="anna@isarome.it"]');
+  await page.waitForSelector('.sala-primo .anteprima-blocchi svg.blocklySvg');
+  verifica(await finche(async () => (await page.$$('.sala-primo .anteprima-blocchi .blocklyBlockCanvas [data-id]')).length > 3), 'Sala: il primo piano mostra i blocchi veri di Anna');
+  verifica(/INIZIO/.test(await page.textContent('.sala-primo .anteprima-codice')) && await page.isVisible('.sala-divisore'), 'Sala: nel primo piano ci sono i codici e il divisore');
+  verifica(await finche(async () => !!(await leggi(lavoroAnna))?.fields?.osservato), 'Sala: chi è in primo piano è osservato');
+  verifica(await page.evaluate(() => document.querySelector('.sala-tessera[data-email="anna@isarome.it"]').classList.contains('in-primo')), 'Sala: la tessera in primo piano è evidenziata');
+  await schermata(page, 'v-sala-2-primo-piano');
+  // Un salvataggio dello studente che NON cambia il programma non deve toccare l'editor del primo piano: l'utente sposta
+  // la vista, arriva un segnale, la vista resta dov'è (prima i blocchi «saltavano» a ogni aggiornamento)
+  const vista = () => page.evaluate(() => { const w = window.Blockly.Workspace.getAll().find((x) => x.getParentSvg().closest('.sala-primo')); return w ? [Math.round(w.scrollX), Math.round(w.scrollY), w.getAllBlocks(false).map((b) => b.id).join()] : null; });
+  await page.evaluate(() => { const w = window.Blockly.Workspace.getAll().find((x) => x.getParentSvg().closest('.sala-primo')); w.scroll(w.scrollX - 37, w.scrollY - 23); });
+  const vista0 = await vista();
+  await aggiorna(lavoroAnna, { ultimoSegnale: T(Date.now()) });
+  await page.waitForTimeout(1500);
+  verifica(JSON.stringify(await vista()) === JSON.stringify(vista0), 'Sala: un nuovo segnale dello studente, a programma uguale, non sposta la vista del primo piano');
+  // …e nemmeno un salvataggio che cambia il programma (qui: un nuovo blocco di commento sciolto) sposta la vista
+  const mod2 = JSON.parse(json1); mod2.blocks.blocks[0].x = (mod2.blocks.blocks[0].x ?? 0) + 10;
+  await aggiorna(lavoroAnna, { programma: S(JSON.stringify(mod2)), programmaHash: S('h4'), ultimoSegnale: T(Date.now()) });
+  await page.waitForTimeout(2000);
+  const vista1 = await vista();
+  verifica(vista1[0] === vista0[0] && vista1[1] === vista0[1], 'Sala: un programma che cambia di poco non sposta la vista del primo piano');
+  await page.keyboard.press('Escape');
+  verifica(!(await page.isVisible('.sala-barra')) && await page.isVisible('.tabella-live'), 'Sala: Esc chiude solo la Sala, la tabella resta');
+  verifica(await page.evaluate(() => !!window.Blockly.getMainWorkspace().getParentSvg().closest('#blocklyDiv')), 'dopo la Sala il workspace principale di Blockly è ancora quello dell\'editor');
+  // Anna torna com'era prima della Sala (programma ridotto al solo contenitore, 0 blocchi)
+  await aggiorna(lavoroAnna, { programma: S(JSON.stringify({ ...mod, blocks: { ...mod.blocks, blocks: [{ type: 'program', id: 'p1', x: 40, y: 40 }] } })), programmaHash: S('h2'), nBlocchi: { integerValue: '0' }, ultimoSegnale: T(Date.now()) });
+  // Bruno torna com'era (non entrato), così le prove che seguono contano gli stessi studenti di prima
+  await aggiorna(`verifiche/${vid2}/lavori/bruno@isarome.it`, { entrato: N(), ultimoSegnale: N(), studenteNome: N(), programma: N(), programmaHash: N(), nBlocchi: N() });
   // l'altra scheda mostra le tracce
   await page.click('.verifica-scheda:has-text("Tracce")');
   verifica(await page.isVisible('.tracce-corpo') && !(await page.isVisible('.tabella-live')), 'scheda «Tracce»: si vedono le tracce e non la tabella');

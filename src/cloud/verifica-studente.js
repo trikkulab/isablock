@@ -374,7 +374,7 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
   // Se il docente sta guardando questo studente (`osservato` = ora del server dell'ultimo segno, rinnovato dalla finestra
   // «Guarda»), si salva più spesso. Senza rinnovi il segno scade da solo (`osservatoScadeMs`).
   let osservatoMs = null;
-  const osservato = () => osservatoMs !== null && ora() - osservatoMs < (config.osservatoScadeMs ?? 240000);
+  const osservato = () => osservatoMs !== null && ora() - osservatoMs < (config.osservatoScadeMs ?? 90000);
   const debounceMs = () => (osservato() ? (config.osservatoDebounceMs ?? 5000) : config.debounceSalvataggioMs);
   function segnoOsservato(d) {
     const ts = d.osservato && typeof d.osservato.toMillis === 'function' ? d.osservato.toMillis() : null;

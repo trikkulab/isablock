@@ -1293,3 +1293,51 @@ body.modo-verifica .autosave-info { display: none; }
 .guida-cloud-pagina p, .guida-cloud-pagina li { line-height: 1.5; }
 .guida-cloud-pagina ul, .guida-cloud-pagina ol { margin: 0.2rem 0 0.6rem; padding-left: 1.3rem; }
 .guida-cloud-nota { padding: 0.4rem 0.7rem; border-left: 3px solid var(--accent, #3b6fd4); background: rgba(127, 127, 127, 0.12); border-radius: 4px; }
+
+/* Sala del docente (sala-ui.js): tutti gli studenti insieme, a tutto schermo, con un primo piano */
+.modal.modal-sala { padding: 0; background: var(--bg); align-items: stretch; justify-content: stretch; }
+.modal-box.sala-box { max-width: none; width: 100%; max-height: none; height: 100%; padding: 0; border-radius: 0; box-shadow: none; overflow: hidden; display: flex; }
+.modal-box.sala-box > div:not(.modal-close) { flex: 1; min-width: 0; }
+.modal-box.sala-box .modal-close { z-index: 2; top: 0.55rem; right: 0.6rem; }
+.sala { display: flex; flex-direction: column; height: 100%; gap: 6px; padding: 6px; }
+.sala-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.35rem 3rem 0.35rem 0.7rem; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-bg); }
+.sala-titolo { margin-right: 0.4rem; }
+.sala-gruppo { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.sala-gruppo .sala-btn { border: 0; border-radius: 0; border-right: 1px solid var(--border); }
+.sala-gruppo .sala-btn:last-child { border-right: 0; }
+.sala-btn { font: inherit; font-size: 0.9rem; padding: 0.25rem 0.7rem; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-bg); color: var(--text); cursor: pointer; }
+.sala-btn:hover { background: #eef1f4; }
+.sala-btn.attiva, .sala-btn[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+.sala-conteggio { margin-left: auto; color: #5f6b76; font-variant-numeric: tabular-nums; }
+.sala-corpo { flex: 1; min-height: 0; display: flex; gap: 0; }
+.sala-area { flex: 1; min-width: 0; position: relative; padding: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-bg); overflow: auto; }
+.sala-griglia { display: grid; gap: 6px; height: 100%; min-height: 100%; }
+.sala-vuota { margin: 0; padding: 2rem; text-align: center; color: #5f6b76; }
+.sala-tessera { display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); padding: 4px 6px 5px; cursor: pointer; overflow: hidden; }
+.sala-tessera:hover { border-color: var(--accent); }
+.sala-tessera:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
+.sala-tessera.bisogno { border-color: #e0a800; box-shadow: inset 0 0 0 1px #e0a800; }
+.sala-tessera.in-primo { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
+.sala-tessera[data-stato="non-entrato"] { opacity: 0.6; }
+.sala-testa { display: flex; align-items: center; gap: 0.35rem; min-width: 0; }
+.sala-chk { margin: 0; flex: none; }
+.sala-nome { font-weight: 600; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sala-disegno { flex: 1; min-height: 0; margin: 3px 0; border-radius: 5px; background: #fff; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.sala-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+.sala-img[hidden], .sala-img-vuoto[hidden] { display: none; }
+.sala-img-vuoto { color: #9aa5b0; }
+.sala-info { font-size: 0.8rem; color: #5f6b76; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.sala-timer[data-colore="verde"], .sala-ok { color: #15803d; font-weight: 600; }
+.sala-timer[data-colore="giallo"], .sala-salto { color: #b45309; font-weight: 600; }
+.sala-timer[data-colore="rosso"], .sala-offline { color: #b91c1c; font-weight: 600; }
+.sala-divisore { flex: none; width: 10px; cursor: col-resize; position: relative; }
+.sala-divisore::after { content: ''; position: absolute; top: 0; bottom: 0; left: 3px; width: 4px; border-radius: 2px; background: var(--border); }
+.sala-divisore:hover::after, .sala-divisore:focus-visible::after { background: var(--accent); }
+.sala-divisore[hidden], .sala-primo[hidden] { display: none; }
+.sala-primo { flex: none; min-width: 0; display: flex; flex-direction: column; gap: 4px; padding: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-bg); }
+.sala-primo-testa { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.sala-primo-corpo { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
+.sala-primo .anteprima-corpo { flex: 1; height: auto; min-height: 0; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 3fr) minmax(0, 2fr); }
+.sala-primo .anteprima-blocchi { min-height: 0; }
+.sala-primo .anteprima-lato { min-height: 0; }
+.sala-primo .anteprima-codice { min-height: 0; }

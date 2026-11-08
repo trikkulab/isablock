@@ -69,7 +69,7 @@ export const verificaConfig = Object.freeze({
     // salva ogni `osservatoDebounceMs` invece di `debounceSalvataggioMs`. Il docente rinnova il segno ogni
     // `osservatoRinnovoMs`; se non arriva da `osservatoScadeMs` (finestra chiusa, PC spento) si torna al ritmo normale.
     osservatoDebounceMs: 5000,
-    osservatoRinnovoMs: 120000,
-    osservatoScadeMs: 240000,
+    osservatoRinnovoMs: 30000,
+    osservatoScadeMs: 90000,
   }),
 });

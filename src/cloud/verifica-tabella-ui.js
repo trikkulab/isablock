@@ -16,10 +16,11 @@ function testoOffline(ms) {
 }
 
 // `vd`: oggetto di verifica-docente.js. Restituisce { elemento, distruggi }.
-export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = null, scaricaPdf = null, scaricaTutti = null }) {
+export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = null, scaricaPdf = null, scaricaTutti = null, sala = null }) {
   let ultimo = null;                // ultimo { verifica, lavori, ultime, ora } ricevuto
   let modo = 'email';
   const seguaci = new Set();        // chi vuole il lavoro di uno studente a ogni aggiornamento: { email, cb }
+  const ascoltatori = new Set();    // chi vuole tutta la situazione a ogni aggiornamento (la Sala): cb()
   const sommario = el('p', { class: 'tabella-sommario', 'aria-live': 'polite' });
   const corpo = el('tbody');
   const vuota = el('p', { class: 'sketch-nota' }, 'Carico la situazione…');
@@ -37,8 +38,9 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
   tabella.hidden = true;
   // «Scarica PDF di tutti»: solo a verifica chiusa (si mostra quando arriva lo stato), un solo PDF con una scheda per ogni consegna.
   const btnPdfTutti = el('button', { type: 'button', class: 'modal-btn secondary', hidden: '', title: 'Un solo PDF (A4) con la scheda di ogni consegna, in ordine alfabetico per cognome', onclick: () => scaricaTutti?.() }, E.scaricaPdfTutti);
+  const btnSala = sala ? el('button', { type: 'button', class: 'modal-btn secondary', title: 'Tutti i programmi insieme, a tutto schermo', onclick: () => sala() }, E.sala) : '';
   const elemento = el('div', { class: 'tabella-corpo' },
-    el('div', { class: 'tabella-testata' }, sommario, el('span', { class: 'tabella-azioni' }, btnPdfTutti, ordine)), vuota, tabella);
+    el('div', { class: 'tabella-testata' }, sommario, el('span', { class: 'tabella-azioni' }, btnPdfTutti, btnSala, ordine)), vuota, tabella);
 
   function cella(riga, ...figli) { return el('td', {}, ...figli); }
 
@@ -75,7 +77,7 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
     }
   }
 
-  const annulla = vd.ascoltaSituazione(vid, (s) => { ultimo = s; disegna(); for (const g of seguaci) g.cb(s.lavori.find((l) => l.email === g.email) ?? null, s.ultime[g.email] ?? null, s.verifica); },
+  const annulla = vd.ascoltaSituazione(vid, (s) => { ultimo = s; disegna(); for (const g of seguaci) g.cb(s.lavori.find((l) => l.email === g.email) ?? null, s.ultime[g.email] ?? null, s.verifica); for (const cb of ascoltatori) cb(); },
     () => { if (elemento.isConnected) toast('Non riesco a seguire la verifica in tempo reale: controlla la rete.', 'error'); });
   // Il tempo scorre da solo; si ferma quando la tabella esce dalla pagina.
   const giro = setInterval(() => { if (!elemento.isConnected) distruggi(); else disegna(); }, 1000);
@@ -91,5 +93,10 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
   const stato = (email) => (ultimo ? { lavoro: ultimo.lavori.find((l) => l.email === email) ?? null, ultimaConsegna: ultimo.ultime[email] ?? null } : { lavoro: null, ultimaConsegna: null });
   // Tutti gli studenti con la loro ultima consegna (per il PDF), nell'ordine in cui arrivano.
   const tutti = () => (ultimo ? ultimo.lavori.map((l) => ({ email: l.email, lavoro: l, ultimaConsegna: ultimo.ultime[l.email] ?? null })) : []);
-  return { elemento, distruggi, segui, stato, tutti };
+  // Le righe di adesso (le stesse della tabella, in ordine per nome) e la verifica: per la Sala, che le ridisegna da sé.
+  const righe = () => (ultimo ? ordinaRighe(costruisciRighe({ verifica: ultimo.verifica, lavori: ultimo.lavori, ultime: ultimo.ultime, ora: ultimo.ora() }), 'email') : []);
+  const statoVerifica = () => (ultimo ? ultimo.verifica.stato : null);
+  // `cb()` ogni volta che arriva qualcosa dal server (nessuna lettura in più). Restituisce la funzione per smettere.
+  function ascolta(cb) { ascoltatori.add(cb); return () => ascoltatori.delete(cb); }
+  return { elemento, distruggi, segui, stato, tutti, righe, statoVerifica, ascolta };
 }

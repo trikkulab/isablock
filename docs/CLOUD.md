@@ -849,9 +849,9 @@ Il ruolo docente in locale lo danno i `docentiProva` di `scripts/environments.lo
 ### Vista dal vivo di uno studente (8 nov 2026)
 
 Mentre la finestra «Guarda» è aperta su uno studente al lavoro (verifica aperta, già entrato, non consegnato), il browser
-del docente scrive nel suo lavoro il campo `osservato` (ora del server) subito e poi ogni `osservatoRinnovoMs` (2 min).
+del docente scrive nel suo lavoro il campo `osservato` (ora del server) subito e poi ogni `osservatoRinnovoMs` (30 s).
 Lo studente, che ascolta già il proprio lavoro, salva ogni `osservatoDebounceMs` (5 s) invece di `debounceSalvataggioMs`
-(25 s) finché il segno è più recente di `osservatoScadeMs` (4 min): chiusa la finestra, o spento il PC del docente, torna
+(25 s) finché il segno è più recente di `osservatoScadeMs` (90 s): chiusa la finestra, o spento il PC del docente, torna
 da solo al ritmo normale. Regole: solo il docente del corso, `osservato == request.time`, verifica aperta, studente
 entrato. Gli altri studenti non cambiano. Costo (simulazione, docs/SIMULAZIONE-30.md): +9% scritture con un solo studente
 osservato alla volta. Le istantanee non cambiano (seguono il tempo). Solo il primo piano: la griglia di tessere non c'è.

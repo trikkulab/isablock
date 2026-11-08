@@ -14,6 +14,7 @@ import { perCampo, daCampo, finePredefinita, formatoDataOra } from './data-ora.j
 import { creaTabellaLive } from './verifica-tabella-ui.js';
 import { contaBlocchi } from './verifica-tabella.js';
 import { apriAnteprima } from './verifica-anteprima-ui.js';
+import { apriSala } from './sala-ui.js';
 import { apriConfronto } from './verifica-confronto-ui.js';
 import { scegliFileEmergenza } from './verifica-file-ui.js';
 import { scaricaPdfSchede } from './pdf-ui.js';
@@ -620,7 +621,10 @@ export function montaVerifiche({ toast, programma = null }) {
         nomeFile: nomeFilePdfTutte({ classe: corso.classe, titolo: verifica.titolo }),
       });
       const conPdf = !!(programma && programma.renderBlocchi);
-      tabella = creaTabellaLive({ vd, vid, toast, guarda, caricaFile, scaricaPdf: conPdf ? scaricaPdf : null, scaricaTutti: conPdf ? scaricaTutti : null });
+      const sala = programma && programma.anteprima && programma.renderBlocchi
+        ? () => apriSala({ apri, tabella, programma, caricaStoria: storiaConConsegne, osserva: osservaDalVivo, titolo: `Sala · ${verifica.titolo}` })
+        : null;
+      tabella = creaTabellaLive({ vd, vid, toast, guarda, sala, caricaFile, scaricaPdf: conPdf ? scaricaPdf : null, scaricaTutti: conPdf ? scaricaTutti : null });
       chiudiTabella = tabella.distruggi;
       const pannelloSituazione = el('div', { class: 'situazione' }, tabella.elemento);
       const schede = [['situazione', E.situazione], ['tracce', 'Tracce']];
