@@ -12,9 +12,11 @@ const ora = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit
 
 // `apri(titolo, onChiudi, opzioni)`: la finestra del modulo chiamante. `segui(email, cb)` chiama cb(lavoro, consegna, verifica) subito (se noto)
 // e a ogni aggiornamento, e restituisce la funzione per smettere. `caricaStoria()` (facoltativa) legge le istantanee dello
-// studente (vedi lavori.storia): con quella la finestra ha il cursore per tornare indietro nel tempo.
+// studente (vedi lavori.storia): con quella la finestra ha il cursore per tornare indietro nel tempo. `osserva()` (facoltativa)
+// avvia la vista dal vivo (lo studente salva più spesso finché la finestra è aperta) e restituisce la funzione per fermarla,
+// oppure null se non si può (verifica non aperta, studente non entrato).
 // Restituisce la finestra, o null se mancano i mezzi.
-export function apriAnteprima({ apri, programma, segui, caricaStoria = null, email, nome, titolo = null, nota = null }) {
+export function apriAnteprima({ apri, programma, segui, caricaStoria = null, osserva = null, email, nome, titolo = null, nota = null }) {
   if (!programma || !programma.anteprima) return null;
   const blocchi = el('div', { class: 'anteprima-blocchi' });
   const pre = Object.fromEntries(CODICI.map(([k]) => [k, el('pre', { class: 'code-body anteprima-codice' })]));
@@ -31,12 +33,17 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, ema
   const vuoto = el('p', { class: 'sketch-nota anteprima-vuoto', hidden: '' }, 'Questo studente non ha ancora scritto niente.');
   let anteprima = null;
   let annulla = () => {};
-  const f = apri(titolo ?? `Programma di ${nome || email}`, () => { annulla(); anteprima?.distruggi(); }, { larga: true });
+  let fermaOsserva = () => {};
+  const f = apri(titolo ?? `Programma di ${nome || email}`, () => { annulla(); fermaOsserva(); anteprima?.distruggi(); }, { larga: true });
+  const stopOsserva = osserva ? osserva() : null;
+  fermaOsserva = stopOsserva || (() => {});
   f.corpo.append(
     info,
     vuoto,
     el('div', { class: 'anteprima-corpo' }, blocchi, el('div', { class: 'anteprima-lato' }, barra, ...CODICI.map(([k]) => pre[k]))),
-    el('p', { class: 'sketch-nota' }, nota ?? 'Sola lettura. Il programma si aggiorna da solo quando lo studente salva (di solito entro 25 secondi).'));
+    el('p', { class: 'sketch-nota' }, nota ?? (stopOsserva
+      ? 'Sola lettura. Finché questa finestra è aperta lo studente salva più spesso: il programma si aggiorna da solo, di solito entro pochi secondi.'
+      : 'Sola lettura. Il programma si aggiorna da solo quando lo studente salva (di solito entro 25 secondi).')));
   scegli('pseudocode');
   anteprima = programma.anteprima({ blocchi, codici: pre });
   requestAnimationFrame(() => anteprima?.ridimensiona());

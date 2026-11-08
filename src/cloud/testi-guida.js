@@ -82,7 +82,7 @@ const studente = [
       { h: 'Consegnare' },
       { p: `Premi **${T.consegnaPulsante}** e conferma con **${T.consegnaConferma}**. Dopo non puoi più modificare. Se vuoi ripensarci, scegli **${T.consegnaAnnulla}**.` },
       { h: 'Il docente vede il tuo lavoro' },
-      { p: 'Mentre lavori il tuo programma si salva online da solo ogni tanto, e il docente può guardarlo e vedere come è cambiato negli ultimi minuti. Serve soprattutto a capire come sta andando la classe e ad aiutare chi si blocca. Cosa viene salvato esattamente è scritto in «Privacy e dati».' },
+      { p: 'Mentre lavori il tuo programma si salva online da solo ogni tanto, e il docente può guardarlo e vedere come è cambiato negli ultimi minuti (se ti sta guardando, il salvataggio è più frequente). Serve soprattutto a capire come sta andando la classe e ad aiutare chi si blocca. Cosa viene salvato esattamente è scritto in «Privacy e dati».' },
     ],
   },
   {
@@ -195,9 +195,9 @@ const docente = [
     blocchi: [
       { p: `La scheda **${E.situazione}** si apre da sola. Ha una riga per studente: stato (Non entrato, Scrive, Ha eseguito, Errore, Consegnato), blocchi con la variazione degli ultimi minuti, esecuzioni, connessione («offline da N min» dopo 4 minuti senza segnali) e tempo rimasto.` },
       { ul: [
-        `**${E.guarda}**: il programma dello studente in sola lettura. Si aggiorna da solo, con un ritardo fino a circa 25 secondi.`,
+        `**${E.guarda}**: il programma dello studente in sola lettura. Si aggiorna da solo, con un ritardo fino a circa 25 secondi. Finché la finestra resta aperta su uno studente al lavoro, lui salva più spesso (circa ogni 5 secondi) e il ritardo si riduce a pochi secondi; chiusa la finestra torna al ritmo normale.`,
         `**${E.storia}**: un cursore per rivedere come è cambiato (circa le ultime 2 ore, un'istantanea ogni ~5 minuti più il prima e il dopo di un salto). Non è un registro di ogni modifica. Nella Storia compaiono anche le consegne, ognuna al suo posto nel tempo. A verifica terminata si parte dall'**Ultima consegna** (la sola che conta): le istantanee prima e dopo sono consultazione, e dicono di non essere una consegna. Se il lavoro sul server è più recente di una consegna da file, un avviso lo segnala.`,
-        'Il segno ⚠ compare se i blocchi sono saliti di colpo, per esempio per un programma incollato. È un indizio, non una prova.',
+        'Il segno ⚠ compare se i blocchi sono saliti di colpo (30 o più tra due salvataggi). Copiare e incollare dentro l\'editor è lecito, e chi ha un\'idea scrive in fretta: è un indizio debole, non una prova.',
       ] },
       { p: 'Questi strumenti servono prima di tutto a capire come procede la classe e chi si sta perdendo, per poterlo aiutare. Il controllo su chi incolla lavoro preparato è secondario.' },
       { nota: 'Un limite onesto: chi sa usare gli strumenti del browser può aggirare i blocchi dell\'editor, e nessun sistema che gira sul computer dello studente lo può impedire. Contano la presenza in aula e questi segnali.' },

@@ -462,3 +462,17 @@ test('riepilogoApertura: studenti, tracce e quanti hanno una traccia o un tempo 
   await d.assegna(vid, ANNA, { minutiExtra: 10 });                                 // traccia E tempo diversi: conta una volta
   assert.equal((await d.riepilogoApertura(vid)).diversi, 2);
 });
+
+test('osserva: il docente segna di guardare uno studente già entrato; non chi non è entrato, né a verifica chiusa', async () => {
+  const d = docente();
+  const { vid } = await bozza(d);
+  await d.apri(vid, { tracciaDefault: 't0' });
+  await lavoroDi(ANNA).salva(vid, { programma: prog(1), nBlocchi: 3 });
+  await d.lavori.osserva(vid, ANNA);
+  const prima = (await d.lavori.elenca(vid)).find((l) => l.email === ANNA);
+  assert.ok(prima);
+  await assert.rejects(d.lavori.osserva(vid, CARLA), (e) => e.codice === 'negato');          // non è entrata
+  await assert.rejects(creaVerificaDocente({ sdk, db: dbDi('collega@isarome.it') }, 'collega@isarome.it').lavori.osserva(vid, ANNA), (e) => e.codice === 'negato');
+  await d.chiudi(vid);
+  await assert.rejects(d.lavori.osserva(vid, ANNA), (e) => e.codice === 'negato');           // verifica chiusa
+});

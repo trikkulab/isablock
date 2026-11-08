@@ -547,7 +547,7 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
     sul server è più recente (`ultimoSegnale` dopo `creato`) un avviso lo dice. Le scrive lo studente (best effort, a parte dal
     salvataggio): periodica ogni `istantaneaOgniMs` (5 min) se il programma è cambiato e ha blocchi, in 24 posti A ANELLO
     scelti dall'ora (`p<k>`, k = ora / intervallo mod 24: nessun contatore da ricordare), più la coppia `a<k>`/`d<k>`
-    (prima/dopo) quando i blocchi salgono di `saltoBlocchi` o più tra due salvataggi (3 posti). Regole: solo lo studente a
+    (prima/dopo) quando i blocchi salgono di `saltoBlocchi` (30 dall'8 nov 2026: è un indizio debole, vedi docs/SIMULAZIONE-30.md) o più tra due salvataggi (3 posti). Regole: solo lo studente a
     verifica aperta, entrato, non consegnato, entro scadenza+grazia; legge il docente; nessuno cancella (la pulizia di fine
     anno li toglie con lo script). Costo: ~700 scritture in più su 30 studenti × 2 h. Per infittire o allungare la storia:
     `istantaneaOgniMs` e `regole.maxIstantanee`, poi ripubblicare le regole.
@@ -844,3 +844,14 @@ Il ruolo docente in locale lo danno i `docentiProva` di `scripts/environments.lo
   «Riapri…» e gli stati (Aperta, Chiusa, «Verifica aperta» dello studente) restano.
 - **Prove**: `test/e2e/accesso.mjs` (23 controlli, cloud acceso e spento): ci sono 4 schede nell'ordine giusto, le due guide si aprono, ogni capitolo
   si apre da solo e ha del testo, nessun testo con `undefined`/segnaposto; nessun controllo dipende dalle parole.
+
+
+### Vista dal vivo di uno studente (8 nov 2026)
+
+Mentre la finestra «Guarda» è aperta su uno studente al lavoro (verifica aperta, già entrato, non consegnato), il browser
+del docente scrive nel suo lavoro il campo `osservato` (ora del server) subito e poi ogni `osservatoRinnovoMs` (2 min).
+Lo studente, che ascolta già il proprio lavoro, salva ogni `osservatoDebounceMs` (5 s) invece di `debounceSalvataggioMs`
+(25 s) finché il segno è più recente di `osservatoScadeMs` (4 min): chiusa la finestra, o spento il PC del docente, torna
+da solo al ritmo normale. Regole: solo il docente del corso, `osservato == request.time`, verifica aperta, studente
+entrato. Gli altri studenti non cambiano. Costo (simulazione, docs/SIMULAZIONE-30.md): +9% scritture con un solo studente
+osservato alla volta. Le istantanee non cambiano (seguono il tempo). Solo il primo piano: la griglia di tessere non c'è.

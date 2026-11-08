@@ -257,7 +257,7 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
 
   function programmaDebounce() {
     if (timerDebounce !== null || stato !== 'in-corso') return;
-    timerDebounce = tempo.timeout(() => { timerDebounce = null; inBackground(() => scriviOra()); }, config.debounceSalvataggioMs);
+    timerDebounce = tempo.timeout(() => { timerDebounce = null; inBackground(() => scriviOra()); }, debounceMs());
   }
 
   // L'interfaccia comunica il programma (JSON come testo) e le statistiche a ogni modifica: costa solo un confronto.
@@ -370,6 +370,21 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
     };
   }
 
+  // ── Vista dal vivo ───────────────────────────────────────────────────────
+  // Se il docente sta guardando questo studente (`osservato` = ora del server dell'ultimo segno, rinnovato dalla finestra
+  // «Guarda»), si salva più spesso. Senza rinnovi il segno scade da solo (`osservatoScadeMs`).
+  let osservatoMs = null;
+  const osservato = () => osservatoMs !== null && ora() - osservatoMs < (config.osservatoScadeMs ?? 240000);
+  const debounceMs = () => (osservato() ? (config.osservatoDebounceMs ?? 5000) : config.debounceSalvataggioMs);
+  function segnoOsservato(d) {
+    const ts = d.osservato && typeof d.osservato.toMillis === 'function' ? d.osservato.toMillis() : null;
+    if (ts === null) return;
+    const prima = osservato();
+    osservatoMs = ts;
+    // Appena comincia l'osservazione un salvataggio già in attesa non aspetta il vecchio ritmo.
+    if (!prima && osservato() && stato === 'in-corso' && timerDebounce !== null) { tempo.annulla(timerDebounce); timerDebounce = null; if (haDaScrivere()) programmaDebounce(); }
+  }
+
   // ── Ascolti: il docente può dare tempo, o chiudere la verifica ─────────────
   function stimaOffset(snapLavoro) {
     const d = snapLavoro.data();
@@ -394,6 +409,7 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
       const cambiata = (nuova && !scadenza) || (nuova && scadenza && nuova.getTime() !== scadenza.getTime());
       if (nuova) scadenza = nuova;
       tracciaId = d.tracciaId ?? null;
+      segnoOsservato(d);
       // «Consegnato» conta solo se lo ha confermato il server: una scrittura locale ancora in attesa non basta (se poi
       // fallisse, lo studente crederebbe di aver consegnato). Nel caso normale lo stato cambia quando consegna() ha finito.
       if (d.consegnato === true && !snap.metadata.hasPendingWrites) { cambiaStato('consegnato'); return; }
@@ -510,6 +526,7 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
     offline: () => offline,
     datiEmergenza,
     ora, restanteMs,
+    osservato,                                              // il docente lo sta guardando dal vivo (si salva più spesso)
     stato: () => stato, scadenza: () => scadenza, tracciaId: () => tracciaId, offset: () => offset,
     programmaSalvato: () => programmaIniziale,              // se non è null, l'interfaccia lo ricarica nell'editor (ripresa)
     origine: () => origineConsegna,

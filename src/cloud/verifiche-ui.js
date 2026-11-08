@@ -585,8 +585,18 @@ export function montaVerifiche({ toast, programma = null }) {
           id: c.id, tipo: 'consegna', programma: c.programma, nBlocchi: contaBlocchi(c.programma), t: c.creato, versione: c.versione, origine: c.origine }));
         return [...istantanee, ...sue].sort((a, b) => a.t - b.t || (a.versione ?? 0) - (b.versione ?? 0));
       };
+      // Vista dal vivo: finché la finestra «Guarda» è aperta su uno studente al lavoro, il docente rinnova il segno
+      // «lo sto guardando» e lo studente salva più spesso. Si ferma da solo se lo studente consegna o la verifica si chiude.
+      const osservaDalVivo = (email) => {
+        const puo = () => { const l = tabella.stato(email).lavoro; return stato() === 'aperta' && !!l && !!l.entrato && !l.consegnato; };
+        if (!puo()) return null;
+        const segna = () => { if (puo()) vd.lavori.osserva(vid, email).catch(() => {}); };
+        segna();
+        const timer = setInterval(segna, verificaConfig.client.osservatoRinnovoMs);
+        return () => clearInterval(timer);
+      };
       const guarda = programma && programma.anteprima
-        ? (email, nome) => apriAnteprima({ apri, programma, segui: (e, cb) => tabella.segui(e, cb), caricaStoria: () => storiaConConsegne(email), email, nome })
+        ? (email, nome) => apriAnteprima({ apri, programma, segui: (e, cb) => tabella.segui(e, cb), caricaStoria: () => storiaConConsegne(email), osserva: () => osservaDalVivo(email), email, nome })
         : null;
       const caricaFile = (email, nome) => scegliFileEmergenza({ apri, programma, vd, vid, email, nome, toast, ...tabella.stato(email) });
       // Scheda in PDF: una per consegna (la valida, cioè l'ultima versione), con la traccia che aveva lo studente.

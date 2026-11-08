@@ -61,7 +61,15 @@ export const verificaConfig = Object.freeze({
     // Timer: giallo sotto questa frazione del tempo, rosso sotto questi ms.
     timerGialloFrazione: 0.25,
     timerRossoMs: 300000,
-    // Salto di blocchi tra due campioni oltre il quale il docente vede un avviso (da tarare).
-    saltoBlocchi: 15,
+    // Salto di blocchi tra due campioni oltre il quale il docente vede un avviso. È un indizio debole (copiare e incollare
+    // dentro l'editor è lecito, e chi ha un'idea scrive in fretta): 30 lascia solo i cambiamenti molto grandi
+    // (simulazione dell'8 nov 2026: con 15 e raffiche di scrittura i falsi allarmi erano 3 su 4).
+    saltoBlocchi: 30,
+    // Vista dal vivo di UNO studente (la finestra «Guarda» del docente aperta su di lui): mentre è osservato lo studente
+    // salva ogni `osservatoDebounceMs` invece di `debounceSalvataggioMs`. Il docente rinnova il segno ogni
+    // `osservatoRinnovoMs`; se non arriva da `osservatoScadeMs` (finestra chiusa, PC spento) si torna al ritmo normale.
+    osservatoDebounceMs: 5000,
+    osservatoRinnovoMs: 120000,
+    osservatoScadeMs: 240000,
   }),
 });

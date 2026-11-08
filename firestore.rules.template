@@ -439,8 +439,13 @@ service cloud.firestore {
         function aggiornamentoDocente() {
           let cambiate = request.resource.data.diff(resource.data).affectedKeys();
           return docenteLav()
-            && cambiate.hasOnly(['scadenza', 'minutiExtra', 'tracciaId', 'consegnato'])
+            && cambiate.hasOnly(['scadenza', 'minutiExtra', 'tracciaId', 'consegnato', 'osservato'])
             && extraValido(request.resource.data)
+            // Vista dal vivo: il segno «lo sto guardando» è l'ora del server, solo a verifica aperta e per chi è già entrato.
+            && (!cambiate.hasAny(['osservato'])
+                || (request.resource.data.osservato == request.time
+                    && verificaLav().stato == 'aperta'
+                    && resource.data.entrato != null))
             && request.resource.data.scadenza is timestamp
             && (request.resource.data.tracciaId == resource.data.tracciaId
                 || (resource.data.entrato == null

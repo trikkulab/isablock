@@ -37,10 +37,11 @@ prova('incremento: rispetto al campione più vecchio nella finestra', () => {
 prova('salto: solo gli aumenti improvvisi oltre la soglia', () => {
   assert.equal(saltoBlocchi({ nBlocchi: 12, campioni: [{ t: 1, n: 3 }, { t: 2, n: 8 }] }), 0);
   assert.equal(saltoBlocchi({ nBlocchi: 40, campioni: [{ t: 1, n: 3 }, { t: 2, n: 8 }] }), 32);
-  assert.equal(saltoBlocchi({ nBlocchi: 5, campioni: [{ t: 2, n: 30 }, { t: 1, n: 5 }] }), 25);     // campioni in disordine
+  assert.equal(saltoBlocchi({ nBlocchi: 5, campioni: [{ t: 2, n: 40 }, { t: 1, n: 5 }] }), 35);     // campioni in disordine
   assert.equal(saltoBlocchi({ nBlocchi: 5, campioni: [{ t: 1, n: 40 }, { t: 2, n: 5 }] }), 0);       // diminuire non è un salto
-  assert.equal(saltoBlocchi({ nBlocchi: 15, campioni: [{ t: 1, n: 0 }] }), 15);                        // esattamente la soglia
-  assert.equal(saltoBlocchi({ nBlocchi: 14, campioni: [{ t: 1, n: 0 }] }), 0);
+  assert.equal(saltoBlocchi({ nBlocchi: 15, campioni: [{ t: 1, n: 0 }] }), 0);                                // sotto la soglia di progetto (30)
+  assert.equal(saltoBlocchi({ nBlocchi: 15, campioni: [{ t: 1, n: 0 }], soglia: 15 }), 15);            // esattamente la soglia
+  assert.equal(saltoBlocchi({ nBlocchi: 14, campioni: [{ t: 1, n: 0 }], soglia: 15 }), 0);
 });
 prova('stato della riga', () => {
   assert.equal(statoRiga(lavoro({ entrato: null }), null), 'non-entrato');

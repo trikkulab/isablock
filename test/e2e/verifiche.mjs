@@ -347,6 +347,8 @@ try {
   await page.click('.tabella-live tbody tr:has-text("Anna Rossi") button:has-text("Guarda")');
   await page.waitForSelector('.anteprima-blocchi svg.blocklySvg');
   verifica(await finche(async () => (await page.$$('.anteprima-blocchi .blocklyBlockCanvas [data-id]')).length > 3), 'Guarda: i blocchi di Anna si vedono nella finestra');
+  verifica(await finche(async () => !!(await leggi(lavoroAnna))?.fields?.osservato), 'Guarda: il docente segnala nel lavoro che sta guardando (vista dal vivo)');
+  verifica(await page.isVisible('text=lo studente salva più spesso'), 'Guarda: la finestra dice che lo studente salva più spesso');
   const pseudoAnteprima = async () => page.textContent('.anteprima-codice >> nth=0');
   verifica(/INIZIO/.test(await pseudoAnteprima()) && /FINE/.test(await pseudoAnteprima()), 'Guarda: c\'è lo pseudocodice generato');
   await page.click('.anteprima-lato .verifica-scheda:has-text("Python")');

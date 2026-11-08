@@ -146,7 +146,13 @@ export function creaLavoriDocente({ sdk, db }) {
     } catch (err) { throw traduci(err, 'Non posso leggere la storia di questo studente.'); }
   }
 
-  return { elenca, creaMancanti, impostaScadenza, impostaExtra, aggiungiMinuti, impostaTraccia, togli, storia };
+  // Vista dal vivo: «sto guardando questo studente». Scrive l'ora del server nel suo lavoro; mentre il segno è recente
+  // (osservatoScadeMs) lo studente salva più spesso. Si rinnova finché la finestra «Guarda» è aperta; se si smette, lo
+  // studente torna da solo al ritmo normale. Costo: una scrittura qui e una lettura dello studente a ogni rinnovo.
+  const osserva = (vid, email) =>
+    aggiorna(vid, email, { osservato: sdk.serverTimestamp() }, 'Non posso seguire questo studente dal vivo (la verifica deve essere aperta e lo studente già entrato).');
+
+  return { elenca, creaMancanti, impostaScadenza, impostaExtra, aggiungiMinuti, impostaTraccia, togli, storia, osserva };
 }
 
 // ── Studente ─────────────────────────────────────────────────────────────

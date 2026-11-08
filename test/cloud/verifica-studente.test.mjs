@@ -996,3 +996,43 @@ test('chiusura forzata con TUTTO già salvato: terminata senza file di emergenza
   assert.equal(copiaDi(st).leggi(), null);
   a.s.termina();
 });
+
+// ── Vista dal vivo: il docente guarda lo studente, si salva più spesso ────────────────────────────────────────────────
+const osserva = () => admin((db) => sdk.updateDoc(sdk.doc(db, 'verifiche/v1/lavori/' + ANNA), { osservato: sdk.serverTimestamp() }));
+
+test('vista dal vivo: mentre il docente guarda si salva dopo osservatoDebounceMs; senza rinnovi si torna al ritmo normale', async () => {
+  const { s, tempo, scritture } = nuovaSessione();
+  try {
+    await s.avvia();
+    assert.equal(s.osservato(), false);
+    await osserva();
+    assert.ok(await finche(() => s.osservato()), 'lo studente si accorge del segno');
+    s.aggiorna({ programma: P(1), nBlocchi: 3 });
+    await tempo.avanza(C.osservatoDebounceMs + 500, s);
+    assert.equal(scritture.length, 2, 'salvato dopo pochi secondi');
+    assert.equal((await leggiLavoro()).programma, P(1));
+    // scaduto il segno: ritmo normale
+    await tempo.avanza(C.osservatoScadeMs + 1000, s);
+    assert.equal(s.osservato(), false);
+    const prima = scritture.length;
+    s.aggiorna({ programma: P(2), nBlocchi: 4 });
+    await tempo.avanza(C.osservatoDebounceMs + 500, s);
+    assert.equal(scritture.length, prima, 'a segno scaduto non basta più il ritmo veloce');
+    await tempo.avanza(C.debounceSalvataggioMs, s);
+    assert.equal((await leggiLavoro()).programma, P(2));
+  } finally { s.termina(); }
+});
+
+test('vista dal vivo: un salvataggio già in attesa non aspetta il vecchio ritmo quando comincia l\'osservazione', async () => {
+  const { s, tempo, scritture } = nuovaSessione();
+  try {
+    await s.avvia();
+    s.aggiorna({ programma: P(1), nBlocchi: 3 });                         // parte l'attesa lunga (25 s)
+    await tempo.avanza(2000, s);
+    assert.equal(scritture.length, 1);
+    await osserva();
+    assert.ok(await finche(() => s.osservato()));
+    await tempo.avanza(C.osservatoDebounceMs + 500, s);
+    assert.equal(scritture.length, 2, 'salvato entro pochi secondi dall\'inizio dell\'osservazione');
+  } finally { s.termina(); }
+});

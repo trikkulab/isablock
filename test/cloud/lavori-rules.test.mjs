@@ -354,3 +354,37 @@ test('lavori: forma e limiti dei campi dello studente', async () => {
     esecuzioni: { n: 100000, esito: 'errore', quando: 1_700_000_000_000 }, tracciaRevVista: 4,
   }));
 });
+
+// ── Vista dal vivo (osservato) ────────────────────────────────────────────
+test('lavori: osservato = ora del server, solo il docente del corso, verifica aperta, studente già entrato', async () => {
+  await semina('aperta', entrata());
+  const d = docente();
+  await assertSucceeds(updateDoc(lav(d), { osservato: serverTimestamp() }));
+  await assertSucceeds(updateDoc(lav(codocente()), { osservato: serverTimestamp() }));               // rinnovo: stesso campo, nuovo valore
+  await assertFails(updateDoc(lav(d), { osservato: tra(0) }));                                     // un'ora scelta dal PC non vale
+  await assertFails(updateDoc(lav(d), { osservato: tra(3_600_000) }));
+  await assertFails(updateDoc(lav(d), { osservato: null }));
+  await assertFails(updateDoc(lav(d), { osservato: true }));
+  await assertFails(updateDoc(lav(collega()), { osservato: serverTimestamp() }));                  // docente di un altro corso
+  await assertFails(updateDoc(lav(anna()), { osservato: serverTimestamp() }));                     // lo studente no
+  await assertFails(updateDoc(lav(anna()), mio({ osservato: serverTimestamp() })));
+  await assertFails(updateDoc(lav(bruno()), { osservato: serverTimestamp() }));
+  await assertFails(updateDoc(lav(anonimo()), { osservato: serverTimestamp() }));
+  await assertSucceeds(updateDoc(lav(d), { osservato: serverTimestamp(), minutiExtra: 5, scadenza: tra(4_000_000) }));   // insieme ad altro del docente
+  await assertFails(updateDoc(lav(d), { osservato: serverTimestamp(), studenteNome: 'X' }));      // ma non ai campi dello studente
+});
+
+test('lavori: osservato non si scrive su bozza, chiusa o per chi non è ancora entrato', async () => {
+  await semina('bozza');
+  await assertFails(updateDoc(lav(docente()), { osservato: serverTimestamp() }));
+  await semina('chiusa', entrata());
+  await assertFails(updateDoc(lav(docente()), { osservato: serverTimestamp() }));
+  await semina('aperta');                                                                          // aperta ma Anna non è entrata
+  await assertFails(updateDoc(lav(docente()), { osservato: serverTimestamp() }));
+});
+
+test('lavori: osservato non ostacola il salvataggio dello studente e non lo cambia', async () => {
+  await semina('aperta', entrata());
+  await assertSucceeds(updateDoc(lav(docente()), { osservato: serverTimestamp() }));
+  await assertSucceeds(updateDoc(lav(anna()), { programma: '{"a":1}', programmaHash: 'h2', nBlocchi: 4, ultimoSegnale: serverTimestamp() }));
+});
