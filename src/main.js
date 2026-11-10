@@ -372,6 +372,10 @@ const helpModal = document.getElementById('helpModal');
 const guida = creaGuida({ modale: helpModal, barra: document.getElementById('guidaSchede'), pagine: document.getElementById('guidaPagine') });
 const openHelp = () => guida.apri('editor');
 const closeHelp = () => guida.chiudi();
+// Sul Mac la scorciatoia usa il tasto Cmd, altrove Ctrl: la Guida mostra quello giusto.
+if (/Mac|iPhone|iPad/.test(navigator.platform)) {
+  for (const tasto of document.querySelectorAll('.tasto-mod')) tasto.textContent = '⌘';
+}
 document.getElementById('btnHelp').addEventListener('click', openHelp);
 document.getElementById('helpCloseBtn').addEventListener('click', closeHelp);
 document.getElementById('helpCloseBtn2').addEventListener('click', closeHelp);

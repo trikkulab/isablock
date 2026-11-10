@@ -7,6 +7,33 @@
 // finestra (per le correzioni che lo studente non nota).
 export const changelog = Object.freeze([
   {
+    version: '1.8.6',
+    date: '2026-11-10',
+    title: 'Variabili vero/falso più facili',
+    items: [
+      'Nel blocco ASSEGNA, il menu della variabile ora ha «Nuova variabile vero/falso…»: scrivi il nome e puoi subito assegnarle vero, falso o un confronto.',
+      'Anche «Nuova variabile numero…» è nel menu di ASSEGNA e di LEGGI.',
+    ],
+  },
+  {
+    version: '1.8.5',
+    date: '2026-11-10',
+    title: 'Scorciatoie da tastiera',
+    items: [
+      'Nella Guida c’è una nuova sezione con le scorciatoie da tastiera: Spazio per un passo, Invio per eseguire, D per duplicare un blocco, X per staccarlo dalla pila…',
+    ],
+  },
+  {
+    version: '1.8.4',
+    date: '2026-11-10',
+    title: 'Piccole sistemazioni',
+    silent: true,
+    items: [
+      'Cambiando lo zoom, i blocchi della tavolozza non cambiano più dimensione.',
+      'Il blocco INIZIO…FINE non si può più duplicare con la tastiera: ce n’è uno solo.',
+    ],
+  },
+  {
     version: '1.8.3',
     date: '2026-10-28',
     title: 'Rifiniture su vero e falso',
