@@ -50,7 +50,7 @@ export async function accedi(browser, email, { nome = 'Utente Prova', larghezza 
   const errori = [];
   page.on('pageerror', (e) => errori.push(`pageerror: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error') errori.push(`console: ${m.text()}`); });
-  await page.goto('http://localhost:8123/');
+  await page.goto(`http://localhost:8123/${process.env.E2E_CONTATORE ? '?contatore=1' : ''}`);   // E2E_CONTATORE=1: tutto il giro con il contatore di letture acceso
   await page.click('text=Ho capito, iniziamo', { timeout: 5000 }).catch(() => {});      // finestra di benvenuto
   if (prima) await prima(page);
   await page.click('.cloud-accedi');                                                      // l'app carica il cloud

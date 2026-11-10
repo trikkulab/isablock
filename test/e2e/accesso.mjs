@@ -97,6 +97,16 @@ try {
   verifica(!(await senza.page.isVisible('#guidaSchede')) && (await senza.page.$$('#guidaEditor .guide-section')).length === 6, 'con il cloud spento la Guida non ha schede e mostra le sue 6 sezioni sull\'editor');
   verifica(!(await senza.page.textContent('#helpModal')).includes('Privacy e dati') && !(await senza.page.isVisible('.cloud-accedi')), '…e non parla di cloud né di privacy');
   verifica(senza.errori.length === 0, 'nessun errore nella pagina senza cloud');
+  // ── Contatore di letture: spento di default, acceso solo con ?contatore=1 ───────────────────────────
+  const normale = await apri('http://localhost:8123/');
+  await normale.page.click('.cloud-accedi');
+  await normale.page.waitForSelector('.modal-btn:has-text("Continua con Google")', { timeout: 20000 });
+  verifica((await normale.page.$$('button:has-text("📊")')).length === 0, 'senza ?contatore=1 il pulsante del contatore non c\'è');
+  const conteggio = await apri('http://localhost:8123/?contatore=1');
+  await conteggio.page.click('.cloud-accedi');
+  await conteggio.page.waitForSelector('.modal-btn:has-text("Continua con Google")', { timeout: 20000 });
+  verifica((await conteggio.page.$$('button:has-text("📊")')).length === 1, 'con ?contatore=1 compare il pulsante del contatore');
+  verifica(conteggio.errori.length === 0, `nessun errore nella pagina con il contatore${conteggio.errori.length ? `: ${conteggio.errori.join(' | ')}` : ''}`);
   riuscito = riepilogo();
 } catch (e) {
   console.log('ERRORE', e.message.split('\n').slice(0, 4).join(' | '));

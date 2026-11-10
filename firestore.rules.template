@@ -505,7 +505,10 @@ service cloud.firestore {
           && verificaLav().stato in ['bozza', 'aperta']
           && exists(/databases/$(database)/documents/iscrizioni/$(verificaLav().corsoId + '_' + lid))
           && lavoroNuovoValido(request.resource.data);
-        allow update: if aggiornamentoDocente() || aggiornamentoStudente();
+        // Prima lo studente: è quasi tutto il traffico durante una verifica, e se il ramo studente vale le regole si fermano lì
+        // senza leggere `docenti` (ogni get/exists nelle regole si paga come lettura). Per un docente il ramo studente cade
+        // subito su `mioLavoro()`, senza letture: stesso esito di prima, meno letture.
+        allow update: if aggiornamentoStudente() || aggiornamentoDocente();
         allow delete: if docenteLav() && resource.data.entrato == null;
 
         // Storia del lavoro: istantanee del programma per capire come evolve (non è un registro di ogni modifica).
