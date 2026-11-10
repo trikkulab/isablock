@@ -7,6 +7,15 @@
 // finestra (per le correzioni che lo studente non nota).
 export const changelog = Object.freeze([
   {
+    version: '1.8.6',
+    date: '2026-11-10',
+    title: 'Variabili vero/falso più facili',
+    items: [
+      'Nel blocco ASSEGNA, il menu della variabile ora ha «Nuova variabile vero/falso…»: scrivi il nome e puoi subito assegnarle vero, falso o un confronto.',
+      'Anche «Nuova variabile numero…» è nel menu di ASSEGNA e di LEGGI.',
+    ],
+  },
+  {
     version: '1.8.5',
     date: '2026-11-10',
     title: 'Scorciatoie da tastiera',
