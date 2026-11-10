@@ -32,6 +32,11 @@ const workspace = Blockly.inject('blocklyDiv', {
   move: { scrollbars: true, drag: true, wheel: false },
 });
 
+// La tavolozza resta sempre a scala 1: di serie Blockly la ingrandisce/riduce
+// insieme all'area di lavoro, e cambiando lo zoom i blocchi della libreria
+// cambiavano dimensione.
+workspace.getFlyout().getFlyoutScale = () => 1;
+
 const pseudocodeGen = createPseudocodeGenerator(Blockly, pseudocodeConfig);
 const cGen = createCGenerator(Blockly, pseudocodeConfig);
 const pythonGen = createPythonGenerator(Blockly, pseudocodeConfig);
@@ -254,6 +259,9 @@ function enforceProgramBlock() {
     block.setDeletable(false);
     block.setMovable(false);
     block.contextMenu = false;
+    // Il menu contestuale nasconde gia' "Duplica", ma la scorciatoia da tastiera
+    // (D) guarda solo isDuplicatable(): senza questo ne nascerebbe un secondo.
+    block.isDuplicatable = () => false;
   }
 }
 
