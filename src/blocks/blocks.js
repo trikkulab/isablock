@@ -60,7 +60,6 @@ const blockDefinitions = [
     nextStatement: 'Statement',
     colour: COLOR_STATEMENT,
     tooltip: 'Legge un valore in input e lo salva in una variabile',
-    extensions: ['nuova_variabile_numero'],
   },
   {
     type: 'write',
@@ -299,57 +298,8 @@ const blockDefinitions = [
   },
 ];
 
-// Voci «Nuova variabile…» nel menu di un campo variabile. Di serie il menu di
-// Blockly ha solo Rinomina/Elimina: una variabile nasce rinominando quella
-// predefinita o portando in scena un blocco che la crea, e una variabile
-// vero/falso nasce solo da un blocco "flag" (macchinoso per uno studente).
-// Blockly non ha un punto di estensione per questo menu: si avvolgono, sulla
-// singola istanza del campo, la generazione delle voci (menuGenerator_) e la
-// reazione alla scelta (onItemSelected_), entrambi interni a Blockly (la
-// versione e' fissata in vendor/). Il tipo resta scelto esplicitamente dallo
-// studente, come per i blocchi distinti per tipo (docs/DECISIONI-ESTENSIONI.md).
-const NUOVA_NUMERO_ID = 'NUOVA_VARIABILE_NUMERO';
-const NUOVA_BOOLEANA_ID = 'NUOVA_VARIABILE_BOOLEANA';
-
-function aggiungiVociNuovaVariabile(Blockly, field, { conBooleane }) {
-  const voci = [['Nuova variabile numero…', NUOVA_NUMERO_ID]];
-  if (conBooleane) voci.push(['Nuova variabile vero/falso…', NUOVA_BOOLEANA_ID]);
-
-  const generaVoci = field.menuGenerator_;
-  field.menuGenerator_ = function () {
-    const opzioni = generaVoci.call(this);
-    const i = opzioni.findIndex((o) => o[1] === Blockly.RENAME_VARIABLE_ID);
-    opzioni.splice(i < 0 ? opzioni.length : i, 0, ...voci);
-    return opzioni;
-  };
-
-  const allaScelta = field.onItemSelected_;
-  field.onItemSelected_ = function (menu, item) {
-    const valore = item.getValue();
-    if (valore !== NUOVA_NUMERO_ID && valore !== NUOVA_BOOLEANA_ID) {
-      return allaScelta.call(this, menu, item);
-    }
-    const tipo = valore === NUOVA_BOOLEANA_ID ? 'Boolean' : '';
-    const workspace = this.getSourceBlock().workspace;
-    // Il dialogo controlla i nomi gia' usati e chiama il callback col nome scelto.
-    Blockly.Variables.createVariableButtonHandler(
-      workspace,
-      (nome) => {
-        const variabile = workspace.getVariableMap().getVariable(nome, tipo);
-        if (variabile) this.setValue(variabile.getId());
-      },
-      tipo,
-    );
-  };
-}
-
 export function registerBlocks(Blockly) {
   Blockly.common.defineBlocksWithJsonArray(blockDefinitions);
-
-  // LEGGI e` definito in JSON: l'estensione aggiunge le voci al suo campo VAR.
-  Blockly.Extensions.register('nuova_variabile_numero', function () {
-    aggiungiVociNuovaVariabile(Blockly, this.getField('VAR'), { conBooleane: false });
-  });
 
   // 'assign' e' definito a mano, non nell'array JSON sopra: il check del suo
   // input VALUE deve seguire il tipo della variabile scelta in VAR (Number o
@@ -392,7 +342,6 @@ export function registerBlocks(Blockly) {
       });
       const block = this;
       const field = this.getField('VAR');
-      aggiungiVociNuovaVariabile(Blockly, field, { conBooleane: true });
       function updateValueCheck(variableId) {
         const variable = block.workspace.getVariableMap().getVariableById(variableId);
         const check = variable && variable.type === 'Boolean' ? 'Boolean' : 'Number';
