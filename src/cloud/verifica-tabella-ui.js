@@ -52,6 +52,7 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
     sommario.textContent = righe.length === 0 ? '' : [
       `Entrati ${r.entrati} su ${r.totale}`, `consegnati ${r.consegnati}`,
       r.offline ? `${r.offline} offline` : null, r.conSalto ? `${r.conSalto} con un salto di blocchi` : null,
+      r.doppie ? `${r.doppie} su due dispositivi` : null,
     ].filter(Boolean).join(' · ');
     btnPdfTutti.hidden = !(scaricaTutti && ultimo.verifica.stato === 'chiusa' && righe.some((x) => x.versioneConsegna !== null));
     vuota.hidden = righe.length > 0;
@@ -65,7 +66,8 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
       const stato = STATI_RIGA[x.stato] + (x.stato === 'consegnato' && x.versioneConsegna > 1 ? ` (v${x.versioneConsegna})` : '') + (x.stato === 'consegnato' && x.origineConsegna === 'file' ? ' · da file' : '');
       corpo.append(el('tr', { 'data-stato': x.stato },
         el('th', { scope: 'row', title: x.email }, x.nome || x.email),
-        cella(x, el('span', { class: 'tabella-stato', 'data-stato': x.stato }, stato)),
+        cella(x, el('span', { class: 'tabella-stato', 'data-stato': x.stato }, stato),
+          x.doppiaSessione ? el('span', { class: 'tabella-doppia', title: 'Questo lavoro è stato scritto da due sessioni insieme (due computer o due schede): controlla', role: 'img', 'aria-label': 'Due sessioni attive' }, ' ⚠ due dispositivi') : ''),
         cella(x, blocchi, x.salto ? el('span', { class: 'tabella-salto', title: `Salto di ${x.salto} blocchi tra due controlli`, role: 'img', 'aria-label': `Salto di ${x.salto} blocchi` }, ' ⚠') : ''),
         cella(x, esec),
         cella(x, x.connessione ? el('span', { class: 'tabella-conn', 'data-conn': x.connessione.stato }, x.connessione.stato === 'offline' ? testoOffline(x.connessione.da) : 'online') : '–'),

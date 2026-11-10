@@ -112,5 +112,6 @@ export const testiStudente = Object.freeze({
   tracciaTab: 'Traccia',
   tracciaAggiornata: (ora) => `Traccia aggiornata alle ${ora}. Rileggila: il testo che vedi qui sotto è quello nuovo.`,
   tracciaNonDisponibile: 'La traccia non è disponibile: avvisa il docente.',
+  altraSessione: 'Attenzione: questa verifica è aperta anche su un altro computer o in un\'altra scheda con il tuo account. I due lavori si sovrascrivono a vicenda. Usane uno solo; il docente è stato avvisato.',
   ripresaLocale: 'Ho ripreso il tuo lavoro dalla copia su questo computer: era più recente di quello salvato online.',
 });

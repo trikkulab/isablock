@@ -172,7 +172,7 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
     item = x;
     stat.n = 0; stat.esito = 'mai'; stat.quando = null;
     sessione = api.nuovaSessione(x.verifica.id, {
-      onCambio: quandoCambia, onTraccia: mostraTraccia, titolo: x.verifica.titolo,
+      onCambio: quandoCambia, onTraccia: mostraTraccia, onAltraSessione: () => toast(T.altraSessione, 'error'), titolo: x.verifica.titolo,
       ...(rientro ? { rientroOffline: { scadenza: x.lavoro.scadenza, scartoMs: rientro.scartoMs } } : {}),
     });
     try {

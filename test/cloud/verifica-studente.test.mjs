@@ -116,6 +116,39 @@ test('ingresso: la prima scrittura segna entrato e il primo campione; il timer p
   s.termina();
 });
 
+test('due sessioni con lo stesso account: ognuna se ne accorge, il docente trova la segnalazione, e non si innesca un ping-pong', async () => {
+  let avvisiA = 0; let avvisiB = 0;
+  const A = nuovaSessione(ANNA, { onAltraSessione: () => { avvisiA++; } });
+  const B = nuovaSessione(ANNA, { onAltraSessione: () => { avvisiB++; } });
+  try {
+    await A.s.avvia();
+    assert.equal(avvisiA, 0);
+    assert.equal((await leggiLavoro()).doppiaSessione, undefined);                  // da sola non segnala niente
+    await B.s.avvia();                                                              // il «secondo computer»
+    assert.ok(await finche(() => avvisiA === 1 && avvisiB === 1), `avvisi: A ${avvisiA}, B ${avvisiB}`);
+    assert.ok(await finche(async () => (await leggiLavoro()).doppiaSessione === 1));
+    await new Promise((r) => setTimeout(r, 600));                                   // se ci fosse un ping-pong le scritture continuerebbero
+    const prima = A.scritture.length + B.scritture.length;
+    await new Promise((r) => setTimeout(r, 600));
+    assert.equal(A.scritture.length + B.scritture.length, prima);
+    assert.equal(avvisiA, 1);                                                       // l'avviso allo studente è uno solo
+  } finally { A.s.termina(); B.s.termina(); }
+});
+
+test('un ricaricamento (stessa scheda che riparte) non conta come due sessioni', async () => {
+  const A = nuovaSessione(ANNA);
+  await A.s.avvia();
+  A.s.termina();                                                                    // la vecchia pagina non c'è più
+  let avvisi = 0;
+  const B = nuovaSessione(ANNA, { onAltraSessione: () => { avvisi++; } });
+  try {
+    await B.s.avvia();
+    await new Promise((r) => setTimeout(r, 500));
+    assert.equal(avvisi, 0);
+    assert.equal((await leggiLavoro()).doppiaSessione, undefined);
+  } finally { B.s.termina(); }
+});
+
 test('senza modifiche non si scrive, tranne il battito: nessuna scrittura per un minuto', async () => {
   const { s, tempo, scritture } = nuovaSessione();
   await s.avvia();
@@ -160,7 +193,7 @@ test('battito: dopo battitoMs senza altre scritture esce un segnale di vita, sen
   const prima = (await leggiLavoro()).ultimoSegnale.toMillis();
   await tempo.avanza(C.battitoMs + 100, s);
   assert.equal(scritture.length, 2);
-  assert.deepEqual(Object.keys(scritture[1]).sort(), ['studenteNome', 'ultimoSegnale']);                // solo il segnale: niente programma, e `entrato` non si rimanda
+  assert.deepEqual(Object.keys(scritture[1]).sort(), ['sessioneId', 'studenteNome', 'ultimoSegnale']);                // solo il segnale: niente programma, e `entrato` non si rimanda
   assert.ok((await leggiLavoro()).ultimoSegnale.toMillis() > prima);
   assert.equal(s.statistiche().battiti, 1);
   // una scrittura vera sposta il battito in avanti: non ne esce uno a ridosso

@@ -1200,6 +1200,7 @@ body.modo-verifica .autosave-info { display: none; }
 .tabella-stato[data-stato="errore"] { color: #b91c1c; }
 .tabella-stato[data-stato="consegnato"] { color: #15803d; }
 .tabella-salto { color: #b45309; }
+.tabella-doppia { color: #b91c1c; font-weight: 600; white-space: nowrap; }
 .tabella-conn[data-conn="offline"] { color: #b91c1c; font-weight: 600; }
 .tabella-timer { font-variant-numeric: tabular-nums; font-weight: 600; }
 .tabella-timer[data-colore="verde"] { color: #15803d; }

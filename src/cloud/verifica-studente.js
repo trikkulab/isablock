@@ -102,11 +102,17 @@ export function creaVerificheStudente({ sdk, db }, emailUtente, nomeUtente) {
 // stato: 'in-corso' | 'consegnato' | 'terminata' (chiusa dal docente o tempo finito senza consegna)
 // `calibra: false` (solo nei test con tempo simulato) lascia lo scarto a zero: con un orologio finto che salta, i campioni
 // dell'eco dal server non sarebbero confrontabili.
-export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo = tempoReale, config = C, onCambio = () => {}, onTraccia = () => {}, backup = null, calibra = true, titolo = '', rientroOffline = null } = {}) {
+export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo = tempoReale, config = C, onCambio = () => {}, onTraccia = () => {}, onAltraSessione = () => {}, backup = null, calibra = true, titolo = '', rientroOffline = null } = {}) {
   const email = String(emailUtente || '').toLowerCase();
   const lavoro = creaLavoroStudente({ sdk, db }, email, nomeUtente);
   const consegne = creaConsegneStudente({ sdk, db }, email, nomeUtente);
 
+  // Due computer (o due schede) con lo stesso account scrivono sullo stesso lavoro e si sovrascrivono. Ogni sessione firma le
+  // sue scritture con un id; se dopo il proprio ingresso arriva un lavoro firmato da un altro id, c'è un'altra sessione viva:
+  // si avvisa lo studente e si scrive una volta `doppiaSessione` per il docente (un ricaricamento non lo fa: la vecchia pagina non c'è più).
+  const mioId = Math.random().toString(36).slice(2, 10);
+  let altraSessione = false;
+  let altraSegnalata = false;
   let stato = 'in-corso';
   let origineConsegna = null;     // 'studente' o 'automatica', dopo la consegna
   let programmaIniziale = null;   // il programma già salvato nel database all'ingresso (per riprendere dopo un ricaricamento)
@@ -183,7 +189,8 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
   async function scriviOra({ battito = false } = {}) {
     if (stato !== 'in-corso') return;
     clearAndNull('debounce');
-    const dati = {};
+    const dati = { sessioneId: mioId };
+    if (altraSessione && !altraSegnalata) dati.doppiaSessione = 1;
     if (haDaScrivere()) {
       dati.programma = corrente.programma;
       dati.programmaHash = hashProgramma(corrente.programma);
@@ -208,6 +215,7 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
       throw err;
     }
     stat.scritture++;
+    if (dati.doppiaSessione) altraSegnalata = true;
     if (battito) stat.battiti++;
     ultimaScrittura = tempo.adesso();
     const programmaPrima = salvato.programma;
@@ -410,6 +418,11 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
       if (nuova) scadenza = nuova;
       tracciaId = d.tracciaId ?? null;
       segnoOsservato(d);
+      if (stat.scritture > 0 && !altraSessione && !snap.metadata.hasPendingWrites && !snap.metadata.fromCache && d.sessioneId && d.sessioneId !== mioId) {
+        altraSessione = true;
+        onAltraSessione();
+        inBackground(() => scriviOra());                       // porta al docente la segnalazione
+      }
       // «Consegnato» conta solo se lo ha confermato il server: una scrittura locale ancora in attesa non basta (se poi
       // fallisse, lo studente crederebbe di aver consegnato). Nel caso normale lo stato cambia quando consegna() ha finito.
       if (d.consegnato === true && !snap.metadata.hasPendingWrites) { cambiaStato('consegnato'); return; }

@@ -86,7 +86,7 @@ prova('righe e riepilogo', () => {
   assert.equal(righe[2].timer, null);
   assert.equal(righe[2].versioneConsegna, 1);
   assert.equal(righe[3].incremento, 50);
-  assert.deepEqual(riepilogo(righe), { totale: 4, entrati: 3, consegnati: 1, offline: 1, conSalto: 1 });
+  assert.deepEqual(riepilogo(righe), { totale: 4, entrati: 3, consegnati: 1, offline: 1, conSalto: 1, doppie: 0 });
   assert.deepEqual(ordinaRighe(righe).map((r) => r.email), ['a@x.it', 'b@x.it', 'c@x.it', 'd@x.it']);
   assert.deepEqual(ordinaRighe(righe, 'attenzione').map((r) => r.email), ['b@x.it', 'd@x.it', 'a@x.it', 'c@x.it']);
 });

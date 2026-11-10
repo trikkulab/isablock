@@ -473,7 +473,8 @@ service cloud.firestore {
             && request.time <= resource.data.scadenza + duration.value(graziaSecondi(), 's')
             && resource.data.consegnato == false
             && d.diff(resource.data).affectedKeys().hasOnly(['studenteNome', 'programma', 'programmaHash',
-                 'nBlocchi', 'esecuzioni', 'campioni', 'entrato', 'consegnato', 'ultimaConsegna', 'ultimoSegnale', 'tracciaRevVista'])
+                 'nBlocchi', 'esecuzioni', 'campioni', 'entrato', 'consegnato', 'ultimaConsegna', 'ultimoSegnale', 'tracciaRevVista',
+                 'sessioneId', 'doppiaSessione'])
             // ogni scrittura è un segnale di vita, e il primo salvataggio è l'ingresso
             && d.ultimoSegnale == request.time
             && ((resource.data.entrato == null && d.entrato == request.time)
@@ -486,6 +487,9 @@ service cloud.firestore {
             && esecuzioniValide(d.get('esecuzioni', {'n': 0, 'esito': 'mai', 'quando': null}))
             && d.get('campioni', []) is list && d.get('campioni', []).size() <= maxCampioni()
             && d.get('tracciaRevVista', 0) is int && d.get('tracciaRevVista', 0) >= 0
+            // Segnalazione di due sessioni sullo stesso lavoro: un identificativo breve e un contatore, solo per il docente.
+            && d.get('sessioneId', 'x') is string && d.get('sessioneId', 'x').size() <= 16
+            && d.get('doppiaSessione', 0) is int && d.get('doppiaSessione', 0) >= 0 && d.get('doppiaSessione', 0) <= 1
             // `ultimaConsegna` = versione della consegna che questo batch crea. Senza consegnare non si tocca;
             // consegnando deve esserci una consegna NUOVA con quel numero (create-only: non esisteva prima).
             && ((d.consegnato == false

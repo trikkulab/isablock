@@ -124,6 +124,7 @@ export function costruisciRighe({ verifica, lavori, ultime = {}, ora }) {
       esecuzioni: lavoro.esecuzioni && lavoro.esecuzioni.n > 0 ? { n: lavoro.esecuzioni.n, esito: lavoro.esecuzioni.esito ?? null } : null,
       timer: timerRiga({ lavoro, verifica, ora, consegnato }),
       connessione: connessioneRiga({ lavoro, verifica, ora, consegnato }),
+      doppiaSessione: lavoro.doppiaSessione > 0,
       versioneConsegna: consegna ? consegna.versione : null,
       origineConsegna: consegna ? consegna.origine : null,
     };
@@ -138,11 +139,12 @@ export function riepilogo(righe) {
     consegnati: conta((r) => r.stato === 'consegnato'),
     offline: conta((r) => r.connessione && r.connessione.stato === 'offline'),
     conSalto: conta((r) => r.salto > 0),
+    doppie: conta((r) => r.doppiaSessione),
   };
 }
 
 // Ordine delle righe: prima chi richiede attenzione (offline, salto, errore), poi per cognome/email.
-const peso = (r) => (r.connessione && r.connessione.stato === 'offline' ? 0 : r.salto > 0 ? 1 : r.stato === 'errore' ? 2 : 3);
+const peso = (r) => (r.doppiaSessione ? -1 : r.connessione && r.connessione.stato === 'offline' ? 0 : r.salto > 0 ? 1 : r.stato === 'errore' ? 2 : 3);
 export function ordinaRighe(righe, modo = 'email') {
   const perEmail = (a, b) => a.email.localeCompare(b.email, 'it');
   if (modo === 'attenzione') return [...righe].sort((a, b) => peso(a) - peso(b) || perEmail(a, b));

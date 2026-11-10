@@ -45,6 +45,7 @@ export function lavoroDaDocumento(snap) {
     esecuzioni: d.esecuzioni ?? null,
     campioni: d.campioni ?? [],
     tracciaRevVista: d.tracciaRevVista ?? null,
+    doppiaSessione: d.doppiaSessione ?? 0,     // > 0: il lavoro è stato scritto da due sessioni (due computer o due schede) insieme
     // Timestamp originale: serve a rimandarlo uguale nelle scritture successive
     entratoTs: d.entrato ?? null,
   };
@@ -186,7 +187,7 @@ export function creaLavoroStudente({ sdk, db }, emailUtente, nomeUtente) {
       throw new ErroreLavoro('programma', 'Il programma è troppo grande per essere salvato.');
     }
     const campi = {};
-    for (const k of ['programma', 'programmaHash', 'nBlocchi', 'esecuzioni', 'campioni', 'tracciaRevVista']) {
+    for (const k of ['programma', 'programmaHash', 'nBlocchi', 'esecuzioni', 'campioni', 'tracciaRevVista', 'sessioneId', 'doppiaSessione']) {
       if (dati[k] !== undefined) campi[k] = dati[k];
     }
     if (campi.campioni && campi.campioni.length > L.maxCampioni) campi.campioni = campi.campioni.slice(-L.maxCampioni);
