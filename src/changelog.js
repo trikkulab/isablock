@@ -7,6 +7,14 @@
 // finestra (per le correzioni che lo studente non nota).
 export const changelog = Object.freeze([
   {
+    version: '1.8.5',
+    date: '2026-11-10',
+    title: 'Scorciatoie da tastiera',
+    items: [
+      'Nella Guida c’è una nuova sezione con le scorciatoie da tastiera: Spazio per un passo, Invio per eseguire, D per duplicare un blocco, X per staccarlo dalla pila…',
+    ],
+  },
+  {
     version: '1.8.4',
     date: '2026-11-10',
     title: 'Piccole sistemazioni',

@@ -882,6 +882,42 @@ body {
   margin-bottom: 1.25rem;
 }
 
+.shortcuts {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.95rem;
+}
+
+.shortcuts th {
+  text-align: left;
+  padding: 0.5rem 0 0.2rem;
+  font-size: 0.85rem;
+  color: #5b6770;
+}
+
+.shortcuts td {
+  padding: 0.25rem 0.75rem 0.25rem 0;
+  border-top: 1px solid var(--border);
+  vertical-align: baseline;
+}
+
+.shortcuts td:first-child {
+  white-space: nowrap;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.4em;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: #f4f6f8;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
 .guide-section h3 {
   margin: 0 0 0.4rem;
   font-size: 1rem;
