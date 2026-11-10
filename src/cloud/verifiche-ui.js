@@ -337,9 +337,10 @@ export function montaVerifiche({ toast, programma = null }) {
         async onConferma(d) {
           const c = quando.calcola();
           if (c.errore) throw new Error(c.errore);
-          await vd.riapri(vid, { fine: c.fine });
+          const esito = await vd.riapri(vid, { fine: c.fine });
           d.chiudi();
-          toast(`Verifica riaperta: finisce ${formatoDataOra.format(c.fine)}.`, 'success');
+          toast(`Verifica riaperta: finisce ${formatoDataOra.format(c.fine)}.${esito.aggiunti.length ? ` Aggiunti ${esito.aggiunti.length} iscritti arrivati dopo.` : ''}`, 'success');
+          if (esito.rifiutati.length) toast('Non sono riuscito ad aggiungere gli iscritti arrivati dopo: controlla le assegnazioni.', 'error');
           riapriScheda();
         },
       });
@@ -650,7 +651,31 @@ export function montaVerifiche({ toast, programma = null }) {
       chiudiTabella = tabella.distruggi;
       lavoriLive = tabella.tutti;
       aggiornaScadenza();
-      const pannelloSituazione = el('div', { class: 'situazione' }, tabella.elemento);
+      // Iscritti arrivati dopo l'apertura: senza il loro lavoro non vedono la verifica. L'avviso compare solo se ce n'è almeno uno.
+      const testoMancanti = el('span', {});
+      const btnAggiungi = el('button', { type: 'button', class: 'modal-btn' }, E.aggiungiIscritti);
+      const avvisoMancanti = el('p', { class: 'sketch-nota verifica-avviso avviso-mancanti', role: 'status', hidden: '' }, testoMancanti, ' ', btnAggiungi);
+      const aggiornaMancanti = async () => {
+        if (stato() !== 'aperta') { avvisoMancanti.hidden = true; return; }
+        try {
+          const m = await vd.iscrittiSenzaLavoro(vid);
+          if (!finestre.has(f)) return;
+          testoMancanti.textContent = m.length === 1 ? `1 iscritto al corso non ha la verifica (${m[0]}): non la vede.` : `${m.length} iscritti al corso non hanno la verifica: non la vedono.`;
+          avvisoMancanti.hidden = m.length === 0;
+        } catch { /* se non si riesce a controllare, niente avviso: la tabella resta quella di prima */ }
+      };
+      btnAggiungi.addEventListener('click', async () => {
+        btnAggiungi.disabled = true;
+        try {
+          const r = await vd.aggiungiIscritti(vid);
+          toast(r.create.length ? `Aggiunti ${r.create.length} iscritti: ora vedono la verifica.` : 'Nessuno da aggiungere.', 'success');
+          if (r.rifiutate.length) toast(`Non sono riuscito ad aggiungere: ${r.rifiutate.join(', ')}.`, 'error');
+        } catch (err) { toast(messaggio(err), 'error'); }
+        btnAggiungi.disabled = false;
+        aggiornaMancanti();
+      });
+      aggiornaMancanti();
+      const pannelloSituazione = el('div', { class: 'situazione' }, avvisoMancanti, tabella.elemento);
       const schede = [['situazione', E.situazione], ['tracce', 'Tracce']];
       const bottoni = new Map();
       const mostra = (cosa) => {

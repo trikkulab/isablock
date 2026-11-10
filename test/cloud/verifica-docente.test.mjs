@@ -8,6 +8,7 @@ import { creaVerificaDocente } from '../../src/cloud/verifica-docente.js';
 import { creaLavoroStudente } from '../../src/cloud/lavori.js';
 import { creaConsegneStudente } from '../../src/cloud/consegne.js';
 import { ErroreVerifica } from '../../src/cloud/verifiche.js';
+import { creaVerificheStudente } from '../../src/cloud/verifica-studente.js';
 
 sdk.setLogLevel('silent');
 const [host, port] = (process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8186').split(':');
@@ -186,6 +187,32 @@ test('iscritti arrivati dopo l\'apertura: aggiungiIscritti crea solo i lavori ch
   assert.ok(vicino(s[DARIO], fine.getTime()));
   assert.ok(vicino(s[ANNA], fine.getTime() + 20 * 60000));           // chi c'era non viene toccato
   assert.deepEqual((await d.aggiungiIscritti(vid)).create, []);
+});
+
+test('riapertura: chi si è iscritto dopo la prima apertura riceve la verifica (lavoro creato con la traccia di default)', async () => {
+  const d = docente();
+  const { vid } = await bozza(d);
+  await d.apri(vid, { tracciaDefault: 't0' });
+  await d.chiudi(vid);
+  await iscrivi(DARIO);                                                    // ritardatario: il corso aveva 3 studenti all'apertura
+  const fine = tra(ORA);
+  const r = await d.riapri(vid, { fine });
+  assert.deepEqual(r.aggiunti, [DARIO]);
+  const trovate = await creaVerificheStudente({ sdk, db: dbDi(DARIO) }, DARIO, 'Dario').daFare(['AB12CD']);
+  assert.equal(trovate.length, 1);                                         // a lui la verifica viene proposta
+  assert.equal(trovate[0].lavoro.tracciaId, 't0');
+  assert.ok(vicino(trovate[0].lavoro.scadenza.getTime(), fine.getTime()));
+});
+
+test('iscrittiSenzaLavoro: chi è iscritto ma non ha il lavoro; si svuota dopo aggiungiIscritti', async () => {
+  const d = docente();
+  const { vid } = await bozza(d);
+  await d.apri(vid, { tracciaDefault: 't0' });
+  assert.deepEqual(await d.iscrittiSenzaLavoro(vid), []);
+  await iscrivi(DARIO);
+  assert.deepEqual(await d.iscrittiSenzaLavoro(vid), [DARIO]);
+  await d.aggiungiIscritti(vid);
+  assert.deepEqual(await d.iscrittiSenzaLavoro(vid), []);
 });
 
 test('durante la verifica: gli studenti lavorano, il docente dà tempo; poi chiude e raccoglie', async () => {

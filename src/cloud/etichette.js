@@ -46,6 +46,7 @@ export const verificaDocenteEtichette = Object.freeze({
   elimina: 'Elimina verifica',
   avvia: 'Avvia verifica…',
   termina: 'Termina verifica…',
+  aggiungiIscritti: 'Aggiungi',
   raccogli: 'Raccogli i lavori',
   riapri: 'Riapri…',
   archivia: 'Archivia…',

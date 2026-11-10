@@ -146,6 +146,14 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
     return { create: r.create, rifiutate: r.rifiutate };
   }
 
+  // Gli iscritti al corso che non hanno ancora il lavoro per questa verifica (e quindi non la vedono): per l'avviso
+  // «Aggiungi» nella situazione. Due letture, da fare all'apertura della scheda e dopo l'aggiunta, non a ogni aggiornamento.
+  async function iscrittiSenzaLavoro(vid) {
+    const v = await verifiche.leggi(vid);
+    const hanno = new Set((await lavori.elenca(vid)).map((l) => l.email));
+    return (await corsi.iscritti(v.corsoId)).map((e) => e.toLowerCase()).filter((e) => !hanno.has(e));
+  }
+
   // ── Durante e dopo ────────────────────────────────────────────────────────
   // Tempo aggiuntivo a uno studente: sposta la sua scadenza (anche all'indietro, con minuti negativi).
   const tempoAggiuntivo = (vid, email, minuti) => lavori.aggiungiMinuti(vid, email, minuti);
@@ -184,7 +192,9 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
   // chiusa -> aperta, PER TUTTI, in un solo batch atomico con la verifica:
   //   - la scadenza di ognuno diventa la nuova fine più il tempo in più che gli hai dato a mano (`minutiExtra`);
   //   - chi aveva consegnato torna a poter lavorare (`consegnato` falso) e riconsegna: la consegna di prima resta.
-  // Restituisce quanti lavori ha sbloccato.
+  // Poi crea il lavoro di chi si è iscritto al corso dopo la prima apertura (se no a lui la verifica non sarebbe proposta):
+  // solo a verifica già riaperta, perché le regole non ammettono un lavoro nuovo con traccia su una verifica chiusa.
+  // Restituisce quanti lavori ha sbloccato e chi è stato aggiunto (`aggiunti`, `rifiutati` se non è stato possibile).
   async function riapri(vid, { fine } = {}) {
     const v = await verifiche.leggi(vid);
     if (v.stato !== 'chiusa') throw vuoto('stato', 'Si riapre solo una verifica chiusa.');
@@ -205,7 +215,12 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
       if (c === 'unavailable' || c === 'deadline-exceeded') throw vuoto('rete', 'Rete non disponibile: riprova tra poco.');
       throw vuoto('altro', 'Qualcosa è andato storto. Riprova.');
     }
-    return { sbloccati };
+    // La verifica è già riaperta: se questo passo fallisce non si annulla niente, il docente vede chi manca
+    // nella tabella delle assegnazioni e glielo assegna da lì (`assegna` crea il lavoro).
+    let aggiunti = [];
+    let rifiutati = [];
+    try { const r = await aggiungiIscritti(vid); aggiunti = r.create; rifiutati = r.rifiutate; } catch { rifiutati = ['?']; }
+    return { sbloccati, aggiunti, rifiutati };
   }
 
   // Carica il file di emergenza di uno studente (a verifica chiusa) come nuova versione.
@@ -330,7 +345,7 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
     // pezzi di base, se servono alla UI
     verifiche, lavori, consegne,
     // operazioni composte
-    crea, cambiaFine, assegna, apri, aggiungiIscritti, tempoAggiuntivo, chiudi, raccogli, riapri, caricaFile, situazione, ascoltaSituazione,
+    crea, cambiaFine, assegna, apri, aggiungiIscritti, iscrittiSenzaLavoro, tempoAggiuntivo, chiudi, raccogli, riapri, caricaFile, situazione, ascoltaSituazione,
     archivia, riepilogoApertura, eliminaTraccia, studentiConTraccia, impattoUsaPerTutti, impostaTracciaDefault, riepilogoEliminazione, eliminaVerifica, assegnazioni,
   };
 }
