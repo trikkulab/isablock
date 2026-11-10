@@ -7,6 +7,16 @@
 // finestra (per le correzioni che lo studente non nota).
 export const changelog = Object.freeze([
   {
+    version: '1.8.4',
+    date: '2026-11-10',
+    title: 'Piccole sistemazioni',
+    silent: true,
+    items: [
+      'Cambiando lo zoom, i blocchi della tavolozza non cambiano più dimensione.',
+      'Il blocco INIZIO…FINE non si può più duplicare con la tastiera: ce n’è uno solo.',
+    ],
+  },
+  {
     version: '1.8.3',
     date: '2026-10-28',
     title: 'Rifiniture su vero e falso',
