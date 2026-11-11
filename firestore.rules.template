@@ -500,7 +500,9 @@ service cloud.firestore {
                     && !exists(/databases/$(database)/documents/verifiche/$(vid)/consegne/$(lid + '_' + string(d.get('ultimaConsegna', 0))))));
         }
 
-        allow read: if docenteLav() || (mioLavoro() && verificaLav().stato != 'bozza');
+        // Prima lo studente (stesso motivo di `update`): gli aggiornamenti del suo lavoro arrivano al suo ascolto a ogni salvataggio, e
+        // `docenteLav()` per lui costerebbe una lettura di `docenti` inutile. Per un docente `mioLavoro()` cade subito, senza letture.
+        allow read: if (mioLavoro() && verificaLav().stato != 'bozza') || docenteLav();
         allow create: if docenteLav()
           && verificaLav().stato in ['bozza', 'aperta']
           && exists(/databases/$(database)/documents/iscrizioni/$(verificaLav().corsoId + '_' + lid))
