@@ -16,7 +16,8 @@ const ora = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit
 // avvia la vista dal vivo (lo studente salva più spesso finché la finestra è aperta) e restituisce la funzione per fermarla,
 // oppure null se non si può (verifica non aperta, studente non entrato).
 // Restituisce la finestra, o null se mancano i mezzi.
-export function apriAnteprima({ apri, programma, segui, caricaStoria = null, osserva = null, email, nome, titolo = null, nota = null }) {
+// `apriCopia({ programma, chi })`: se c'è, in fondo compare «Apri una copia per provarla» (carica nell'editor ciò che si sta guardando).
+export function apriAnteprima({ apri, programma, segui, caricaStoria = null, osserva = null, email, nome, titolo = null, nota = null, apriCopia = null }) {
   if (!programma || !programma.anteprima) return null;
   const blocchi = el('div', { class: 'anteprima-blocchi' });
   const pre = Object.fromEntries(CODICI.map(([k]) => [k, el('pre', { class: 'code-body anteprima-codice' })]));
@@ -151,6 +152,11 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, oss
   info.after(avvisoConsegna);
 
   let ultimo = null;   // l'ultimo programma mostrato (testo del JSON)
+  if (apriCopia) {
+    f.corpo.append(el('div', { class: 'modal-actions' },
+      el('button', { type: 'button', class: 'modal-btn secondary', title: 'Carica nell\'editor una copia di ciò che stai guardando, per eseguirla e provarla: la consegna non cambia',
+        onclick: () => apriCopia({ programma: ultimo, chi: `${nome || email}` }) }, E.apriCopiaProva)));
+  }
   annulla = segui(email, (lavoro, consegna = null, verifica = null) => {
     if (!lavoro) return;
     ultimoLavoro = { lavoro, consegna, verifica };

@@ -593,6 +593,18 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
       se un commento o una variabile contiene il nome/l'email dello studente compare un avviso con i codici. Mai scritto «AI» nei testi (scelta di Ivan: non
       deve sembrare che la valutazione usi strumenti di AI). Lo script locale `scripts/consegne_json_a_file.py` spezza il JSON in file per consegna
       (`<codice>.pseudocodice.txt`, `.c`, `.py`, `.info.txt`, `traccia-<sigla>.md`). Prove: `test/esporta-json.mjs`, e2e docente.
+    - **«Apri una copia per provarla» (12 nov 2026, `copia-di-prova.js`, `banda-copia.js`)**: in fondo alla finestra «Guarda» del docente. Carica
+      nell'editor ciò che si sta guardando (consegna, lavoro in diretta o un punto della Storia) come COPIA, con `programma.copiaDiProva.apri()`
+      di main.js: rifiuta se l'editor esegue, scollega lo sketch aperto (così «Salva» non lo sovrascrive), chiude le finestre. La COPIA AUTOMATICA
+      LOCALE RESTA FERMA finché c'è la copia (flag `inCopiaProva`, come `inVerifica`): il lavoro vero della scheda, già salvato prima, non si tocca e
+      l'elenco delle copie da riprendere non si riempie; riprende da sola quando il programma viene sostituito (Nuovo, file, esempio, altro sketch:
+      `scollega()` di ui.js → `copiaDiProva.fine()`; `carica()` normale la chiude). La copia automatica è per SCHEDA del browser (una sola copia per
+      scheda, sovrascritta a ogni modifica), non per file. Se la copia viene modificata durante le prove, quelle modifiche non si salvano da sole.
+      La banda arancione sotto la barra (non si può nascondere) dice «COPIA DI PROVA · Nome (n di tot) — non modifica l'originale, non si salva sul
+      cloud né da sola», ha il link «← titolo della verifica» (riapre la scheda sulla tabella) e le frecce ◀ ▶ per lo studente precedente/successivo
+      (ordine alfabetico per cognome come nel PDF; a verifica chiusa vale la consegna, altrimenti il lavoro). Passando da uno studente all'altro non
+      si chiede conferma se la copia aperta non è stata modificata (si confronta l'hash del JSON all'apertura con quello attuale). Prove:
+      `test/copia-di-prova.mjs`, e2e docente (clic vero, banda, copia automatica ferma, ritorno alla verifica).
     - **Disposizione adattiva**: le parti scelte, nell'ordine blocchi · pseudocodice · C · Python. Due parti consecutive stanno AFFIANCATE
       solo se entrambe ci stanno nella colonna SENZA andare a capo (codice: riga più lunga entro la colonna; blocchi: scala non sotto 0,8 e
       pagina intera sufficiente); altrimenti ognuna sta a tutta larghezza. Una riga di codice più larga della pagina rimpicciolisce il

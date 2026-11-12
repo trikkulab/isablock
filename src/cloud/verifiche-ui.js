@@ -6,7 +6,7 @@
 //
 // In questa versione: elenco, creazione in bozza, scheda con titolo, fine prevista e tracce.
 // L'assegnazione per studente e l'apertura della verifica arrivano nei passi successivi.
-import { el, apriFinestra } from './dom.js';
+import { el, apriFinestra, chiudiTutteLeFinestre } from './dom.js';
 import { creaEditorMarkdown } from './editor-markdown.js';
 import { rendiMarkdown } from './markdown.js';
 import { verificaConfig } from './verifica-config.js';
@@ -19,7 +19,9 @@ import { apriConfronto } from './verifica-confronto-ui.js';
 import { scegliFileEmergenza } from './verifica-file-ui.js';
 import { scaricaPdfSchede } from './pdf-ui.js';
 import { esportaJsonSchede } from './esporta-ui.js';
-import { ordinaSchede, nomeFilePdf, nomeFilePdfTutte } from './scheda-stampa.js';
+import { apriCopiaDiProva } from './copia-di-prova.js';
+import { mostraBandaCopia } from './banda-copia.js';
+import { ordinaSchede, nomeFilePdf, nomeFilePdfTutte, nomeVisualizzato } from './scheda-stampa.js';
 import { etichettaCorso } from './corsi.js';
 import { verificaDocenteEtichette as E } from './etichette.js';
 import { puntoDomanda } from './aiuto-ui.js';
@@ -73,7 +75,7 @@ function scegliFine({ durataMin }) {
   return { elemento, calcola };
 }
 
-export function montaVerifiche({ toast, programma = null }) {
+export function montaVerifiche({ toast, programma = null, dopoCaricamento = null }) {
   let vd = null;                 // oggetto di verifica-docente.js, valido solo da docenti loggati
   let finestre = new Set();
   let mostraArchiviate = false;  // casella dell'elenco, come «Mostra anche i corsi archiviati»
@@ -620,8 +622,33 @@ export function montaVerifiche({ toast, programma = null }) {
         const timer = setInterval(segna, verificaConfig.client.osservatoRinnovoMs);
         return () => clearInterval(timer);
       };
+      // Copia di prova: gli studenti con un programma da provare, in ordine alfabetico per cognome (come nel PDF). A verifica
+      // chiusa vale la consegna, altrimenti il lavoro in diretta (con l'altro come ripiego).
+      const provabili = () => ordinaSchede(tabella.tutti().map((x) => {
+        const json = stato() === 'chiusa' ? (x.ultimaConsegna?.programma || x.lavoro?.programma) : (x.lavoro?.programma || x.ultimaConsegna?.programma);
+        return { nome: x.lavoro?.studenteNome ?? null, email: x.email, programma: json };
+      }).filter((x) => x.programma));
+      // Apre la copia dello studente `i` dell'elenco e mostra la banda con il link alla verifica e le frecce ◀ ▶ tra gli studenti.
+      const provaCopia = (lista, i) => apriCopiaDiProva({
+        programma, json: lista[i].programma, toast, confermaSostituzione: (m) => window.confirm(m),
+        chi: nomeVisualizzato(lista[i].nome, lista[i].email), dopoCaricamento, chiudiFinestre: chiudiTutteLeFinestre,
+        mostraBanda: (chi) => mostraBandaCopia({
+          chi, titolo: verifica.titolo, posizione: lista.length > 1 ? { n: i + 1, tot: lista.length } : null,
+          tornaAllaVerifica: () => { chiudiTutteLeFinestre(); scheda(corso, vid, dopo); },
+          precedente: i > 0 ? () => provaCopia(lista, i - 1) : null,
+          successivo: i < lista.length - 1 ? () => provaCopia(lista, i + 1) : null,
+        }),
+      });
       const guarda = programma && programma.anteprima
-        ? (email, nome) => apriAnteprima({ apri, programma, segui: (e, cb) => tabella.segui(e, cb), caricaStoria: () => storiaConConsegne(email), osserva: () => osservaDalVivo(email), email, nome })
+        ? (email, nome) => apriAnteprima({
+          apri, programma, segui: (e, cb) => tabella.segui(e, cb), caricaStoria: () => storiaConConsegne(email), osserva: () => osservaDalVivo(email), email, nome,
+          apriCopia: ({ programma: json }) => {
+            let lista = provabili();
+            let i = lista.findIndex((x) => x.email === email);
+            if (i < 0) { lista = [{ nome, email, programma: json }]; i = 0; } else lista[i] = { ...lista[i], programma: json };   // quel che stai guardando (può essere un punto della Storia)
+            provaCopia(lista, i);
+          },
+        })
         : null;
       const caricaFile = (email, nome) => scegliFileEmergenza({ apri, programma, vd, vid, email, nome, toast, ...tabella.stato(email) });
       // Scheda in PDF: una per consegna (la valida, cioè l'ultima versione), con la traccia che aveva lo studente.

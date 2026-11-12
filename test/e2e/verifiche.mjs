@@ -355,6 +355,7 @@ try {
   verifica((await page.textContent('.anteprima-codice >> nth=2')).length > 5 && await page.isVisible('.anteprima-codice >> nth=2'), 'Guarda: la scheda Python mostra il codice');
   verifica(/Programma di Anna Rossi/.test(await page.textContent('h2:has-text("Programma di")')) && /ultimo segnale alle/.test(await page.textContent('.anteprima-info')), 'Guarda: titolo con il nome e ultimo segnale');
   verifica(await page.$('.anteprima-blocchi .blocklyToolboxDiv') === null && await page.$('.anteprima-blocchi .blocklyFlyout') === null, 'Guarda: nessuna tavolozza (non si può modificare)');
+  verifica(await page.isVisible('.modal-actions button:has-text("Apri una copia per provarla")'), 'Guarda: c\'è «Apri una copia per provarla»');
   await schermata(page, 'v-9c-guarda');
   // storia: istantanee seminate dal database (come le scriverebbe lo studente), cursore, salti
   const piccolo = JSON.stringify({ ...esempio, blocks: { ...esempio.blocks, blocks: [{ type: 'program', id: 'p1', x: 40, y: 40 }] } });
@@ -391,6 +392,34 @@ try {
   await page.keyboard.press('Escape');
   verifica(await page.isVisible('.tabella-live'), 'Guarda: Esc chiude solo la finestra, la tabella resta');
   verifica(await page.evaluate(() => !!window.Blockly.getMainWorkspace().getParentSvg().closest('#blocklyDiv')), 'dopo Guarda il workspace principale di Blockly è ancora quello dell\'editor');
+  // ── Copia di prova: il programma di Anna nell'editor, con banda, copia automatica ferma e ritorno alla verifica ──
+  const copieSalvate = () => page.evaluate(() => JSON.stringify(Object.keys(localStorage).filter((k) => k.startsWith('isablock-autosave') && !k.includes(':live:')).sort().map((k) => [k, localStorage.getItem(k)])));
+  const copiePrima = await copieSalvate();
+  await aggiorna(lavoroAnna, { programma: S(json1), programmaHash: S('h4'), nBlocchi: { integerValue: '8' }, ultimoSegnale: T(Date.now()) });
+  await page.click('.tabella-live tbody tr:has-text("Anna Rossi") button:has-text("Guarda")');
+  await page.waitForSelector('.anteprima-blocchi svg.blocklySvg');
+  await finche(async () => (await page.$$('.anteprima-blocchi .blocklyBlockCanvas [data-id]')).length > 3);
+  await page.click('.modal-actions button:has-text("Apri una copia per provarla")');
+  await page.waitForSelector('.banda-copia');
+  const testoBanda = await page.textContent('.banda-copia');
+  verifica(/COPIA DI PROVA/.test(testoBanda) && /Anna Rossi/.test(testoBanda) && /non modifica l'originale/.test(testoBanda), 'Copia di prova: la banda dice di chi è la copia e che non modifica la consegna');
+  verifica(!(await page.isVisible('.banda-copia button:has-text("Ho capito")')), 'Copia di prova: la banda non si può nascondere');
+  const blocchiEditor = await page.evaluate(() => { const w = window.Blockly.Workspace.getAll().find((x) => x.getParentSvg().closest('#blocklyDiv')); return w ? w.getAllBlocks(false).length : -1; });
+  verifica(blocchiEditor > 3, `Copia di prova: i blocchi di Anna sono nell'editor (${blocchiEditor})`);
+  verifica((await page.$$('.modal:visible')).length === 0, 'Copia di prova: tutte le finestre si chiudono (anche quella dei corsi), l\'editor è libero');
+  verifica((await page.$$('.banda-copia .banda-copia-freccia[disabled]')).length === 2, 'Copia di prova: con un solo studente le frecce ◀ ▶ ci sono ma sono spente');
+  await page.waitForTimeout(1600);
+  verifica(/salvataggio automatico è fermo/.test(await page.textContent('#autosaveStatus')) && (await copieSalvate()) === copiePrima, 'Copia di prova: la copia automatica del browser non scrive nulla');
+  await page.click('.banda-copia .banda-copia-torna');
+  await page.waitForSelector('.tabella-live tbody tr:has-text("Anna Rossi")');
+  verifica(await page.isVisible('.banda-copia'), 'Copia di prova: «← titolo della verifica» riapre la verifica sulla tabella degli studenti (e la banda resta)');
+  // Si rimette la pila di finestre su cui conta il resto della prova (corsi · elenco delle verifiche · scheda): la copia le ha chiuse tutte.
+  await page.keyboard.press('Escape');
+  await page.click('.cloud-menu-btn');
+  await page.click('.cloud-voce:has-text("Corsi")');
+  await page.click('button:has-text("Verifiche")');
+  await page.click('.sketch-riga:has-text("Verifica per la vista stretta") button:has-text("Apri")');
+  await page.waitForSelector('.tabella-live tbody tr:has-text("Anna Rossi")');
   // ── Sala: tutti gli studenti in una griglia a tutto schermo, con un primo piano ─────────────────────────────
   await aggiorna(lavoroAnna, { programma: S(json1), programmaHash: S('h3'), nBlocchi: { integerValue: '8' }, ultimoSegnale: T(Date.now()) });
   await aggiorna(`verifiche/${vid2}/lavori/bruno@isarome.it`, { entrato: T(Date.now() - 20 * 60000), ultimoSegnale: T(Date.now() - 10 * 60000), studenteNome: S('Bruno Verdi'),

@@ -15,6 +15,7 @@ import { montaCorsi } from './corsi-ui.js';
 import { montaCommenti } from './commenti-ui.js';
 import { montaConsegne } from './consegne-ui.js';
 import { montaVerificaStudente } from './verifica-studente-ui.js';
+import { nascondiBandaCopia } from './banda-copia.js';
 import { el, apriFinestra } from './dom.js';
 import { titoloAccesso, introAccesso, titoloDati, apriTuttoEtichetta, chiudiTuttoEtichetta } from './testi.js';
 import { menuCloud as M } from './etichette.js';
@@ -234,5 +235,5 @@ export function montaCloud({ contenitore, toast, programma, guida = null }) {
   if (eraEntrato()) carica().catch(() => memo(false));
 
   // Il programma è stato sostituito da altro: sketch aperto e commenti non valgono più.
-  return { scollega: () => { sketchUi.scollega(); commentiUi.nascondi(); } };
+  return { scollega: () => { sketchUi.scollega(); commentiUi.nascondi(); nascondiBandaCopia(); programma.copiaDiProva?.fine(); } };
 }

@@ -9,7 +9,7 @@ import { pseudocodeConfig } from './pseudocode-config.js';
 import { appConfig } from './app-config.js';
 import { changelog, isUnseenNews as isUnseen, indiceNovitaDaMostrare } from './changelog.js';
 import { saveWorkspaceToFile, saveWorkspaceWithPicker, hasNativeSavePicker, loadWorkspaceFromFile, loadWorkspaceState, serializeWorkspace, isWorkspaceBlank, FileFormatError } from './persistence.js';
-import { createLocalBackup, createDebouncedSaver } from './local-backup.js';
+import { createLocalBackup, createDebouncedSaver, hashText } from './local-backup.js';
 import { leggiVerificaInCorso } from './verifica-locale.js';
 import { examples } from './examples.js';
 import { creaGuida } from './guida.js';
@@ -309,6 +309,12 @@ const autosaver = createDebouncedSaver(() => {
 // l'editor parte vuoto, e sono spenti i comandi che porterebbero lavoro dall'esterno (Apri, esempi, Salva su file).
 // All'uscita si torna al lavoro che c'era prima, e la copia automatica riprende.
 let inVerifica = false;
+// Copia di prova: il docente ha aperto nell'editor il programma di uno studente per provarlo (vedi src/cloud/copia-di-prova.js).
+// La copia automatica è in PAUSA finché c'è: non deve riempire l'elenco delle copie né sostituire il lavoro vero di questa scheda,
+// già salvato prima. Riprende quando il programma viene sostituito (Nuovo, file, esempio, altro sketch).
+let inCopiaProva = false;
+let hashCopiaProva = null;           // com'era la copia appena aperta, per sapere se è stata modificata
+const autosavePausa = () => inVerifica || inCopiaProva;
 let lavoroPrimaDellaVerifica = null; // { json, fileName } del programma che c'era all'ingresso (null se l'editor era vuoto)
 let startupDeferred = false;         // all'avvio c'era una verifica in corso: la proposta di ripristino aspetta la fine
 const modificaListeners = new Set();    // il cloud ascolta le modifiche del programma per salvare il lavoro
@@ -324,7 +330,7 @@ workspace.addChangeListener((event) => {
   }
   if (event.isUiEvent) return;
   scheduleUpdate();
-  if (!inVerifica) autosaver.schedule();
+  if (!autosavePausa()) autosaver.schedule();
   modificaListeners.forEach((cb) => cb());
 });
 
@@ -506,6 +512,15 @@ function markCommentedBlocks(ids) {
   }
 }
 
+// Carica un programma (JSON) nell'editor: stessa strada del caricamento da file, con controllo versione e migrazioni.
+function caricaProgramma(json) {
+  loadWorkspaceState(Blockly, workspace, JSON.parse(json));
+  enforceProgramBlock();
+  updateOutputs();
+  resetRunStrip();
+  currentFileName = null;
+}
+
 // Entrata e uscita dalla modalità verifica (chiamate dal cloud, con la verifica già scelta).
 function entraVerifica() {
   if (inVerifica) return;
@@ -644,12 +659,26 @@ if (appConfig.cloud.enabled) {
         isVuoto: () => isWorkspaceBlank(workspace),
         occupato: () => execGenerator !== null,
         carica: (json) => {
-          // Stessa strada del caricamento da file: controllo versione e migrazioni.
-          loadWorkspaceState(Blockly, workspace, JSON.parse(json));
-          enforceProgramBlock();
-          updateOutputs();
-          resetRunStrip();
-          currentFileName = null;
+          inCopiaProva = false; hashCopiaProva = null;       // un caricamento normale chiude la copia di prova
+          caricaProgramma(json);
+        },
+        // Copia di prova di un programma di uno studente: la copia automatica si ferma finché non viene sostituita.
+        copiaDiProva: {
+          apri: (json) => {
+            if (!inCopiaProva) autosaver.flush();            // l'ultimo lavoro vero di questa scheda resta nella copia automatica
+            caricaProgramma(json);
+            autosaver.cancel();
+            inCopiaProva = true;
+            hashCopiaProva = hashText(compactJson());
+            autosaveStatus.textContent = 'Copia di prova: il salvataggio automatico è fermo (usa Salva per tenerla).';
+          },
+          attiva: () => inCopiaProva,
+          modificata: () => inCopiaProva && hashText(compactJson()) !== hashCopiaProva,
+          fine: () => {
+            if (!inCopiaProva) return;
+            inCopiaProva = false; hashCopiaProva = null;
+            autosaver.schedule();
+          },
         },
         // Per i commenti del docente: il cloud legge e segna i blocchi senza
         // conoscere Blockly. Gli id sono quelli salvati nel JSON del programma.
@@ -874,11 +903,11 @@ function startAutosave({ ignoraVerifica = false } = {}) {
 // debounce e libera il posto per altre schede. visibilitychange copre i
 // browser (soprattutto da mobile) che non sempre lanciano pagehide.
 window.addEventListener('pagehide', () => {
-  if (!inVerifica) autosaver.flush();
+  if (!autosavePausa()) autosaver.flush();
   localBackup.release();
 });
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden' && !inVerifica) autosaver.flush();
+  if (document.visibilityState === 'hidden' && !autosavePausa()) autosaver.flush();
 });
 
 startAutosave();

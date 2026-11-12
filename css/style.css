@@ -1207,6 +1207,10 @@ button.commento-blocco { cursor: pointer; }
 .tab-btn[hidden] { display: none; }
 .banda-verifica { display: flex; align-items: center; gap: 1rem; padding: 0.45rem 1rem; background: #1f3a5f; color: #fff; font-weight: 600; flex: none; }
 .banda-verifica[hidden] { display: none; }
+.banda-copia { background: #8a5a00; }
+.banda-copia .banda-verifica-titolo { white-space: normal; }
+.banda-copia-freccia { padding: 0.15rem 0.6rem; }
+.banda-copia-torna { max-width: 22rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .banda-verifica-etichetta { letter-spacing: 0.08em; font-size: 0.78rem; opacity: 0.85; }
 .banda-verifica-titolo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .banda-verifica-timer { padding: 0.15rem 0.7rem; border-radius: 999px; font-variant-numeric: tabular-nums; font-size: 1.05rem; background: #2e7d4f; color: #fff; }
