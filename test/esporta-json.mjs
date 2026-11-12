@@ -66,6 +66,23 @@ prova('avvisi: un testo che contiene nome o email dello studente (commenti, vari
   assert.equal(costruisciEsportazione({ titolo: 'V', tracce, consegne: base() }).avvisi.length, 0);
 });
 
+prova('avvisi: solo parole intere, e un\'email nel campo nome vale solo la parte prima della chiocciola (niente «com» in «commento»)', () => {
+  const c = [{ ...consegna('trikkulab@gmail.com', 'trikkulab@gmail.com', 'x1'), testi: { pseudocode: '// il commento col comando commenta', c: 'x', python: 'y' } }];
+  assert.equal(costruisciEsportazione({ titolo: 'V', tracce, consegne: c }).avvisi.length, 0, 'né «com» né «gmail» in un commento');
+  const d = [{ ...consegna('trikkulab@gmail.com', 'trikkulab@gmail.com', 'x1'), testi: { pseudocode: '// opera di trikkulab', c: 'x', python: 'y' } }];
+  assert.deepEqual(costruisciEsportazione({ titolo: 'V', tracce, consegne: d }).avvisi.map((a) => a.parole), [['trikkulab']], 'la parte prima della chiocciola sì');
+  const e = [consegna('anna@x.it', 'Anna Rossi', 'x1', '// rossino')];
+  assert.equal(costruisciEsportazione({ titolo: 'V', tracce, consegne: e }).avvisi.length, 0, '«rossino» non è «rossi»');
+});
+
+prova('CSV: senza un nome vero (email nel campo nome o niente) il cognome è la parte dell\'email prima della chiocciola', () => {
+  const c = [consegna('mai.entrato@x.it', 'mai.entrato@x.it', 'x1'), consegna('senza@x.it', null, 'x1')];
+  const { csv } = costruisciEsportazione({ titolo: 'V', tracce, consegne: c });
+  const righe = csv.trim().split('\r\n').slice(1).map((r) => r.split(','));
+  assert.ok(righe.some((r) => r[1] === 'mai.entrato' && r[2] === '' && r[3] === 'mai.entrato@x.it'));
+  assert.ok(righe.some((r) => r[1] === 'senza' && r[2] === '' && r[3] === 'senza@x.it'));
+});
+
 prova('senza traccia o con traccia mancante: riferimento nullo; nessuno studente: JSON vuoto valido', () => {
   const c = base(); c[0].tracciaId = null; c[1].tracciaId = 'inesistente';
   const { json } = costruisciEsportazione({ titolo: 'V', tracce, consegne: c });

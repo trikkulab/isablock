@@ -2,7 +2,7 @@
 // corrispondenze codice → studente. Parti pure, senza DOM né Blockly: la preparazione dei testi e il download stanno in
 // esporta-ui.js. Il JSON non contiene nome né email di nessuno: solo un codice casuale per consegna, il titolo della
 // verifica, le tracce (una volta sola) e i testi delle parti scelte.
-import { codiceRiscontro } from './scheda-stampa.js';
+import { codiceRiscontro, dividiNome } from './scheda-stampa.js';
 
 // Niente 0/O, 1/I/L: si leggono e si ricopiano senza dubbi.
 const ALFABETO = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
@@ -28,10 +28,14 @@ export function generaCodici(n, rng = casuale) {
 // La riga del CSV: campi tra virgolette solo se serve (virgola, virgolette, a capo).
 const campoCsv = (v) => { const t = String(v ?? ''); return /[",\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
 
-// Le parole del nome e dell'email che, se compaiono nei testi, possono tradire lo studente (almeno 3 lettere).
+// Le parole del nome e dell'email che, se compaiono nei testi, possono tradire lo studente (almeno 3 lettere). Se il campo nome è
+// un'email (succede senza un nome vero) vale solo la parte prima della chiocciola: «gmail» o «com» non dicono niente di nessuno.
+const parole = (testo) => String(testo ?? '').toLowerCase().split(/[^a-zà-öø-ÿ0-9]+/).filter(Boolean);
 function paroleSensibili(nome, email) {
-  const da = [...String(nome ?? '').split(/\s+/), String(email ?? '').split('@')[0]];
-  return [...new Set(da.flatMap((t) => t.toLowerCase().split(/[^a-zà-öø-ÿ0-9]+/)).filter((p) => p.length >= 3))];
+  const n = String(nome ?? '').trim();
+  const dalNome = /^\S+@\S+$/.test(n) ? n.split('@')[0] : n;
+  const da = [...parole(dalNome), ...parole(String(email ?? '').split('@')[0])];
+  return [...new Set(da.filter((p) => p.length >= 3))];
 }
 
 // `consegne`: [{ email, nome, versione, tracciaId, programma (stringa), testi: { pseudocode, c, python } | null }]
@@ -58,8 +62,8 @@ export function costruisciEsportazione({ titolo, tracce, consegne, parti = {}, r
       if (scelte.pseudocodice) voce.pseudocodice = c.testi.pseudocode;
       if (scelte.c) voce.c = c.testi.c;
       if (scelte.python) voce.python = c.testi.python;
-      const tutto = [voce.pseudocodice, voce.c, voce.python].filter(Boolean).join('\n').toLowerCase();
-      const trovate = paroleSensibili(c.nome, c.email).filter((p) => tutto.includes(p));
+      const nelTesto = new Set(parole([voce.pseudocodice, voce.c, voce.python].filter(Boolean).join('\n')));   // parole intere, non pezzi di parole
+      const trovate = paroleSensibili(c.nome, c.email).filter((p) => nelTesto.has(p));
       if (trovate.length) avvisi.push({ codice, parole: trovate });
     }
     return { voce, c };
@@ -67,8 +71,8 @@ export function costruisciEsportazione({ titolo, tracce, consegne, parti = {}, r
 
   const json = { verifica: titolo ?? '', tracce: tracceJson, consegne: righe.map((r) => r.voce) };
   const csv = ['codice,cognome,nome,email,versione,traccia', ...righe.map(({ voce, c }) => {
-    const parti = String(c.nome ?? '').trim().split(/\s+/).filter(Boolean);
-    return [voce.codice, parti.slice(1).join(' '), parti[0] ?? '', c.email, c.versione, voce.traccia ?? ''].map(campoCsv).join(',');
+    const { nome, cognome } = dividiNome(c.nome, c.email);       // senza un nome vero (studente mai entrato) il cognome è la parte dell'email prima della chiocciola
+    return [voce.codice, cognome, nome, c.email, c.versione, voce.traccia ?? ''].map(campoCsv).join(',');
   })].join('\r\n') + '\r\n';
   return { json, csv, avvisi };
 }

@@ -710,7 +710,7 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
       const esportaJson = async () => {
         const parti = await scegliParti(E.partiJsonTitolo, { json: true });
         if (!parti) return 0;
-        return esportaJsonSchede({ schede: schedeDi(null), tracce, verifica, corso, programma, toast, parti });
+        return esportaJsonSchede({ apri, schede: schedeDi(null), tracce, verifica, corso, programma, toast, parti });
       };
       const conPdf = !!(programma && programma.renderBlocchi);
       const sala = programma && programma.anteprima && programma.renderBlocchi
