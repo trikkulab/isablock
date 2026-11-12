@@ -71,5 +71,27 @@ export const verificaConfig = Object.freeze({
     osservatoDebounceMs: 5000,
     osservatoRinnovoMs: 30000,
     osservatoScadeMs: 90000,
+    // Stima del consumo di UNA verifica (riga sotto il sommario della tabella docente), per ricordare quanto pesa sulle quote
+    // giornaliere. Coefficienti misurati nelle prove del 10-12 nov 2026 (9-12 studenti, ±20%): da rimisurare se cambiano il
+    // salvataggio, le regole o il modo di ascoltare (contatore: ?contatore=1, vedi src/cloud/contatore-letture.js).
+    //   letture  = ingresso·entrati + perIscritto·iscritti + minutiStudente·(perStudenteMinuto + perDocenteStudenteMinuto·docenti)
+    //   scritture = scrittureStudenteMinuto·minutiStudente + scrittureIscritto·iscritti + entrati (una consegna ciascuno)
+    // `docentiAperti`: docenti con la scheda aperta insieme (un client vede solo sé stesso: si imposta qui).
+    // `quotaLetture`/`quotaScritture`: quote GIORNALIERE del progetto (Spark: 50.000 e 20.000); con `null` non si mostra la
+    // percentuale. La stima è di questa verifica, non della giornata: altre classi e prove si sommano.
+    stimaConsumi: Object.freeze({
+      calibrataIl: '2026-11-12',
+      ingresso: 30,
+      perIscritto: 35,
+      perStudenteMinuto: 5.9,
+      perDocenteStudenteMinuto: 1.7,
+      scrittureStudenteMinuto: 1.6,
+      scrittureIscritto: 3,
+      docentiAperti: 1,
+      quotaLetture: 50000,
+      quotaScritture: 20000,
+      sogliaGialla: 0.5,
+      sogliaRossa: 0.8,
+    }),
   }),
 });

@@ -159,3 +159,26 @@ export function testoDurata(ms) {
   const due = (n) => String(n).padStart(2, '0');
   return h > 0 ? `${h}:${due(m)}:${due(ss)}` : `${m}:${due(ss)}`;
 }
+
+// Stima del consumo di questa verifica (letture e scritture del database), dai coefficienti di verifica-config.js
+// (`stimaConsumi`). Si basa su quanti sono iscritti, quanti sono entrati e per quanti minuti ognuno ha lavorato (fino alla
+// consegna, o alla scadenza personale, o a ora). Null se la verifica è ancora una bozza. Pura: `ora` è un argomento.
+export function stimaConsumi({ verifica, lavori, ora, config = C.stimaConsumi }) {
+  if (!config || verifica.stato === 'bozza') return null;
+  const entrati = lavori.filter((l) => l.entrato);
+  let minutiStudente = 0;
+  for (const l of entrati) {
+    const fermo = l.consegnato || verifica.stato !== 'aperta';
+    const fine = fermo ? (l.ultimoSegnale ? l.ultimoSegnale.getTime() : ora) : Math.min(ora, l.scadenza ? l.scadenza.getTime() : ora);
+    minutiStudente += Math.max(0, (fine - l.entrato.getTime()) / MINUTO);
+  }
+  const letture = config.ingresso * entrati.length + config.perIscritto * lavori.length
+    + minutiStudente * (config.perStudenteMinuto + config.perDocenteStudenteMinuto * config.docentiAperti);
+  const scritture = config.scrittureStudenteMinuto * minutiStudente + config.scrittureIscritto * lavori.length + entrati.length;
+  const frazione = (n, quota) => (quota ? n / quota : null);
+  const fL = frazione(letture, config.quotaLetture);
+  const fS = frazione(scritture, config.quotaScritture);
+  const peggiore = Math.max(fL ?? 0, fS ?? 0);
+  const livello = peggiore >= config.sogliaRossa ? 'rosso' : peggiore >= config.sogliaGialla ? 'giallo' : 'ok';
+  return { letture: Math.round(letture), scritture: Math.round(scritture), frazioneLetture: fL, frazioneScritture: fS, livello, minutiStudente };
+}

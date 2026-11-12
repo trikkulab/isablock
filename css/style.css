@@ -1240,6 +1240,9 @@ body.modo-verifica .autosave-info { display: none; }
 .tabella-stato[data-stato="errore"] { color: #b91c1c; }
 .tabella-stato[data-stato="consegnato"] { color: #15803d; }
 .tabella-salto { color: #b45309; }
+.tabella-stima { margin: 0.2rem 0 0.4rem; }
+.tabella-stima[data-livello="giallo"] { color: #92400e; font-weight: 600; }
+.tabella-stima[data-livello="rosso"] { color: #b91c1c; font-weight: 700; }
 .tabella-doppia { color: #b91c1c; font-weight: 600; white-space: nowrap; }
 .tabella-conn[data-conn="offline"] { color: #b91c1c; font-weight: 600; }
 .tabella-timer { font-variant-numeric: tabular-nums; font-weight: 600; }

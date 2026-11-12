@@ -4,7 +4,7 @@
 // senza leggere nulla dal database: il database si legge solo quando uno studente scrive.
 import { el } from './dom.js';
 import { verificaConfig } from './verifica-config.js';
-import { costruisciRighe, riepilogo, ordinaRighe, testoDurata, STATI_RIGA } from './verifica-tabella.js';
+import { costruisciRighe, riepilogo, ordinaRighe, testoDurata, stimaConsumi, STATI_RIGA } from './verifica-tabella.js';
 import { verificaDocenteEtichette as E } from './etichette.js';
 import { puntoDomanda } from './aiuto-ui.js';
 
@@ -22,6 +22,7 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
   const seguaci = new Set();        // chi vuole il lavoro di uno studente a ogni aggiornamento: { email, cb }
   const ascoltatori = new Set();    // chi vuole tutta la situazione a ogni aggiornamento (la Sala): cb()
   const sommario = el('p', { class: 'tabella-sommario', 'aria-live': 'polite' });
+  const stima = el('p', { class: 'tabella-stima sketch-nota', hidden: '' });
   const corpo = el('tbody');
   const vuota = el('p', { class: 'sketch-nota' }, 'Carico la situazione…');
   const ordine = el('select', { class: 'tabella-ordine', 'aria-label': 'Ordine delle righe' },
@@ -41,14 +42,27 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
   const btnJsonTutti = el('button', { type: 'button', class: 'modal-btn secondary', hidden: '', title: 'Un file JSON con i programmi senza nomi (solo un codice per consegna) e un file con le corrispondenze codice-studente', onclick: () => esportaJson?.() }, E.esportaJsonTutti);
   const btnSala = sala ? el('button', { type: 'button', class: 'modal-btn secondary', title: 'Tutti i programmi insieme, a tutto schermo', onclick: () => sala() }, E.sala) : '';
   const elemento = el('div', { class: 'tabella-corpo' },
-    el('div', { class: 'tabella-testata' }, sommario, el('span', { class: 'tabella-azioni' }, btnPdfTutti, btnJsonTutti, btnSala, ordine)), vuota, tabella);
+    el('div', { class: 'tabella-testata' }, sommario, el('span', { class: 'tabella-azioni' }, btnPdfTutti, btnJsonTutti, btnSala, ordine)), stima, vuota, tabella);
 
   function cella(riga, ...figli) { return el('td', {}, ...figli); }
+
+  // Promemoria del consumo di questa verifica sulle quote giornaliere (solo una stima: vedi `stimaConsumi` in verifica-config.js).
+  const numero = new Intl.NumberFormat('it-IT');
+  function disegnaStima(ora) {
+    const s = stimaConsumi({ verifica: ultimo.verifica, lavori: ultimo.lavori, ora });
+    stima.hidden = !s || (s.minutiStudente <= 0 && s.letture <= 0);
+    if (stima.hidden) return;
+    const pc = (f) => (f === null ? '' : ` (${f < 0.01 ? '<1' : Math.round(f * 100)}%)`);
+    stima.dataset.livello = s.livello;
+    stima.textContent = `Consumo stimato di questa verifica: ~${numero.format(s.letture)} letture${pc(s.frazioneLetture)} · ~${numero.format(s.scritture)} scritture${pc(s.frazioneScritture)}${s.frazioneLetture === null ? '' : ' della quota giornaliera'}`;
+    stima.title = 'Stima dai dati delle prove di novembre 2026 (±20%), solo di questa verifica: altre classi e prove dello stesso giorno si sommano. I parametri sono in verifica-config.js.';
+  }
 
   function disegna() {
     if (!ultimo) return;
     const ora = ultimo.ora();
     const righe = ordinaRighe(costruisciRighe({ verifica: ultimo.verifica, lavori: ultimo.lavori, ultime: ultimo.ultime, ora }), modo);
+    disegnaStima(ora);
     const r = riepilogo(righe);
     sommario.textContent = righe.length === 0 ? '' : [
       `Entrati ${r.entrati} su ${r.totale}`, `consegnati ${r.consegnati}`,
