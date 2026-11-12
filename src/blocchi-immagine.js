@@ -84,7 +84,8 @@ export function creaRenderBlocchi({ Blockly, principale, carica, testi }) {
 
   return {
     // { testi: { pseudocode, c, python }, immagine: { dataUrl, larghezzaPx, altezzaPx } | null } oppure null se il programma non si legge.
-    async rendi(json) {
+    // Con `senzaImmagine` si saltano il disegno e la rasterizzazione dei blocchi (immagine sempre null): serve quando nel PDF non vanno.
+    async rendi(json, { senzaImmagine = false } = {}) {
       if (distrutto) return null;
       try {
         ws.clear();
@@ -92,7 +93,7 @@ export function creaRenderBlocchi({ Blockly, principale, carica, testi }) {
         const codici = testi(ws);
         const vuoto = ws.getAllBlocks(false).length === 0;
         let immagine = null;
-        if (!vuoto) {
+        if (!vuoto && !senzaImmagine) {
           Blockly.svgResize(ws);
           immagine = await rasterizza();
         }

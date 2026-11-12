@@ -25,8 +25,9 @@ function scarica(blob, nomeFile) {
 }
 
 // `schede`: [{ nome, email, consegna, traccia }] già in ordine (vedi ordinaSchede). `verifica`: { titolo }. `corso`: { nome, classe }.
+// `parti`: { blocchi, pseudocodice, c, python } (booleani; mancante = tutte). La traccia c'è sempre.
 // `programma.renderBlocchi()` viene da main.js. Restituisce quante schede ha messo nel PDF (0 se non ne ha fatto nessuna).
-export async function scaricaPdfSchede({ schede, verifica, corso, programma, nomeFile, toast }) {
+export async function scaricaPdfSchede({ schede, verifica, corso, programma, nomeFile, toast, parti = null }) {
   if (inCorso) { toast('Un PDF è già in preparazione.', 'error'); return 0; }
   if (!programma || !programma.renderBlocchi) { toast('Il PDF non è disponibile in questa versione.', 'error'); return 0; }
   if (schede.length === 0) { toast('Non ci sono consegne da scaricare.', 'error'); return 0; }
@@ -39,13 +40,13 @@ export async function scaricaPdfSchede({ schede, verifica, corso, programma, nom
     render = await programma.renderBlocchi();
     const pronte = [];
     for (const s of schede) {
-      const r = await render.rendi(s.consegna.programma);
+      const r = await render.rendi(s.consegna.programma, { senzaImmagine: parti?.blocchi === false });
       pronte.push({
         titolo: verifica.titolo, corso: corso.nome, classe: corso.classe ?? '',
         data: s.consegna.creato ? dataLunga(s.consegna.creato) : '',
         studente: nomeVisualizzato(s.nome, s.email), riscontro: codiceRiscontro(s.consegna.programma),
         traccia: await traccia(s.traccia),
-        blocchi: r ? r.immagine : null, testi: r ? r.testi : null,
+        blocchi: r ? r.immagine : null, testi: r ? r.testi : null, parti: parti ?? undefined,
       });
     }
     const doc = creaPdfSchede({ jsPDF, schede: pronte });

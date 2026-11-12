@@ -538,9 +538,11 @@ try {
   const conteggioPagine = (pdf) => (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
   // ── Scheda di consegna in PDF (una consegna) ──────────────────────────────
   verifica((await page.$$('.tabella-live tbody tr button:has-text("Scarica PDF")')).length === 2 && await page.isVisible('button:has-text("Scarica PDF di tutti")'), 'a verifica chiusa: «Scarica PDF» sulle righe con una consegna (non su chi non ha consegnato)');
+  await page.click('.tabella-live tbody tr:has-text("Anna Rossi") button:has-text("Scarica PDF")');
+  verifica(await page.isVisible('h2:has-text("Cosa vuoi nel PDF?")') && (await page.$$('.modal-box input[type=checkbox]:checked')).length === 5, '«Scarica PDF» apre la finestra con le quattro parti e i numeri di riga, tutto acceso');
   const [scaricato] = await Promise.all([
     page.waitForEvent('download', { timeout: 90000 }),
-    page.click('.tabella-live tbody tr:has-text("Anna Rossi") button:has-text("Scarica PDF")'),
+    page.click('.modal-box button:has-text("Scarica il PDF")'),
   ]);
   const nomePdf = scaricato.suggestedFilename();
   const percorsoPdf = await scaricato.path();
@@ -567,9 +569,13 @@ try {
   verifica(await page.evaluate(() => !!window.Blockly.getMainWorkspace().getParentSvg().closest('#blocklyDiv')), 'dopo il PDF il workspace principale di Blockly è ancora quello dell\'editor');
   await page.waitForTimeout(300);
   // tutte le schede: un solo PDF, una scheda dopo l'altra, in ordine alfabetico per cognome
+  await page.click('button:has-text("Scarica PDF di tutti")');
+  await page.getByLabel('C', { exact: true }).uncheck();
+  await page.getByLabel('Python', { exact: true }).uncheck();
+  verifica(await page.isVisible('text=Nel PDF: Traccia, Programma a blocchi, Pseudocodice.'), 'la finestra riassume le parti scelte');
   const [tutti] = await Promise.all([
     page.waitForEvent('download', { timeout: 120000 }),
-    page.click('button:has-text("Scarica PDF di tutti")'),
+    page.click('.modal-box button:has-text("Scarica il PDF")'),
   ]);
   verifica(tutti.suggestedFilename() === '3ainf_verifica-per-la-vista-stretta_tutte-le-consegne.pdf', `nome del file con tutte le consegne («${tutti.suggestedFilename()}»)`);
   const percorsoTutti = await tutti.path();
@@ -583,6 +589,7 @@ try {
     verifica(testoTutti.includes(`riscontro ${riscontroBruno} `) && !/bruno@isarome\.it/.test(testoTutti), 'il codice di riscontro sulla scheda è quello che mostra «Guarda» nell\'app, e non c\'è l\'email');
     const riscAnna = (testo1 ?? '').match(/riscontro ([0-9A-F]{4}-[0-9A-F]{4})/)?.[1];
     verifica(!!riscAnna && new RegExp(`Anna Rossi . riscontro ${riscAnna} `).test(testoTutti), 'la scheda di Anna ha lo stesso riscontro nel PDF singolo e in quello di tutti');
+    verifica(/Pseudocodice/.test(testoTutti) && /INIZIO/.test(testoTutti) && !/#include/.test(testoTutti) && !/input\(\)/.test(testoTutti), 'con C e Python spenti nel PDF di tutti ci sono blocchi e pseudocodice, e niente C né Python');
     verifica((testoTutti.match(/Verifica per la vista stretta/g) || []).length >= 4, 'ogni pagina ha il piè di pagina con il titolo della verifica');
     const pagineAnna = [...testoTutti.matchAll(/Anna Rossi . riscontro \S+ . pagina (\d+)\/(\d+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
     verifica(pagineAnna.length >= 1 && pagineAnna.every(([x, n]) => n === pagineAnna.length && x >= 1 && x <= n), `«pagina x/n» conta solo le pagine della scheda (${JSON.stringify(pagineAnna)})`);

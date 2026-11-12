@@ -21,6 +21,10 @@ prova('nome dello studente: «Nome Cognome»; senza nome, la parte dell\'email p
   assert.deepEqual(dividiNome(null, 'mario@x.it'), { nome: '', cognome: 'mario' });
   assert.equal(nomeVisualizzato('Anna  Rossi', 'anna@x.it'), 'Anna Rossi');
   assert.equal(nomeVisualizzato(null, 'anna.rossi@x.it'), 'anna.rossi', 'mai l\'email intera');
+  assert.equal(nomeVisualizzato('trikkulab@gmail.com', 'trikkulab@gmail.com'), 'trikkulab', 'un nome che è un\'email: solo la parte prima della chiocciola');
+  assert.equal(nomeVisualizzato('Anna Rossi', 'a@x.it'), 'Anna Rossi');
+  assert.deepEqual(dividiNome('trikkulab@gmail.com', 'trikkulab@gmail.com'), { nome: '', cognome: 'trikkulab' });
+  assert.equal(nomeFilePdf({ nome: 'trikkulab@gmail.com', email: 'trikkulab@gmail.com', classe: '3A INF', titolo: 'Info', versione: 6 }), 'trikkulab_3a-inf_info_v6.pdf', 'nemmeno nel nome del file');
 });
 prova('nome del file PDF: cognome-nome, classe, verifica, versione; minuscolo, senza accenti', () => {
   assert.equal(nomeFilePdf({ nome: 'Anna Rossi', email: 'a@x.it', classe: '3AINF', titolo: 'Verifica di novembre', versione: 2 }), 'rossi-anna_3ainf_verifica-di-novembre_v2.pdf');

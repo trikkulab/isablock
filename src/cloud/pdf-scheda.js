@@ -2,9 +2,10 @@
 // stampante. Le decisioni di contenuto e disposizione sono in docs/PDF-SCHEDA.md.
 //
 // Disposizione di ogni scheda (una o più pagine A4, ogni studente comincia su pagina nuova):
-//   intestazione (verifica, corso e classe, studente, data) · traccia · riga 1: blocchi | pseudocodice · riga 2: C | Python
-// Se i blocchi sono troppo larghi per la colonna (scala sotto 0,8) o troppo alti per una pagina, i blocchi vanno a tutta
-// larghezza (tagliati su più pagine se serve, mai sotto circa 0,6 di scala per l'altezza), poi pseudocodice | C e Python sotto.
+//   intestazione (verifica, corso e classe, studente, data) · traccia · le parti scelte (`parti`: blocchi, pseudocodice, C, Python)
+// Due parti consecutive stanno affiancate solo se entrambe ci stanno nella colonna senza andare a capo (blocchi: scala non
+// sotto 0,8 e pagina intera sufficiente); altrimenti ognuna va a tutta larghezza. Un codice più largo della pagina si
+// rimpicciolisce fino a 6,2 pt prima di andare a capo; i blocchi alti si tagliano su più pagine (mai sotto 0,6 di scala).
 // Piè di pagina su ogni pagina: «verifica · classe · data» a sinistra, «Nome · riscontro · pagina x/n» a destra (n = pagine
 // di QUELLA scheda).
 //
@@ -21,9 +22,11 @@ const PT = 25.4 / 72;                                          // un punto tipog
 const PX = 25.4 / 96;                                          // un pixel dell'editor in mm (scala 1:1)
 const PAD = 2;                                                 // margine interno dei riquadri
 const GIU = 4;                                                 // spazio sotto una sezione
+const ARIA_NUMERI = 0.7;                                        // aria a destra dei numeri di riga, prima del filo della striscia
 
 const PT_CORPO = 9;                                            // testo della traccia
 const PT_CODICE = 7.8;                                         // codici
+const PT_CODICE_MIN = 6.2;                                     // sotto questa misura si preferisce andare a capo
 const INTERLINEA = 1.35;
 
 export const SCALA_MIN_COLONNA = 0.8;                          // sotto, i blocchi passano a tutta larghezza
@@ -67,6 +70,7 @@ class Foglio {
     this.y = MARGINI.alto;
     this.decor = [];
     this.primaPagina = 1;
+    this.numeri = true;                                        // striscia dei numeri di riga accanto ai codici
   }
 
   // ── Misure e disegno di base ─────────────────────────────────────────────
@@ -325,22 +329,22 @@ class Foglio {
   }
 
   // Una riga di codice a larghezza fissa. ≠ ≤ ≥ non sono nei font standard del PDF: si disegnano con linee, nella loro cella.
-  rigaCodice(r, x, base, cella) {
+  rigaCodice(r, x, base, cella, pt) {
     const doc = this.doc;
     let da = 0;
     const testo = (a, b) => { if (b > a) doc.text(r.slice(a, b), x + a * cella, base); };
     for (let i = 0; i < r.length; i++) {
       if (!SIMBOLI.includes(r[i])) continue;
       testo(da, i);
-      this.simbolo(r[i], x + i * cella, base, cella);
+      this.simbolo(r[i], x + i * cella, base, cella, pt);
       da = i + 1;
     }
     testo(da, r.length);
   }
 
-  simbolo(c, x, base, cella) {
+  simbolo(c, x, base, cella, pt) {
     const doc = this.doc;
-    const em = PT_CODICE * PT;
+    const em = pt * PT;
     const y = (k) => base - k * em;                           // k = altezza sopra la linea di base, in em
     const a = x + cella * 0.14; const b = x + cella * 0.86;
     doc.setDrawColor(0); doc.setLineWidth(em * 0.045); doc.setLineCap('round'); doc.setLineJoin('round');
@@ -355,14 +359,31 @@ class Foglio {
     doc.setLineCap('butt'); doc.setLineJoin('miter');
   }
 
-  riquadroCodice(righe, x, w, lh, h) {
+  // `numeri`: per ogni riga il suo numero (null per le continuazioni di una riga spezzata), in una striscia a sinistra del
+  // riquadro: non fa parte del testo del codice. `cifre`: quante cifre serve alla striscia (quelle del numero più alto).
+  riquadroCodice(righe, x, w, lh, h, pt = PT_CODICE, numeri = null, cifre = 0) {
     const doc = this.doc;
     doc.setFillColor(246); doc.setDrawColor(150); doc.setLineWidth(0.25);
     doc.rect(x, this.y, w, h, 'FD');
-    doc.setFont('courier', 'normal'); doc.setFontSize(PT_CODICE); doc.setTextColor(0);
+    doc.setFont('courier', 'normal'); doc.setFontSize(pt); doc.setTextColor(0);
     const cella = doc.getTextWidth('M');                       // il Courier ha celle di larghezza fissa
-    righe.forEach((r, i) => { if (r !== '') this.rigaCodice(r, x + PAD, this.y + PAD + i * lh + lh * 0.74, cella); });
-    this.reg('codice', { x, h, righe: righe.length, testo: righe.join('\n') });
+    const extra = numeri ? this.extraNumeri(cifre, pt) : 0;
+    if (numeri) {
+      const larghezzaStriscia = PAD + extra - 1.3;
+      doc.setFillColor(231);
+      doc.rect(x + 0.125, this.y + 0.125, larghezzaStriscia - 0.125, h - 0.25, 'F');
+      doc.setDrawColor(190); doc.setLineWidth(0.2);
+      doc.line(x + larghezzaStriscia, this.y + 0.125, x + larghezzaStriscia, this.y + h - 0.125);
+      doc.setFont('courier', 'normal'); doc.setFontSize(pt); doc.setTextColor(110);
+      numeri.forEach((n, i) => {
+        if (n === null) return;
+        const t = String(n);
+        doc.text(t, x + 1 + (cifre - t.length) * cella, this.y + PAD + i * lh + lh * 0.74);
+      });
+      doc.setTextColor(0);
+    }
+    righe.forEach((r, i) => { if (r !== '') this.rigaCodice(r, x + PAD + extra, this.y + PAD + i * lh + lh * 0.74, cella, pt); });
+    this.reg('codice', { x, h, righe: righe.length, testo: righe.join('\n'), ...(numeri ? { numeri } : {}) });
   }
 
   // ── Sezioni ──────────────────────────────────────────────────────────────
@@ -377,15 +398,39 @@ class Foglio {
 
   get hEtichetta() { return 6.2; }
 
-  // Righe di codice spezzate per la colonna di larghezza `w`.
-  righeCodice(testo, w) {
-    const max = Math.floor((w - 2 * PAD) / this.larg('M', 'courier', 'normal', PT_CODICE));
-    return pulisci(testo, { simboli: true }).replace(/\s+$/, '').split('\n').flatMap((r) => spezzaRiga(r, max));
+  // Spazio in più a sinistra del testo (oltre al margine PAD) per la striscia dei numeri di riga di `cifre` cifre.
+  extraNumeri(cifre, pt) { return 1 + cifre * this.larg('M', 'courier', 'normal', pt) + ARIA_NUMERI + 1.3 - PAD; }
+
+  // Quanti caratteri di codice stanno in una riga larga `w` con il carattere di `pt` punti (e la striscia di `cifre` cifre, 0 = senza).
+  caratteri(w, pt, cifre = 0) {
+    const extra = cifre > 0 ? this.extraNumeri(cifre, pt) : 0;
+    return Math.floor((w - 2 * PAD - extra) / this.larg('M', 'courier', 'normal', pt) + 1e-9);
+  }
+
+  // Una parte di codice (pseudocodice, C, Python): testo pulito e lunghezza della riga più lunga. È «stretta» se sta
+  // nella colonna senza andare a capo, e allora può stare accanto a un'altra parte.
+  parteCodice(titolo, testo) {
+    const righe = pulisci(testo, { simboli: true }).replace(/\s+$/, '').split('\n');
+    const lunga = Math.max(0, ...righe.map((r) => r.length));
+    const cifre = this.numeri ? String(righe.length).length : 0;
+    return { tipo: 'codice', titolo, righe, cifre, stretta: lunga <= this.caratteri(COLONNA, PT_CODICE, cifre), lunga };
+  }
+
+  // Le righe della parte per una larghezza `w`: se la riga più lunga non ci sta si rimpicciolisce il carattere (fino a
+  // PT_CODICE_MIN), e solo se nemmeno così ci sta si va a capo. `numeri`: il numero di ogni riga ottenuta (null se continua).
+  formatoCodice(parte, w) {
+    let pt = PT_CODICE;
+    while (parte.lunga > this.caratteri(w, pt, parte.cifre) && pt - 0.2 >= PT_CODICE_MIN - 1e-9) pt = Math.round((pt - 0.2) * 10) / 10;
+    const max = this.caratteri(w, pt, parte.cifre);
+    const righe = []; const numeri = [];
+    parte.righe.forEach((r, i) => spezzaRiga(r, max).forEach((pezzo, k) => { righe.push(pezzo); numeri.push(k === 0 ? i + 1 : null); }));
+    return { titolo: parte.titolo, pt, righe, cifre: parte.cifre, numeri: parte.cifre > 0 ? numeri : null };
   }
 
   // Due codici affiancati, di uguale altezza; si tengono su una pagina se ci stanno, altrimenti si spezzano (righe in pari).
   coppiaCodici(a, b, { x = MARGINI.sx, w = COLONNA } = {}) {
-    const lh = PT_CODICE * PT * 1.3;
+    const pt = a.pt;
+    const lh = pt * PT * 1.3;
     const xb = x + w + SPAZIO_COLONNE;
     let da = 0;
     let primo = true;
@@ -396,6 +441,7 @@ class Foglio {
       this.assicura(this.hEtichetta + 2 * PAD + lh * Math.min(4, tot - da));
       const k = Math.max(1, Math.floor((this.libero() - this.hEtichetta - 2 * PAD) / lh));
       const pa = a.righe.slice(da, da + k); const pb = b ? b.righe.slice(da, da + k) : [];
+      const na = a.numeri?.slice(da, da + k) ?? null; const nb = b?.numeri?.slice(da, da + k) ?? null;
       const n = Math.max(pa.length, pb.length);
       const sfx = primo ? '' : ' (continua)';
       this.etichetta(a.titolo + sfx, x, w);
@@ -403,8 +449,8 @@ class Foglio {
       const y0 = this.y;
       this.y = y0 + this.hEtichetta;
       const h = 2 * PAD + n * lh;
-      this.riquadroCodice(pa, x, w, lh, h);
-      if (b) this.riquadroCodice(pb, xb, w, lh, h);
+      this.riquadroCodice(pa, x, w, lh, h, pt, na, a.cifre);
+      if (b) this.riquadroCodice(pb, xb, w, lh, h, pt, nb, b.cifre);
       this.y = y0 + this.hEtichetta + h;
       da += k; primo = false;
       if (da < tot) this.nuovaPagina();
@@ -476,68 +522,88 @@ class Foglio {
       this.y += GIU - 1;
     }
 
-    // Blocchi e codici
+    // Blocchi e codici: le parti scelte, nell'ordine blocchi · pseudocodice · C · Python. Due parti consecutive stanno
+    // affiancate se entrambe ci stanno nella colonna SENZA andare a capo; altrimenti ognuna sta a tutta larghezza.
+    const parti = { blocchi: true, pseudocodice: true, c: true, python: true, numeriRiga: true, ...s.parti };
+    this.numeri = parti.numeriRiga !== false;
     const t = s.testi;
     const img = s.blocchi;
     const hE = this.hEtichetta;
     const lh = PT_CODICE * PT * 1.3;
-    const righe = t ? {
-      pseudo: this.righeCodice(t.pseudocode, COLONNA), c: this.righeCodice(t.c, COLONNA),
-      py: this.righeCodice(t.python, COLONNA), pyLargo: this.righeCodice(t.python, LARGHEZZA),
-    } : { pseudo: ['-'], c: ['-'], py: ['-'], pyLargo: ['-'] };
     const wmm = img ? img.larghezzaPx * PX : COLONNA; const hmm = img ? img.altezzaPx * PX : 12;
     const scalaCol = Math.min(1, (COLONNA - 2 * PAD) / wmm);
     const hBlocchi2 = hmm * scalaCol + 2 * PAD;
-    const hPseudo = righe.pseudo.length * lh + 2 * PAD;
-    const dueColonne = hE + hPseudo <= CAPIENZA && (!img || (scalaCol >= SCALA_MIN_COLONNA && hE + hBlocchi2 <= CAPIENZA));
     const blocchiTesto = { righe: !img ? ['Programma non leggibile.'] : [] };
+    const elementi = [];
+    if (parti.blocchi) elementi.push({ tipo: 'blocchi', stretta: !img || (scalaCol >= SCALA_MIN_COLONNA && hE + hBlocchi2 <= CAPIENZA) });
+    for (const [chiave, titolo, testo] of [['pseudocodice', 'Pseudocodice', t?.pseudocode], ['c', 'C', t?.c], ['python', 'Python', t?.python]]) {
+      if (parti[chiave]) elementi.push(this.parteCodice(titolo, t ? testo : '-'));
+    }
 
-    if (dueColonne) {
-      const h = Math.max(hBlocchi2, hPseudo);
-      if (hE + h > this.libero()) this.nuovaPagina();
-      this.etichetta('Programma a blocchi', MARGINI.sx, COLONNA);
-      this.etichetta2('Pseudocodice', MARGINI.sx + COLONNA + SPAZIO_COLONNE, COLONNA);
+    for (let i = 0; i < elementi.length;) {
+      const a = elementi[i]; const b = elementi[i + 1];
+      if (b && a.stretta && b.stretta) {
+        if (a.tipo === 'blocchi') {
+          const dx = this.formatoCodice(b, COLONNA);
+          const hCodice = dx.righe.length * lh + 2 * PAD;
+          if (hE + hCodice <= CAPIENZA) { this.blocchiAccanto(img, blocchiTesto, scalaCol, hBlocchi2, dx, lh); i += 2; continue; }
+        } else {
+          this.coppiaCodici(this.formatoCodice(a, COLONNA), this.formatoCodice(b, COLONNA));
+          i += 2; continue;
+        }
+      }
+      if (a.tipo === 'blocchi') this.blocchiSoli(img, blocchiTesto, wmm, hmm, lh);
+      else this.coppiaCodici(this.formatoCodice(a, LARGHEZZA), null, { x: MARGINI.sx, w: LARGHEZZA });
+      i++;
+    }
+  }
+
+  // Blocchi a sinistra e un codice a destra, della stessa altezza.
+  blocchiAccanto(img, blocchiTesto, scalaCol, hBlocchi2, codice, lh) {
+    const hE = this.hEtichetta;
+    const hCodice = codice.righe.length * lh + 2 * PAD;
+    const h = Math.max(hBlocchi2, hCodice);
+    if (hE + h > this.libero()) this.nuovaPagina();
+    this.etichetta('Programma a blocchi', MARGINI.sx, COLONNA);
+    this.etichetta2(codice.titolo, MARGINI.sx + COLONNA + SPAZIO_COLONNE, COLONNA);
+    const y0 = this.y + hE;
+    this.y = y0;
+    if (img) this.riquadroBlocchi(img, MARGINI.sx, y0, COLONNA, h, scalaCol);
+    else this.riquadroCodice(blocchiTesto.righe, MARGINI.sx, COLONNA, lh, h);
+    this.riquadroCodice(codice.righe, MARGINI.sx + COLONNA + SPAZIO_COLONNE, COLONNA, lh, h, codice.pt, codice.numeri, codice.cifre);
+    this.y = y0 + h + GIU;
+  }
+
+  // Blocchi a tutta larghezza (o, se non si leggono, solo la frase che lo dice), tagliati su più pagine se serve.
+  blocchiSoli(img, blocchiTesto, wmm, hmm, lh) {
+    const hE = this.hEtichetta;
+    if (!img) {
+      this.assicura(hE + 2 * PAD + lh);
+      this.etichetta('Programma a blocchi', MARGINI.sx, LARGHEZZA);
+      this.y += hE;
+      this.riquadroCodice(blocchiTesto.righe, MARGINI.sx, LARGHEZZA, lh, 2 * PAD + lh);
+      this.y += 2 * PAD + lh + GIU;
+      return;
+    }
+    const scalaL = Math.min(1, (LARGHEZZA - 2 * PAD) / wmm);
+    const disp = CAPIENZA - hE - 2 * PAD;
+    const scala = hmm * scalaL > disp ? Math.max(Math.min(scalaL, disp / hmm), Math.min(scalaL, SCALA_MIN_ALTEZZA)) : scalaL;
+    const hTot = hmm * scala;
+    let da = 0;
+    let primo = true;
+    // Se ci sta in una pagina intera, ma non in quello che resta di questa, si comincia da una pagina nuova: si taglia solo ciò che è più alto di una pagina.
+    if (hE + 2 * PAD + hTot <= CAPIENZA) this.assicura(hE + 2 * PAD + hTot);
+    while (da < hTot - 1e-6) {
+      this.assicura(hE + 2 * PAD + Math.min(hTot - da, 40));
+      const spazio = this.libero() - hE - 2 * PAD;
+      const pezzo = Math.min(hTot - da, spazio);
+      this.etichetta(`Programma a blocchi${primo ? '' : ' (continua)'}`, MARGINI.sx, LARGHEZZA);
       const y0 = this.y + hE;
       this.y = y0;
-      if (img) this.riquadroBlocchi(img, MARGINI.sx, y0, COLONNA, h, scalaCol);
-      else {
-        this.riquadroCodice(blocchiTesto.righe, MARGINI.sx, COLONNA, lh, h);
-      }
-      this.riquadroCodice(righe.pseudo, MARGINI.sx + COLONNA + SPAZIO_COLONNE, COLONNA, lh, h);
-      this.y = y0 + h + GIU;
-      this.coppiaCodici({ titolo: 'C', righe: righe.c }, { titolo: 'Python', righe: righe.py });
-    } else {
-      // Blocchi a tutta larghezza (o, se non si leggono, solo la frase che lo dice)
-      if (!img) {
-        this.assicura(hE + 2 * PAD + lh);
-        this.etichetta('Programma a blocchi', MARGINI.sx, LARGHEZZA);
-        this.y += hE;
-        this.riquadroCodice(blocchiTesto.righe, MARGINI.sx, LARGHEZZA, lh, 2 * PAD + lh);
-        this.y += 2 * PAD + lh + GIU;
-      }
-      const scalaL = Math.min(1, (LARGHEZZA - 2 * PAD) / wmm);
-      const disp = CAPIENZA - hE - 2 * PAD;
-      const scala = hmm * scalaL > disp ? Math.max(Math.min(scalaL, disp / hmm), Math.min(scalaL, SCALA_MIN_ALTEZZA)) : scalaL;
-      const hTot = img ? hmm * scala : 0;
-      let da = 0;
-      let primo = true;
-      // Se ci sta in una pagina intera, ma non in quello che resta di questa, si comincia da una pagina nuova: si taglia solo ciò che è più alto di una pagina.
-      if (hE + 2 * PAD + hTot <= CAPIENZA) this.assicura(hE + 2 * PAD + hTot);
-      while (da < hTot - 1e-6) {
-        this.assicura(hE + 2 * PAD + Math.min(hTot - da, 40));
-        const spazio = this.libero() - hE - 2 * PAD;
-        const pezzo = Math.min(hTot - da, spazio);
-        this.etichetta(`Programma a blocchi${primo ? '' : ' (continua)'}`, MARGINI.sx, LARGHEZZA);
-        const y0 = this.y + hE;
-        this.y = y0;
-        this.riquadroBlocchi(img, MARGINI.sx, y0, LARGHEZZA, pezzo + 2 * PAD, scala, hTot > pezzo + 1e-6 || da > 0 ? { da } : null);
-        this.y = y0 + pezzo + 2 * PAD + GIU;
-        da += pezzo; primo = false;
-        if (da < hTot - 1e-6) this.nuovaPagina();
-      }
-      this.coppiaCodici({ titolo: 'Pseudocodice', righe: righe.pseudo }, { titolo: 'C', righe: righe.c });
-      const xPy = MARGINI.sx;
-      this.coppiaCodici({ titolo: 'Python', righe: righe.pyLargo }, null, { x: xPy, w: LARGHEZZA });
+      this.riquadroBlocchi(img, MARGINI.sx, y0, LARGHEZZA, pezzo + 2 * PAD, scala, hTot > pezzo + 1e-6 || da > 0 ? { da } : null);
+      this.y = y0 + pezzo + 2 * PAD + GIU;
+      da += pezzo; primo = false;
+      if (da < hTot - 1e-6) this.nuovaPagina();
     }
   }
 }
@@ -564,7 +630,8 @@ function disegnaPiedi(doc, s, da, a) {
 }
 
 // `schede`: [{ titolo, corso, classe, data, studente, riscontro, traccia: { titolo, testoMd, blocchi } | null,
-//              blocchi: { dataUrl, larghezzaPx, altezzaPx, alias? } | null, testi: { pseudocode, c, python } | null }]
+//              blocchi: { dataUrl, larghezzaPx, altezzaPx, alias? } | null, testi: { pseudocode, c, python } | null,
+//              parti?: { blocchi, pseudocodice, c, python, numeriRiga } (booleani; se manca, tutto acceso) }]
 // `traccia.blocchi` è la struttura di pdf-markdown.js (convertiMarkdown(...).blocchi); chi chiama la prepara (il Markdown si
 // tokenizza in modo asincrono). Restituisce il documento jsPDF. `registro`: facoltativo, per le prove ({ voci: [], schede: [] }).
 export function creaPdfSchede({ jsPDF, schede, compress = true, registro = null }) {

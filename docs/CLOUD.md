@@ -576,10 +576,20 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
     - **Contenuto**: titolo della verifica, corso e classe, nome dello studente (senza email; se manca, la parte dell'email prima
       della chiocciola), solo la data della consegna, la TRACCIA che aveva (Markdown ricomposto a mano), blocchi, pseudocodice, C,
       Python. Non compaiono email, ora, scadenza, origine, nome del file né versione. Bianco e nero (grigi, filo sottile) salvo i blocchi.
-    - **Disposizione**: blocchi | pseudocodice, poi C | Python. Se i blocchi in colonna scenderebbero sotto la scala 0,8 o
-      non ci stanno in una pagina: blocchi a tutta larghezza (riducendo fino a 0,6 per l'altezza, tagliati su più pagine solo se ancora
-      troppo alti), poi pseudocodice | C e Python sotto. Ciò che sta in una pagina intera non si spezza (va a pagina nuova); i
-      codici troppo lunghi si spezzano con «(continua)». Un titolo di sezione non resta mai solo in fondo a una pagina.
+    - **Parti scelte (dal 12 nov 2026)**: prima di ogni download («Scarica PDF», «Scarica PDF di tutti») si apre la finestra «Cosa vuoi nel PDF?»
+      con quattro caselle (blocchi, pseudocodice, C, Python; la traccia c'è sempre), tutte accese, non ricordate tra un download e l'altro
+      (scelta di Ivan: usa browser diversi). Con i blocchi spenti `rendi(json, { senzaImmagine: true })` salta il disegno. Parametro `parti` di `creaPdfSchede`.
+    - **Numeri di riga (12 nov 2026)**: casella «Numeri di riga» nella stessa finestra, ACCESA di default. Una striscia grigia a sinistra di ogni
+      riquadro di codice, fuori dal testo; numerazione da 1 per ogni parte (pseudocodice, C, Python), una riga spezzata ha un solo numero, i numeri
+      continuano tra le pagine. Costa 3-4 caratteri per riga (conta nel decidere se due parti si affiancano). Nel PDF i numeri NON sono garantiti fuori dal
+      copia-incolla (molti lettori selezionano per righe): il codice da copiare in un IDE si prende dall'app o dal JSON. Scopo: citare «la riga 7»
+      e, col feedback (punto 4, da fare), collegare i commenti alle righe di un blocco (mappa blocco→righe del motore). Parametro `parti.numeriRiga`.
+    - **Disposizione adattiva**: le parti scelte, nell'ordine blocchi · pseudocodice · C · Python. Due parti consecutive stanno AFFIANCATE
+      solo se entrambe ci stanno nella colonna SENZA andare a capo (codice: riga più lunga entro la colonna; blocchi: scala non sotto 0,8 e
+      pagina intera sufficiente); altrimenti ognuna sta a tutta larghezza. Una riga di codice più larga della pagina rimpicciolisce il
+      carattere fino a 6,2 pt (da 7,8) prima di andare a capo. I blocchi troppo alti per la pagina si riducono fino a 0,6 e poi si tagliano.
+      Ciò che sta in una pagina intera non si spezza (va a pagina nuova); i codici troppo lunghi si spezzano con «(continua)». Un titolo di
+      sezione non resta mai solo in fondo a una pagina.
     - **Piè di pagina su ogni pagina**: `verifica · classe · data` a sinistra, `Nome · riscontro XXXX-XXXX · pagina x/n` a destra
       (n = pagine di quella scheda). Il CODICE DI RISCONTRO è `codiceRiscontro()`, lo stesso della finestra «Guarda».
     - **File**: `cognome-nome_classe_verifica_v2.pdf` (minuscolo, senza accenti; la versione c'è solo nel nome) e

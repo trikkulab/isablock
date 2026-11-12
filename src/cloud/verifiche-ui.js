@@ -631,18 +631,52 @@ export function montaVerifiche({ toast, programma = null }) {
           nome: x.lavoro?.studenteNome ?? null, email: x.email, consegna: x.ultimaConsegna, lavoro: x.lavoro, traccia: traccePerId.get(x.ultimaConsegna.tracciaId) ?? null,
         })));
       };
-      const scaricaPdf = (email) => {
+      // Finestra «Cosa vuoi nel PDF?»: la scelta vale per quel solo download (non si ricorda). La traccia c'è sempre.
+      const scegliParti = (titolo) => new Promise((risolvi) => {
+        let deciso = false;
+        const d = apri(titolo, () => { if (!deciso) risolvi(null); });
+        const voci = [['blocchi', 'Programma a blocchi'], ['pseudocodice', 'Pseudocodice'], ['c', 'C'], ['python', 'Python']];
+        const caselle = voci.map(([k, nome]) => ({ k, nome, chk: el('input', { type: 'checkbox', checked: '' }) }));
+        const chkNumeri = el('input', { type: 'checkbox', checked: '' });
+        const scarica = el('button', { type: 'button', class: 'modal-btn' }, 'Scarica il PDF');
+        const riepilogo = el('p', { class: 'sketch-nota', role: 'status' });
+        const aggiorna = () => {
+          const scelte = caselle.filter((c) => c.chk.checked).map((c) => c.nome);
+          scarica.disabled = scelte.length === 0;
+          riepilogo.textContent = scelte.length === 0 ? 'Scegli almeno una parte.' : `Nel PDF: Traccia, ${scelte.join(', ')}.`;
+        };
+        for (const c of caselle) c.chk.addEventListener('change', aggiorna);
+        scarica.addEventListener('click', () => {
+          deciso = true;
+          risolvi({ ...Object.fromEntries(caselle.map((c) => [c.k, c.chk.checked])), numeriRiga: chkNumeri.checked });
+          d.chiudi();
+        });
+        d.corpo.append(
+          el('p', {}, 'La traccia c\'è sempre. Le parti che lasci accese si affiancano se stanno nella pagina senza andare a capo, altrimenti vanno una sotto l\'altra.'),
+          ...caselle.map((c) => el('label', { class: 'gestione-campo' }, c.chk, ' ', c.nome)),
+          el('label', { class: 'gestione-campo' }, chkNumeri, ' Numeri di riga accanto ai codici (in una colonna a parte, non nel testo)'),
+          riepilogo,
+          el('div', { class: 'modal-actions' }, scarica, el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => d.chiudi() }, 'Annulla')));
+        aggiorna();
+      });
+      const scaricaPdf = async (email) => {
         const schede = schedeDi([email]);
         const s = schede[0];
+        const parti = await scegliParti(E.partiPdfTitolo);
+        if (!parti) return 0;
         return scaricaPdfSchede({
-          schede, verifica, corso, programma, toast,
+          schede, verifica, corso, programma, toast, parti,
           nomeFile: nomeFilePdf({ nome: s?.nome, email, classe: corso.classe, titolo: verifica.titolo, versione: s?.consegna.versione ?? 1 }),
         });
       };
-      const scaricaTutti = () => scaricaPdfSchede({
-        schede: schedeDi(null), verifica, corso, programma, toast,
-        nomeFile: nomeFilePdfTutte({ classe: corso.classe, titolo: verifica.titolo }),
-      });
+      const scaricaTutti = async () => {
+        const parti = await scegliParti(E.partiPdfTitolo);
+        if (!parti) return 0;
+        return scaricaPdfSchede({
+          schede: schedeDi(null), verifica, corso, programma, toast, parti,
+          nomeFile: nomeFilePdfTutte({ classe: corso.classe, titolo: verifica.titolo }),
+        });
+      };
       const conPdf = !!(programma && programma.renderBlocchi);
       const sala = programma && programma.anteprima && programma.renderBlocchi
         ? () => apriSala({ apri, tabella, programma, caricaStoria: storiaConConsegne, osserva: osservaDalVivo, titolo: `Sala · ${verifica.titolo}` })

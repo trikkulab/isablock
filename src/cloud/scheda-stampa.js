@@ -14,18 +14,23 @@ export function codiceRiscontro(programma) {
 
 const parteEmail = (email) => String(email ?? '').split('@')[0];
 
+// Il campo nome può contenere un'email (succede quando lo studente non ha un nome): vale solo la parte prima della chiocciola.
+const nomePulito = (nome) => {
+  const n = String(nome ?? '').trim().replace(/\s+/g, ' ');
+  return /^\S+@\S+$/.test(n) ? parteEmail(n) : n;
+};
+
 // «Nome Cognome» come `displayName` di Google: il primo termine è il nome, il resto il cognome («Maria Rosa Bianchi» dà
 // cognome «Rosa Bianchi»: limite noto e accettato). Senza nome si usa la parte dell'email prima della chiocciola, come cognome.
 export function dividiNome(nome, email) {
-  const parti = String(nome ?? '').trim().split(/\s+/).filter(Boolean);
+  const parti = /^\S+@\S+$/.test(String(nome ?? '').trim()) ? [] : nomePulito(nome).split(/\s+/).filter(Boolean);   // un'email nel campo nome = nessun nome
   if (parti.length === 0) return { nome: '', cognome: parteEmail(email) };
   return { nome: parti[0], cognome: parti.slice(1).join(' ') };
 }
 
 // Il nome come si scrive sulla scheda (mai l'email intera).
 export function nomeVisualizzato(nome, email) {
-  const n = String(nome ?? '').trim().replace(/\s+/g, ' ');
-  return n || parteEmail(email);
+  return nomePulito(nome) || parteEmail(email);
 }
 
 // File del PDF di una consegna: `rossi-anna_3ainf_verifica-di-novembre_v2.pdf` (cognome-nome, classe, verifica, versione).

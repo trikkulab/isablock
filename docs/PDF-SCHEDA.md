@@ -27,6 +27,11 @@ dal PDF. La stampa dal browser va SOSTITUITA (non tenere due percorsi).
   piccolo); blocchi; pseudocodice; C; Python.
 - **NON mostrare**: email, ora di consegna, scadenza personale, origine della consegna (automatica/file/raccolta),
   nome del file, numero di versione (c'è il codice di riscontro).
+- **Parti scelte e disposizione adattiva (12 nov 2026, sostituisce la riga fissa qui sotto)**: il docente sceglie le parti (blocchi,
+  pseudocodice, C, Python; traccia sempre) a ogni download. Due parti consecutive si affiancano solo se stanno nella colonna senza
+  andare a capo, altrimenti vanno a tutta larghezza; un codice troppo largo rimpicciolisce fino a 6,2 pt prima di andare a capo.
+  Numeri di riga in una striscia separata, accesi di default (opzione nella finestra).
+  Il testo seguente descrive la disposizione con tutte le parti.
 - **Disposizione**: riga 1 = blocchi (sinistra) + pseudocodice (destra); riga 2 = C (sinistra) + Python (destra).
   **Non rimpicciolire troppo i blocchi** (si devono leggere): scala 1:1 se possibile, minimo circa 0,8. Se il programma
   è troppo largo per la colonna: blocchi a tutta larghezza, poi (pseudocodice | C) e Python sotto. Se è troppo alto per

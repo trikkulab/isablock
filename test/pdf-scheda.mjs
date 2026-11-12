@@ -204,6 +204,95 @@ await prova('caratteri speciali: ≠ ≤ ≥ restano nei riquadri di codice (dis
   assert.deepEqual(spezzaRiga('a ≠ b', 5), ['a ≠ b'], 'un simbolo vale una cella, come ogni carattere');
 });
 
+await prova('parti scelte: solo quelle accese compaiono, nell\'ordine blocchi · pseudocodice · C · Python; la traccia c\'è sempre', async () => {
+  const traccia = await md('Testo della traccia');
+  const solo = (parti) => crea([scheda({ traccia, parti })]).registro;
+  const senzaTraccia = (reg) => sezioni(reg).filter((n) => !n.startsWith('Traccia'));
+  assert.deepEqual(senzaTraccia(solo({ blocchi: true, pseudocodice: true, c: false, python: false })), ['Programma a blocchi', 'Pseudocodice']);
+  assert.deepEqual(senzaTraccia(solo({ blocchi: false, pseudocodice: true, c: false, python: true })), ['Pseudocodice', 'Python']);
+  assert.deepEqual(senzaTraccia(solo({ blocchi: false, pseudocodice: false, c: false, python: true })), ['Python']);
+  assert.ok(sezioni(solo({ blocchi: false, pseudocodice: false, c: false, python: true })).includes('Traccia: Versione A'), 'la traccia c\'è sempre');
+  const r = solo({ blocchi: false, pseudocodice: true, c: false, python: false });
+  assert.ok(r.voci.some((v) => v.tipo === 'riga' && v.testo === 'Testo della traccia'), 'la traccia resta');
+  assert.ok(!r.voci.some((v) => v.tipo === 'blocchi'), 'nessuna immagine dei blocchi');
+  assert.deepEqual(sezioni(crea([scheda({ parti: {} })]).registro), ['Programma a blocchi', 'Pseudocodice', 'C', 'Python'], 'parti vuote = tutte');
+});
+
+await prova('parti brevi: due affiancate sulla stessa riga; parti lunghe: una sotto l\'altra e senza righe spezzate', () => {
+  const brevi = crea([scheda({ parti: { blocchi: false, pseudocodice: true, c: true, python: false } })]).registro.voci.filter((v) => v.tipo === 'sezione');
+  assert.equal(brevi[0].y, brevi[1].y, 'pseudocodice e C sulla stessa riga');
+  assert.ok(brevi[1].x > brevi[0].x + COLONNA);
+  // Una riga lunga (90 caratteri) in C non sta nella colonna: C va a tutta larghezza, sotto, e la riga non si spezza
+  const riga = 'int risultato = a + b + c + d + e + f + g + h + i + j + k + l + m + n + o + p + q + r;';
+  const lungo = crea([scheda({ parti: { blocchi: false, pseudocodice: true, c: true, python: true }, testi: { pseudocode: righe(5, 'psc'), c: `${righe(4, 'cc')}\n${riga}`, python: righe(5, 'py') } })]).registro;
+  const sez = lungo.voci.filter((v) => v.tipo === 'sezione');
+  assert.deepEqual(sezioni(lungo), ['Pseudocodice', 'C', 'Python']);
+  assert.ok(sez[1].y > sez[0].y, 'C sotto lo pseudocodice, non accanto');
+  const c = lungo.voci.filter((v) => v.tipo === 'codice').find((v) => v.testo.includes('int risultato'));
+  assert.ok(c.testo.split('\n').includes(riga), 'la riga lunga resta intera');
+});
+
+await prova('riga di codice più larga della pagina: carattere ridotto fino a un minimo, poi si va a capo', () => {
+  const quasi = 'x'.repeat(110);                 // non sta a 7,8 pt in 176 mm (circa 94 caratteri), sta a 6,2-6,6 pt
+  const r1 = crea([scheda({ parti: { blocchi: false, pseudocodice: true, c: false, python: false }, testi: { pseudocode: quasi, c: '', python: '' } })]).registro;
+  assert.ok(r1.voci.find((v) => v.tipo === 'codice').testo.split('\n').includes(quasi), 'riga intera con carattere ridotto');
+  const enorme = 'y'.repeat(200);
+  const r2 = crea([scheda({ parti: { blocchi: false, pseudocodice: true, c: false, python: false }, testi: { pseudocode: enorme, c: '', python: '' } })]).registro;
+  assert.ok(r2.voci.find((v) => v.tipo === 'codice').testo.split('\n').length >= 2, 'oltre il minimo si va a capo');
+});
+
+await prova('blocchi con una sola parte di codice: blocchi | codice se ci stanno, altrimenti uno sotto l\'altro', () => {
+  const a = crea([scheda({ parti: { blocchi: true, pseudocodice: false, c: true, python: false } })]).registro.voci.filter((v) => v.tipo === 'sezione');
+  assert.deepEqual(a.map((v) => v.testo), ['Programma a blocchi', 'C']);
+  assert.equal(a[0].y, a[1].y);
+  const b = crea([scheda({ parti: { blocchi: true, pseudocodice: false, c: false, python: true }, blocchi: { dataUrl: pngFinto(400, 300), larghezzaPx: 400, altezzaPx: 300 } })]).registro.voci.filter((v) => v.tipo === 'sezione');
+  assert.ok(b[1].y > b[0].y, 'blocchi larghi: Python sotto');
+});
+
+await prova('parti scelte con codici lunghi: tutte le righe presenti e dentro i margini', () => {
+  const { registro } = crea([scheda({ parti: { blocchi: false, pseudocodice: true, c: false, python: true }, testi: { pseudocode: righe(120, 'p'), c: '', python: righe(120, 'y') } })]);
+  const codici = registro.voci.filter((v) => v.tipo === 'codice');
+  const testi = codici.map((v) => v.testo).join('\n').split('\n');
+  assert.equal(testi.filter((x) => x.startsWith('p ')).length, 120);
+  assert.equal(testi.filter((x) => x.startsWith('y ')).length, 120);
+  for (const v of codici) assert.ok(v.y + v.h <= BASSO_UTILE + 1e-6);
+});
+
+await prova('numeri di riga: accesi di default, in una striscia a parte (mai nel testo del codice), ripartono da 1 in ogni parte', () => {
+  const { registro, testoPdf } = crea([scheda({ parti: { blocchi: false, pseudocodice: true, c: true, python: false }, testi: { pseudocode: righe(12, 'psc'), c: righe(5, 'cc'), python: '' } })]);
+  const codici = registro.voci.filter((v) => v.tipo === 'codice');
+  assert.deepEqual(codici[0].numeri, Array.from({ length: 12 }, (_, i) => i + 1));
+  assert.deepEqual(codici[1].numeri, [1, 2, 3, 4, 5], 'il C riparte da 1');
+  assert.ok(codici.every((v) => !/^\d+ /.test(v.testo.split('\n')[0].replace(/^(psc|cc) /, 'x'))), 'il testo del codice non contiene i numeri');
+  assert.ok(codici[0].testo.split('\n').every((r) => /^psc \d+$/.test(r)), 'le righe sono solo il codice');
+  assert.ok(testoPdf.includes('(12)'), 'il numero 12 è disegnato');
+});
+
+await prova('numeri di riga spenti: nessuna striscia e più caratteri per riga', () => {
+  const spenti = crea([scheda({ parti: { blocchi: false, pseudocodice: true, c: false, python: false, numeriRiga: false } })]).registro;
+  assert.ok(spenti.voci.filter((v) => v.tipo === 'codice').every((v) => !v.numeri));
+  // 50 caratteri: con la striscia (3 cifre) non stanno in colonna, senza sì
+  const riga = 'x'.repeat(49);
+  const testi = { pseudocode: riga, c: riga, python: '' };
+  const senza = crea([scheda({ parti: { blocchi: false, pseudocodice: true, c: true, python: false, numeriRiga: false }, testi })]).registro.voci.filter((v) => v.tipo === 'sezione');
+  assert.equal(senza[0].y, senza[1].y, 'senza numeri: affiancati');
+  const con = crea([scheda({ parti: { blocchi: false, pseudocodice: true, c: true, python: false, numeriRiga: true }, testi: { pseudocode: `${riga}\n${righe(120)}`, c: riga, python: '' } })]).registro.voci.filter((v) => v.tipo === 'sezione');
+  const psc = con.find((v) => v.testo === 'Pseudocodice'); const c = con.find((v) => v.testo === 'C');
+  assert.ok(c.pagina > psc.pagina || c.y > psc.y, 'con numeri a tre cifre la stessa riga non sta più nella colonna: una sotto l\'altra');
+  assert.equal(c.x, MARGINI.sx, 'e il C parte dal margine sinistro');
+});
+
+await prova('numeri di riga: continuano attraverso le pagine e una riga spezzata ha un solo numero', () => {
+  const { registro } = crea([scheda({ parti: { blocchi: false, pseudocodice: true, c: false, python: false }, testi: { pseudocode: righe(150, 'p'), c: '', python: '' } })]);
+  const numeri = registro.voci.filter((v) => v.tipo === 'codice').flatMap((v) => v.numeri);
+  assert.deepEqual(numeri, Array.from({ length: 150 }, (_, i) => i + 1), 'da 1 a 150 senza buchi né ripetizioni, anche tra le pagine');
+  const lunga = 'y'.repeat(200);                         // oltre il minimo: va a capo
+  const r = crea([scheda({ parti: { blocchi: false, pseudocodice: true, c: false, python: false }, testi: { pseudocode: `a\n${lunga}\nb`, c: '', python: '' } })]).registro.voci.find((v) => v.tipo === 'codice');
+  assert.ok(r.righe > 3 && r.numeri.length === r.righe);
+  assert.equal(r.numeri[0], 1); assert.equal(r.numeri[1], 2); assert.ok(r.numeri[2] === null, 'la continuazione non ha numero');
+  assert.equal(r.numeri.at(-1), 3, 'la riga dopo è la 3');
+});
+
 await prova('PDF vero: intestazione %PDF, tante pagine A4 quante dice il registro, titolo del documento', () => {
   const { doc, registro, testoPdf, pagine } = crea([scheda(), scheda({ studente: 'Bruno Verdi' })]);
   assert.ok(testoPdf.startsWith('%PDF-'));
