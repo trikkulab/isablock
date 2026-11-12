@@ -45,6 +45,12 @@ export function nomeFilePdfTutte({ classe, titolo }) {
   return [slug(classe, 20), slug(titolo, 40) || 'verifica', 'tutte-le-consegne'].filter(Boolean).join('_') + '.pdf';
 }
 
+// File dell'esportazione anonima: `3ainf_verifica-di-novembre_consegne.json` e `…_corrispondenze.csv` (quest'ultimo ha i nomi).
+export function nomiFileJson({ classe, titolo }) {
+  const base = [slug(classe, 20), slug(titolo, 40) || 'verifica'].filter(Boolean).join('_');
+  return { json: `${base}_consegne.json`, csv: `${base}_corrispondenze.csv` };
+}
+
 // Le schede in ordine alfabetico per cognome e poi per nome (senza badare a maiuscole e accenti), infine per email.
 export function ordinaSchede(schede) {
   const chiave = (s) => dividiNome(s.nome, s.email);

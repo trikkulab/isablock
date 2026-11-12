@@ -584,6 +584,15 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
       continuano tra le pagine. Costa 3-4 caratteri per riga (conta nel decidere se due parti si affiancano). Nel PDF i numeri NON sono garantiti fuori dal
       copia-incolla (molti lettori selezionano per righe): il codice da copiare in un IDE si prende dall'app o dal JSON. Scopo: citare «la riga 7»
       e, col feedback (punto 4, da fare), collegare i commenti alle righe di un blocco (mappa blocco→righe del motore). Parametro `parti.numeriRiga`.
+    - **«Esporta JSON di tutti» (12 nov 2026, `esporta-json.js`, `esporta-ui.js`)**: a verifica chiusa, accanto a «Scarica PDF di tutti». Finestra
+      con le caselle pseudocodice, C, Python (niente blocchi né numeri di riga). Due download: `<classe>_<verifica>_consegne.json` e
+      `<classe>_<verifica>_corrispondenze.csv`. Il JSON non ha nomi né email: `{ verifica (titolo), tracce: { A: { titolo, testo } },
+      consegne: [{ codice, traccia, riscontro, pseudocodice?, c?, python?, illeggibile? }] }`; codice = 4 caratteri casuali (senza 0 O 1 I L),
+      consegne ordinate per codice (non per studente), sigle delle tracce nell'ordine della verifica, parti spente assenti. Il CSV
+      (UTF-8 con BOM, virgola) ha `codice,cognome,nome,email,versione,traccia`: contiene i nomi e non va condiviso. L'esportazione NON ripulisce i testi:
+      se un commento o una variabile contiene il nome/l'email dello studente compare un avviso con i codici. Mai scritto «AI» nei testi (scelta di Ivan: non
+      deve sembrare che la valutazione usi strumenti di AI). Lo script locale `scripts/consegne_json_a_file.py` spezza il JSON in file per consegna
+      (`<codice>.pseudocodice.txt`, `.c`, `.py`, `.info.txt`, `traccia-<sigla>.md`). Prove: `test/esporta-json.mjs`, e2e docente.
     - **Disposizione adattiva**: le parti scelte, nell'ordine blocchi · pseudocodice · C · Python. Due parti consecutive stanno AFFIANCATE
       solo se entrambe ci stanno nella colonna SENZA andare a capo (codice: riga più lunga entro la colonna; blocchi: scala non sotto 0,8 e
       pagina intera sufficiente); altrimenti ognuna sta a tutta larghezza. Una riga di codice più larga della pagina rimpicciolisce il

@@ -596,6 +596,32 @@ try {
   }
   verifica(await page.evaluate(() => !!window.Blockly.getMainWorkspace().getParentSvg().closest('#blocklyDiv') && !document.querySelector('[aria-hidden="true"][style*="-20000px"]')), 'dopo il PDF di tutti il workspace principale è quello dell\'editor e il workspace fuori schermo è stato tolto');
 
+  // ── Esporta JSON di tutti: JSON anonimo + CSV delle corrispondenze ───────────
+  verifica(await page.isVisible('button:has-text("Esporta JSON di tutti")'), 'a verifica chiusa c\'è «Esporta JSON di tutti»');
+  await page.click('button:has-text("Esporta JSON di tutti")');
+  verifica(await page.isVisible('h2:has-text("Cosa vuoi nel JSON?")') && (await page.locator('.modal-box').last().locator('input[type=checkbox]').count()) === 3, 'la finestra ha tre caselle (pseudocodice, C, Python): niente blocchi né numeri di riga');
+  await page.getByLabel('C', { exact: true }).uncheck();
+  const scaricatiJson = [];
+  page.on('download', (d) => scaricatiJson.push(d));
+  await page.locator('.modal-box').last().locator('button', { hasText: /^Esporta$/ }).click();
+  const t0 = Date.now();
+  while (scaricatiJson.length < 2 && Date.now() - t0 < 60000) await page.waitForTimeout(200);
+  verifica(scaricatiJson.length === 2, 'si scaricano due file (JSON e CSV)');
+  const nomiJson = scaricatiJson.map((d) => d.suggestedFilename());
+  const fJson = scaricatiJson.find((d) => d.suggestedFilename().endsWith('_consegne.json'));
+  const fCsv = scaricatiJson.find((d) => d.suggestedFilename().endsWith('_corrispondenze.csv'));
+  verifica(!!fJson && !!fCsv && nomiJson.every((n) => n.startsWith('3ainf_verifica-per-la-vista-stretta_')), `nomi dei file con classe e verifica («${nomiJson.join(', ')}»)`);
+  const testoJson = readFileSync(await fJson.path(), 'utf8');
+  const dati = JSON.parse(testoJson);
+  verifica(dati.verifica === 'Verifica per la vista stretta' && dati.consegne.length >= 2, `JSON: titolo e ${dati.consegne.length} consegne`);
+  verifica(dati.consegne.every((c) => /^[2-9A-HJKMNP-Z]{4}$/.test(c.codice) && typeof c.pseudocodice === 'string' && !('c' in c) && typeof c.python === 'string' && /^[0-9A-F]{4}-[0-9A-F]{4}$/.test(c.riscontro)), 'ogni consegna: codice di 4 caratteri, pseudocodice e Python, niente C (casella spenta), riscontro');
+  verifica(/INIZIO/.test(dati.consegne[0].pseudocodice), 'lo pseudocodice è il testo del programma');
+  verifica(!/anna|rossi|bruno|isarome/i.test(testoJson.replace(/"testo": "[^"]*"/g, '')), 'nel JSON non compaiono né nomi né email degli studenti');
+  verifica(Object.keys(dati.tracce).length >= 1 && dati.consegne.every((c) => c.traccia === null || c.traccia in dati.tracce), 'le tracce compaiono una volta sola e ogni consegna le cita per sigla');
+  const testoCsv = readFileSync(await fCsv.path(), 'utf8').replace(/^﻿/, '');
+  verifica(testoCsv.startsWith('codice,cognome,nome,email,versione,traccia') && /anna@isarome\.it/.test(testoCsv) && dati.consegne.every((c) => testoCsv.includes(c.codice)), 'il CSV lega ogni codice allo studente (nome, email, versione)');
+
+
   // archivia: sparisce dall'elenco, si ritrova con la casella, si ripristina
   dialoghi.length = 0;
   await page.click('.verifica-azioni button:has-text("Archivia")');

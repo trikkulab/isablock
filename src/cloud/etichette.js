@@ -58,6 +58,8 @@ export const verificaDocenteEtichette = Object.freeze({
   scaricaPdf: 'Scarica PDF',
   scaricaPdfTutti: 'Scarica PDF di tutti',
   partiPdfTitolo: 'Cosa vuoi nel PDF?',
+  esportaJsonTutti: 'Esporta JSON di tutti',
+  partiJsonTitolo: 'Cosa vuoi nel JSON?',
   caricaFile: 'Carica file…',
   mostraArchiviate: 'Mostra anche le verifiche archiviate',
   stella: '★',

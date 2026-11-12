@@ -18,6 +18,7 @@ import { apriSala } from './sala-ui.js';
 import { apriConfronto } from './verifica-confronto-ui.js';
 import { scegliFileEmergenza } from './verifica-file-ui.js';
 import { scaricaPdfSchede } from './pdf-ui.js';
+import { esportaJsonSchede } from './esporta-ui.js';
 import { ordinaSchede, nomeFilePdf, nomeFilePdfTutte } from './scheda-stampa.js';
 import { etichettaCorso } from './corsi.js';
 import { verificaDocenteEtichette as E } from './etichette.js';
@@ -632,29 +633,31 @@ export function montaVerifiche({ toast, programma = null }) {
         })));
       };
       // Finestra «Cosa vuoi nel PDF?»: la scelta vale per quel solo download (non si ricorda). La traccia c'è sempre.
-      const scegliParti = (titolo) => new Promise((risolvi) => {
+      const scegliParti = (titolo, { json = false } = {}) => new Promise((risolvi) => {
         let deciso = false;
         const d = apri(titolo, () => { if (!deciso) risolvi(null); });
-        const voci = [['blocchi', 'Programma a blocchi'], ['pseudocodice', 'Pseudocodice'], ['c', 'C'], ['python', 'Python']];
+        const voci = [['blocchi', 'Programma a blocchi'], ['pseudocodice', 'Pseudocodice'], ['c', 'C'], ['python', 'Python']].filter(([k]) => !(json && k === 'blocchi'));
         const caselle = voci.map(([k, nome]) => ({ k, nome, chk: el('input', { type: 'checkbox', checked: '' }) }));
         const chkNumeri = el('input', { type: 'checkbox', checked: '' });
-        const scarica = el('button', { type: 'button', class: 'modal-btn' }, 'Scarica il PDF');
+        const scarica = el('button', { type: 'button', class: 'modal-btn' }, json ? 'Esporta' : 'Scarica il PDF');
         const riepilogo = el('p', { class: 'sketch-nota', role: 'status' });
         const aggiorna = () => {
           const scelte = caselle.filter((c) => c.chk.checked).map((c) => c.nome);
           scarica.disabled = scelte.length === 0;
-          riepilogo.textContent = scelte.length === 0 ? 'Scegli almeno una parte.' : `Nel PDF: Traccia, ${scelte.join(', ')}.`;
+          riepilogo.textContent = scelte.length === 0 ? 'Scegli almeno una parte.' : json ? `Nel JSON: ${scelte.join(', ')} (e le tracce).` : `Nel PDF: Traccia, ${scelte.join(', ')}.`;
         };
         for (const c of caselle) c.chk.addEventListener('change', aggiorna);
         scarica.addEventListener('click', () => {
           deciso = true;
-          risolvi({ ...Object.fromEntries(caselle.map((c) => [c.k, c.chk.checked])), numeriRiga: chkNumeri.checked });
+          risolvi({ ...Object.fromEntries(caselle.map((c) => [c.k, c.chk.checked])), ...(json ? {} : { numeriRiga: chkNumeri.checked }) });
           d.chiudi();
         });
         d.corpo.append(
-          el('p', {}, 'La traccia c\'è sempre. Le parti che lasci accese si affiancano se stanno nella pagina senza andare a capo, altrimenti vanno una sotto l\'altra.'),
+          json
+            ? el('p', {}, 'Un file JSON con i programmi senza nomi né email (solo un codice per consegna, le tracce una volta sola) e un file CSV con le corrispondenze codice-studente: il CSV contiene i nomi, non condividerlo.')
+            : el('p', {}, 'La traccia c\'è sempre. Le parti che lasci accese si affiancano se stanno nella pagina senza andare a capo, altrimenti vanno una sotto l\'altra.'),
           ...caselle.map((c) => el('label', { class: 'gestione-campo' }, c.chk, ' ', c.nome)),
-          el('label', { class: 'gestione-campo' }, chkNumeri, ' Numeri di riga accanto ai codici (in una colonna a parte, non nel testo)'),
+          json ? '' : el('label', { class: 'gestione-campo' }, chkNumeri, ' Numeri di riga accanto ai codici (in una colonna a parte, non nel testo)'),
           riepilogo,
           el('div', { class: 'modal-actions' }, scarica, el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => d.chiudi() }, 'Annulla')));
         aggiorna();
@@ -677,11 +680,16 @@ export function montaVerifiche({ toast, programma = null }) {
           nomeFile: nomeFilePdfTutte({ classe: corso.classe, titolo: verifica.titolo }),
         });
       };
+      const esportaJson = async () => {
+        const parti = await scegliParti(E.partiJsonTitolo, { json: true });
+        if (!parti) return 0;
+        return esportaJsonSchede({ schede: schedeDi(null), tracce, verifica, corso, programma, toast, parti });
+      };
       const conPdf = !!(programma && programma.renderBlocchi);
       const sala = programma && programma.anteprima && programma.renderBlocchi
         ? () => apriSala({ apri, tabella, programma, caricaStoria: storiaConConsegne, osserva: osservaDalVivo, titolo: `Sala · ${verifica.titolo}` })
         : null;
-      tabella = creaTabellaLive({ vd, vid, toast, guarda, sala, caricaFile, scaricaPdf: conPdf ? scaricaPdf : null, scaricaTutti: conPdf ? scaricaTutti : null });
+      tabella = creaTabellaLive({ vd, vid, toast, guarda, sala, caricaFile, scaricaPdf: conPdf ? scaricaPdf : null, scaricaTutti: conPdf ? scaricaTutti : null, esportaJson: conPdf ? esportaJson : null });
       chiudiTabella = tabella.distruggi;
       lavoriLive = tabella.tutti;
       aggiornaScadenza();

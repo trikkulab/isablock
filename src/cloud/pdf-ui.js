@@ -15,7 +15,7 @@ async function traccia(t) {
   return { titolo: t.titolo, blocchi };
 }
 
-function scarica(blob, nomeFile) {
+export function scarica(blob, nomeFile) {
   const url = URL.createObjectURL(blob);
   const a = el('a', { href: url, download: nomeFile, hidden: '' });
   document.body.append(a);

@@ -16,7 +16,7 @@ function testoOffline(ms) {
 }
 
 // `vd`: oggetto di verifica-docente.js. Restituisce { elemento, distruggi }.
-export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = null, scaricaPdf = null, scaricaTutti = null, sala = null }) {
+export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = null, scaricaPdf = null, scaricaTutti = null, esportaJson = null, sala = null }) {
   let ultimo = null;                // ultimo { verifica, lavori, ultime, ora } ricevuto
   let modo = 'email';
   const seguaci = new Set();        // chi vuole il lavoro di uno studente a ogni aggiornamento: { email, cb }
@@ -38,9 +38,10 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
   tabella.hidden = true;
   // «Scarica PDF di tutti»: solo a verifica chiusa (si mostra quando arriva lo stato), un solo PDF con una scheda per ogni consegna.
   const btnPdfTutti = el('button', { type: 'button', class: 'modal-btn secondary', hidden: '', title: 'Un solo PDF (A4) con la scheda di ogni consegna, in ordine alfabetico per cognome', onclick: () => scaricaTutti?.() }, E.scaricaPdfTutti);
+  const btnJsonTutti = el('button', { type: 'button', class: 'modal-btn secondary', hidden: '', title: 'Un file JSON con i programmi senza nomi (solo un codice per consegna) e un file con le corrispondenze codice-studente', onclick: () => esportaJson?.() }, E.esportaJsonTutti);
   const btnSala = sala ? el('button', { type: 'button', class: 'modal-btn secondary', title: 'Tutti i programmi insieme, a tutto schermo', onclick: () => sala() }, E.sala) : '';
   const elemento = el('div', { class: 'tabella-corpo' },
-    el('div', { class: 'tabella-testata' }, sommario, el('span', { class: 'tabella-azioni' }, btnPdfTutti, btnSala, ordine)), vuota, tabella);
+    el('div', { class: 'tabella-testata' }, sommario, el('span', { class: 'tabella-azioni' }, btnPdfTutti, btnJsonTutti, btnSala, ordine)), vuota, tabella);
 
   function cella(riga, ...figli) { return el('td', {}, ...figli); }
 
@@ -55,6 +56,7 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
       r.doppie ? `${r.doppie} su due dispositivi` : null,
     ].filter(Boolean).join(' · ');
     btnPdfTutti.hidden = !(scaricaTutti && ultimo.verifica.stato === 'chiusa' && righe.some((x) => x.versioneConsegna !== null));
+    btnJsonTutti.hidden = !(esportaJson && ultimo.verifica.stato === 'chiusa' && righe.some((x) => x.versioneConsegna !== null));
     vuota.hidden = righe.length > 0;
     tabella.hidden = righe.length === 0;
     if (righe.length === 0) { vuota.textContent = 'Nessuno studente assegnato a questa verifica.'; return; }
