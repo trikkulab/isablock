@@ -77,6 +77,14 @@ export function saltoBlocchi({ nBlocchi, campioni = [], soglia = C.saltoBlocchi 
   return massimo >= soglia ? massimo : 0;
 }
 
+// Lo studente può lavorare adesso: a verifica aperta sì; a verifica chiusa solo se il docente lo ha riaperto da solo e il
+// suo tempo (più la grazia) non è finito. Dopo, per la tabella la sua verifica è chiusa come quella degli altri.
+export function lavoraAdesso(verifica, lavoro, ora) {
+  if (verifica.stato === 'aperta') return true;
+  return verifica.stato === 'chiusa' && lavoro.riaperto === true && !!lavoro.scadenza
+    && lavoro.scadenza.getTime() + verificaConfig.regole.graziaSecondi * 1000 > ora;
+}
+
 export function statoRiga(lavoro, ultimaConsegna) {
   if (lavoro.consegnato || ultimaConsegna) return 'consegnato';
   if (!lavoro.entrato) return 'non-entrato';
@@ -88,7 +96,7 @@ export function statoRiga(lavoro, ultimaConsegna) {
 // Timer di uno studente: millisecondi rimasti e colore (verde/giallo/rosso). Niente timer per chi ha consegnato,
 // per chi non ha scadenza o a verifica non aperta.
 export function timerRiga({ lavoro, verifica, ora, consegnato }) {
-  if (consegnato || verifica.stato !== 'aperta' || !lavoro.scadenza) return null;
+  if (consegnato || !lavoraAdesso(verifica, lavoro, ora) || !lavoro.scadenza) return null;
   const restante = lavoro.scadenza.getTime() - ora;
   const inizio = verifica.apertaIl ? verifica.apertaIl.getTime() : (lavoro.entrato ? lavoro.entrato.getTime() : null);
   const totale = inizio === null ? null : lavoro.scadenza.getTime() - inizio;
@@ -100,7 +108,7 @@ export function timerRiga({ lavoro, verifica, ora, consegnato }) {
 
 // Connessione: 'online', 'offline' (con da quanti ms), o null se non ha senso (non entrato, consegnato, verifica non aperta).
 export function connessioneRiga({ lavoro, verifica, ora, consegnato }) {
-  if (consegnato || verifica.stato !== 'aperta' || !lavoro.entrato || !lavoro.ultimoSegnale) return null;
+  if (consegnato || !lavoraAdesso(verifica, lavoro, ora) || !lavoro.entrato || !lavoro.ultimoSegnale) return null;
   const da = ora - lavoro.ultimoSegnale.getTime();
   return da > C.offlineDocenteMs ? { stato: 'offline', da: Math.max(0, da) } : { stato: 'online', da: Math.max(0, da) };
 }
@@ -109,11 +117,12 @@ export function costruisciRighe({ verifica, lavori, ultime = {}, ora }) {
   return lavori.map((lavoro) => {
     // A verifica APERTA conta solo il lavoro: dopo una riapertura le consegne di prima esistono ancora, ma lo studente
     // sta lavorando di nuovo (`consegnato` è tornato falso). A verifica chiusa la consegna (anche raccolta) fa fede.
-    const consegna = lavoro.consegnato || verifica.stato !== 'aperta' ? (ultime[lavoro.email] ?? null) : null;
+    const lavora = lavoraAdesso(verifica, lavoro, ora);
+    const consegna = lavoro.consegnato || !lavora ? (ultime[lavoro.email] ?? null) : null;
     const consegnato = lavoro.consegnato || !!consegna;
     // A verifica CHIUSA i blocchi sono quelli della consegna valida (anche caricata da file, quando il lavoro sul server è
     // vecchio o vuoto); la variazione degli ultimi minuti non ha più senso.
-    const daConsegna = verifica.stato === 'chiusa' && consegna && consegna.programma ? contaBlocchi(consegna.programma) : null;
+    const daConsegna = verifica.stato === 'chiusa' && !lavora && consegna && consegna.programma ? contaBlocchi(consegna.programma) : null;
     return {
       email: lavoro.email,
       nome: lavoro.studenteNome,
@@ -122,6 +131,7 @@ export function costruisciRighe({ verifica, lavori, ultime = {}, ora }) {
       incremento: daConsegna !== null ? null : incrementoBlocchi({ nBlocchi: lavoro.nBlocchi, campioni: lavoro.campioni, ora }),
       salto: saltoBlocchi({ nBlocchi: lavoro.nBlocchi, campioni: lavoro.campioni }),
       esecuzioni: lavoro.esecuzioni && lavoro.esecuzioni.n > 0 ? { n: lavoro.esecuzioni.n, esito: lavoro.esecuzioni.esito ?? null } : null,
+      riaperto: verifica.stato === 'chiusa' && lavora,      // sbloccato da solo e al lavoro adesso
       timer: timerRiga({ lavoro, verifica, ora, consegnato }),
       connessione: connessioneRiga({ lavoro, verifica, ora, consegnato }),
       doppiaSessione: lavoro.doppiaSessione > 0,
@@ -168,7 +178,7 @@ export function stimaConsumi({ verifica, lavori, ora, config = C.stimaConsumi })
   const entrati = lavori.filter((l) => l.entrato);
   let minutiStudente = 0;
   for (const l of entrati) {
-    const fermo = l.consegnato || verifica.stato !== 'aperta';
+    const fermo = l.consegnato || !lavoraAdesso(verifica, l, ora);
     const fine = fermo ? (l.ultimoSegnale ? l.ultimoSegnale.getTime() : ora) : Math.min(ora, l.scadenza ? l.scadenza.getTime() : ora);
     minutiStudente += Math.max(0, (fine - l.entrato.getTime()) / MINUTO);
   }

@@ -587,6 +587,22 @@ test('il docente chiude la verifica: la sessione si ferma, senza altre scritture
   s.termina();
 });
 
+test('riaperto da solo a verifica chiusa: la sessione continua, scrive e consegna; se il docente toglie il segno, è terminata', async () => {
+  await admin((db) => sdk.updateDoc(sdk.doc(db, 'verifiche/v1'), { stato: 'chiusa', chiusaIl: sdk.Timestamp.now(), riaperturaIndividuale: true }));
+  await modifica(ANNA, { riaperto: true });
+  const { s, tempo } = nuovaSessione();
+  try {
+    assert.equal(await s.avvia(), 'in-corso');
+    await new Promise((r) => setTimeout(r, 500));                                   // il tempo di ricevere lo stato «chiusa» dalla verifica
+    assert.equal(s.stato(), 'in-corso', 'la chiusura per gli altri non lo riguarda');
+    s.aggiorna({ programma: P(4), nBlocchi: 4 });
+    await tempo.avanza(C.debounceSalvataggioMs + 1000, s);
+    assert.equal((await leggiLavoro()).nBlocchi, 4);
+    await modifica(ANNA, { riaperto: false });                                       // il docente ci ripensa (o riapre/richiude per tutti)
+    assert.ok(await finche(() => s.stato() === 'terminata'), 'senza il segno la verifica chiusa è finita anche per lui');
+  } finally { s.termina(); }
+});
+
 test('scrittura rifiutata (tempo finito oltre la grazia): la verifica per lo studente è terminata', async () => {
   const { s, tempo } = nuovaSessione();
   await s.avvia();

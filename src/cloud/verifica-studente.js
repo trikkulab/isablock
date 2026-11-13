@@ -48,20 +48,22 @@ export function creaVerificheStudente({ sdk, db }, emailUtente, nomeUtente) {
   const consegne = creaConsegneStudente({ sdk, db }, email, nomeUtente);
 
   // Le verifiche aperte, nei corsi indicati, che lo studente deve ancora fare: ha un'assegnazione, non ha consegnato
-  // e il suo tempo non è finito (qui si usa l'orologio del PC solo per questo filtro; il timer vero parte dopo l'ingresso).
+  // e il suo tempo non è finito. Più le verifiche CHIUSE in cui il docente ha riaperto proprio lui (`riaperto` nel suo lavoro) (qui si usa l'orologio del PC solo per questo filtro; il timer vero parte dopo l'ingresso).
   // Se non si riesce a controllare (rete, accesso) lancia l'errore: «non lo so» non è «non c'è niente».
   async function daFare(corsiIds, { adesso = Date.now() } = {}) {
     const trovate = [];
     for (const corsoId of corsiIds) {
       // Un errore (rete, accesso non ancora pronto) NON è «nessuna verifica»: si propaga, e chi chiama riprova.
       const aperte = await verifiche.elenca(corsoId, { soloAperte: true });
-      for (const v of aperte) {
+      const riaperte = await verifiche.elenca(corsoId, { soloRiaperte: true });
+      for (const v of [...aperte, ...riaperte]) {
         let l;
         try { l = await lavoro.mio(v.id); } catch (err) {
           if (err && err.codice === 'assente') continue;                  // senza assegnazione non partecipa
           throw err;
         }
         if (l.consegnato) continue;
+        if (v.stato === 'chiusa' && !l.riaperto) continue;             // chiusa per lui come per gli altri
         if (l.scadenza && l.scadenza.getTime() + L.graziaSecondi * 1000 < adesso) continue;
         trovate.push({ verifica: v, lavoro: l });
       }
@@ -70,13 +72,24 @@ export function creaVerificheStudente({ sdk, db }, emailUtente, nomeUtente) {
   }
 
   // Avvisa quando in uno dei corsi si apre (o cambia) una verifica: ascolto leggero, una lettura per cambiamento.
+  // Ascolta anche le verifiche chiuse in cui il docente ha sbloccato qualcuno (`riaperturaIndividuale`): se è proprio
+  // lui, lo dirà il suo lavoro (`daFare`). `quandoCambia(aperte, riaperte)`: i due elenchi restano separati, perché una
+  // verifica riaperta per un altro non riguarda chi ascolta (chi chiama ricontrolla solo le aperte che non gli vengono proposte).
   // Restituisce la funzione per smettere di ascoltare.
   function ascoltaAperte(corsiIds, quandoCambia) {
     const stato = new Map();
-    const annulla = corsiIds.map((corsoId) => sdk.onSnapshot(
-      sdk.query(sdk.collection(db, 'verifiche'), sdk.where('corsoId', '==', corsoId), sdk.where('stato', '==', 'aperta')),
-      (snap) => { stato.set(corsoId, snap.docs.map((d) => d.id)); quandoCambia([...stato.values()].flat()); },
-      () => {}));
+    const emetti = () => {
+      const ids = (prefisso) => [...stato].filter(([k]) => k.startsWith(prefisso)).flatMap(([, v]) => v);
+      quandoCambia(ids('a:'), ids('r:'));
+    };
+    const ascolta = (chiave, corsoId, ...filtri) => sdk.onSnapshot(
+      sdk.query(sdk.collection(db, 'verifiche'), sdk.where('corsoId', '==', corsoId), ...filtri),
+      (snap) => { stato.set(chiave, snap.docs.map((d) => d.id)); emetti(); },
+      () => {});
+    const annulla = corsiIds.flatMap((corsoId) => [
+      ascolta(`a:${corsoId}`, corsoId, sdk.where('stato', '==', 'aperta')),
+      ascolta(`r:${corsoId}`, corsoId, sdk.where('stato', '==', 'chiusa'), sdk.where('riaperturaIndividuale', '==', true)),
+    ]);
     return () => annulla.forEach((f) => f());
   }
 
@@ -114,6 +127,8 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
   let altraSessione = false;
   let altraSegnalata = false;
   let stato = 'in-corso';
+  let verificaChiusa = false;     // la verifica è chiusa per gli altri (può restare aperta per lui: `riaperto`)
+  let riaperto = false;           // il docente lo ha riaperto da solo a verifica chiusa
   let origineConsegna = null;     // 'studente' o 'automatica', dopo la consegna
   let programmaIniziale = null;   // il programma già salvato nel database all'ingresso (per riprendere dopo un ricaricamento)
   let scadenza = null;            // Date
@@ -413,6 +428,8 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
       if (!snap.exists()) return;
       stimaOffset(snap);
       const d = snap.data();
+      riaperto = d.riaperto === true;
+      if (verificaChiusa && !riaperto && !snap.metadata.hasPendingWrites && stato === 'in-corso') { cambiaStato('terminata'); return; }
       const nuova = d.scadenza && typeof d.scadenza.toDate === 'function' ? d.scadenza.toDate() : null;
       const cambiata = (nuova && !scadenza) || (nuova && scadenza && nuova.getTime() !== scadenza.getTime());
       if (nuova) scadenza = nuova;
@@ -429,7 +446,9 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
       if (cambiata) { programmaFine(); notifica(); }
     }, () => {}));
     annullaAscolti.push(sdk.onSnapshot(sdk.doc(db, 'verifiche', vid), (snap) => {
-      if (snap.exists() && snap.data().stato === 'chiusa' && stato === 'in-corso') cambiaStato('terminata');
+      if (!snap.exists()) return;
+      verificaChiusa = snap.data().stato === 'chiusa';
+      if (verificaChiusa && !riaperto && stato === 'in-corso') cambiaStato('terminata');
     }, () => {}));
   }
 
@@ -485,6 +504,7 @@ export function creaSessione({ sdk, db }, emailUtente, nomeUtente, vid, { tempo 
     if (l.programma) { corrente.programma = l.programma; salvato.hash = l.programmaHash ?? hashProgramma(l.programma); corrente.nBlocchi = l.nBlocchi ?? 0; salvato.programma = l.programma; salvato.nBlocchi = l.nBlocchi ?? 0; }
     if (l.esecuzioni) { corrente.esecuzioni = l.esecuzioni; salvato.esecuzioni = l.esecuzioni; }
     entrataNuova = !l.entrato;
+    riaperto = l.riaperto === true;                // prima di ascoltare: la verifica può risultare chiusa, ma per lui è aperta
     riprendiDallaCopia(l);
     ascolta();
     if (l.tracciaId) {

@@ -50,6 +50,7 @@ export function verificaDaDocumento(snap) {
     apertaIl: d.apertaIl ? d.apertaIl.toDate() : null,
     chiusaIl: d.chiusaIl ? d.chiusaIl.toDate() : null,
     archiviata: d.archiviata === true,
+    riaperturaIndividuale: d.riaperturaIndividuale === true,   // a verifica chiusa: il docente ha sbloccato qualche studente
   };
 }
 
@@ -98,11 +99,13 @@ export function creaVerifiche({ sdk, db }, emailUtente) {
   // (solo con `soloAperte`, l'unica query che le regole accettano per lui) quelle aperte.
   // Lo studente deve dichiarare lo stato (soloAperte o soloChiuse): le regole non gli fanno leggere le bozze, e una query
   // senza filtro sullo stato non si potrebbe dimostrare lecita.
-  async function elenca(corsoId, { soloAperte = false, soloChiuse = false } = {}) {
+  // `soloRiaperte`: le chiuse in cui il docente ha sbloccato qualche studente (la query che lo studente usa per accorgersene).
+  async function elenca(corsoId, { soloAperte = false, soloChiuse = false, soloRiaperte = false } = {}) {
     try {
       const vincoli = [sdk.where('corsoId', '==', corsoId)];
       if (soloAperte) vincoli.push(sdk.where('stato', '==', 'aperta'));
-      if (soloChiuse) vincoli.push(sdk.where('stato', '==', 'chiusa'));
+      if (soloChiuse || soloRiaperte) vincoli.push(sdk.where('stato', '==', 'chiusa'));
+      if (soloRiaperte) vincoli.push(sdk.where('riaperturaIndividuale', '==', true));
       const snap = await sdk.getDocs(sdk.query(sdk.collection(db, 'verifiche'), ...vincoli));
       return snap.docs.map(verificaDaDocumento).sort((a, b) => (b.creato ?? 0) - (a.creato ?? 0));
     } catch (err) { throw traduci(err); }
@@ -140,7 +143,8 @@ export function creaVerifiche({ sdk, db }, emailUtente) {
 
   // Archivia (nasconde dall'elenco del docente) o ripristina: solo per le verifiche chiuse. Una archiviata non si riapre
   // finché non si ripristina.
-  const archivia = (vid, archiviata = true) => aggiorna(vid, { archiviata: !!archiviata });
+  // Archiviando si spegne anche il segno di riapertura individuale (le regole non ammettono i due insieme).
+  const archivia = (vid, archiviata = true) => aggiorna(vid, { archiviata: !!archiviata, ...(archiviata ? { riaperturaIndividuale: false } : {}) });
 
   // chiusa -> aperta. La fine può restare nel passato: i singoli studenti hanno la
   // loro scadenza personale (nei lavori).
@@ -148,7 +152,7 @@ export function creaVerifiche({ sdk, db }, emailUtente) {
     const attuale = await leggi(vid);
     const f = fine ?? attuale.fine;
     if (!f) throw new ErroreVerifica('fine', 'Indica una fine prevista.');
-    await aggiorna(vid, { stato: 'aperta', apertaIl: sdk.serverTimestamp(), fine: sdk.Timestamp.fromDate(f) });
+    await aggiorna(vid, { stato: 'aperta', apertaIl: sdk.serverTimestamp(), fine: sdk.Timestamp.fromDate(f), riaperturaIndividuale: false });
   }
 
   // Si butta via solo una bozza: prima le sue tracce, poi la verifica.

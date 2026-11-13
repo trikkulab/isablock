@@ -422,6 +422,24 @@ Codice: `src/cloud/consegne.js` (`creaConsegneStudente`: `mie`, `miaUltima`, `co
 `chiudi` (raccoglie sempre), `raccogli({daRaccogliere})`, `riapri`, `caricaFile`, `situazione` (verifica + lavori + consegne in tre
 letture, per la tabella). Ciclo: *crea in bozza (con la fine prevista) → tracce → assegna (facoltativo) →
 apri → tempo aggiuntivo / iscritti tardivi → chiudi (raccoglie da sola) → riapri*.
+- **Riapertura individuale o di un gruppo (13 nov 2026, `riapriStudenti`; `riapriStudente` è la scorciatoia per uno)**: a verifica CHIUSA (non
+  archiviata) il docente riapre uno o più studenti (fino a 200, in un solo batch tutto-o-niente): pulsante «Riapri» sulla riga, oppure caselle sulle
+  righe + «Riapri per i selezionati», con la stessa scelta della riapertura generale («dura N minuti da adesso» / «finisce alle»). Vale anche per chi non è
+  mai entrato. **Iscritti dopo / senza lavoro**: a verifica chiusa sotto la tabella c'è l'elenco «Iscritti al corso che non hanno la verifica» (stesse
+  caselle); per loro il lavoro nasce GIÀ riaperto (regola `lavoroRiapertoNuovo`: verifica chiusa non archiviata, `riaperto`, traccia esistente, scadenza
+  nel futuro, segno sulla verifica nello stesso batch via `getAfter`) con la traccia scelta nella finestra (un solo menu per tutti i nuovi, predefinita
+  di partenza); chi ha già il lavoro tiene la sua. **Devono essere già iscritti al corso** (regole e lettura della verifica lo richiedono): altrimenti
+  l'intero gruppo viene rifiutato con un messaggio. Un solo batch: sul lavoro
+  `riaperto: true`, `scadenza` assoluta nel futuro, `consegnato: false` se aveva consegnato (la v1 resta, si riconsegna v2); sulla verifica
+  `riaperturaIndividuale: true`. Le regole fanno scrivere lo studente (lavoro, storia, consegna) se la verifica è aperta OPPURE chiusa, non
+  archiviata e con `riaperto`; `riaperto` lo scrive solo il docente, e solo con il segno sulla verifica (`getAfter`) e una scadenza nel futuro.
+  Il segno sulla verifica non dice CHI (i nomi stanno nei lavori): serve a far guardare il proprio lavoro agli studenti, che ascoltano
+  `stato=='chiusa' && riaperturaIndividuale==true` (`ascoltaAperte(corsi, (aperte, riaperte))`; solo le aperte alimentano il ricontrollo ogni minuto).
+  `daFare` propone una chiusa solo se il lavoro dello studente ha `riaperto`. La sessione non termina alla chiusura se è `riaperto`; termina se il
+  segno sparisce. La riapertura generale e l'archiviazione azzerano segno e `riaperto`; `raccogli` salta chi è riaperto e sta lavorando
+  (`inCorso`). Nella tabella lo stato mostra «· riaperto», timer e connessione tornano (`lavoraAdesso` in `verifica-tabella.js`). Nessun «annulla»:
+  si accorcia la scadenza con i minuti negativi. Nessun test e2e nel browser per questa parte.
+  **DA FARE per Ivan: `npm run rules:dev` (emulatore) e `npm run deploy:rules:dev` (sito di prova): regole nuove.**
 - **Scadenza personale = fine prevista + minuti extra**, assoluta nel lavoro. Se la fine cambia in bozza
   (`cambiaFine`) o all'apertura, le scadenze di chi non è entrato si spostano **della stessa differenza,
   extra compresi, in un solo batch** con la modifica della verifica; da aperta cambia solo il default.

@@ -25,7 +25,7 @@ import { ordinaSchede, nomeFilePdf, nomeFilePdfTutte, nomeVisualizzato } from '.
 import { etichettaCorso } from './corsi.js';
 import { verificaDocenteEtichette as E } from './etichette.js';
 import { puntoDomanda } from './aiuto-ui.js';
-import { testoApertura, testoChiusura, testoRiapertura, testoArchivia, testoConflitto, esitoRaccolta } from './testi-verifica.js';
+import { testoApertura, testoChiusura, testoRiapertura, testoRiaperturaStudenti, testoArchivia, testoConflitto, esitoRaccolta } from './testi-verifica.js';
 
 const L = verificaConfig.regole;
 const C = verificaConfig.client;
@@ -195,6 +195,9 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
     // Allo scadere del tempo il documento resta «aperta» finché il docente non la termina (gli studenti invece sono già usciti):
     // qui si mostra comunque che il tempo è finito. Vale quando la fine prevista e le scadenze individuali (tempo in più) sono passate.
     let lavoriLive = () => [];
+    const selezionati = new Set();            // email scelte con le caselle per «Riapri per i selezionati»
+    let mancanti = [];                        // iscritti senza il lavoro (a verifica chiusa, dopo l'ultimo controllo)
+    let dopoRiapertura = () => {};            // ridisegna elenco e selezione (definita insieme alla tabella)
     const tempoScaduto = () => {
       if (verifica.stato !== 'aperta' || !verifica.fine) return false;
       const limite = verifica.fine.getTime() + L.graziaSecondi * 1000;
@@ -345,6 +348,38 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
           toast(`Verifica riaperta: finisce ${formatoDataOra.format(c.fine)}.${esito.aggiunti.length ? ` Aggiunti ${esito.aggiunti.length} iscritti arrivati dopo.` : ''}`, 'success');
           if (esito.rifiutati.length) toast('Non sono riuscito ad aggiungere gli iscritti arrivati dopo: controlla le assegnazioni.', 'error');
           riapriScheda();
+        },
+      });
+    }
+
+    // Una sola riga della tabella: la verifica resta chiusa per gli altri. Stessa scelta della riapertura per tutti
+    // («dura N minuti da adesso» oppure «finisce alle»), perché il docente la usa nello stesso modo.
+    // `studenti`: [{ email, nome }]. Chi non ha ancora il lavoro (iscritto dopo) riceve la traccia scelta nel menu, che compare
+    // solo se tra i selezionati c'è qualcuno così; chi ce l'ha tiene la sua.
+    function dialogoRiaperturaStudenti(studenti) {
+      if (!studenti.length) return;
+      const quando = scegliFine({ durataMin: C.durataRiaperturaMin });
+      const nuovi = studenti.filter((s) => mancanti.includes(s.email));
+      const extra = [quando.elemento];
+      let menu = null;
+      if (nuovi.length) {
+        menu = el('select', { class: 'sketch-nome', 'aria-label': 'Traccia per chi non ha ancora la verifica' },
+          ...tracce.map((t) => el('option', { value: t.id }, t.titolo)));
+        if (verifica.tracciaDefault && tracce.some((t) => t.id === verifica.tracciaDefault)) menu.value = verifica.tracciaDefault;
+        extra.unshift(el('p', { class: 'sketch-nota' }, testoRiaperturaStudenti.nuovi(nuovi.length), ' ', menu));
+      }
+      const chi = studenti.length === 1 ? (studenti[0].nome || studenti[0].email) : `${studenti.length} studenti`;
+      dialogo({
+        titolo: `Riaprire la verifica per ${chi}?`, righe: testoRiaperturaStudenti.righe(studenti.length === 1 ? chi : null, studenti.length), extra,
+        etichetta: studenti.length === 1 ? 'Riapri per questo studente' : `Riapri per ${studenti.length} studenti`,
+        async onConferma(d) {
+          const c = quando.calcola();
+          if (c.errore) throw new Error(c.errore);
+          await vd.riapriStudenti(vid, studenti.map((s) => s.email), { fine: c.fine, ...(menu ? { tracciaId: menu.value } : {}) });
+          d.chiudi();
+          selezionati.clear();
+          dopoRiapertura();
+          toast(`Verifica riaperta per ${chi}: finisce ${formatoDataOra.format(c.fine)}.`, 'success');
         },
       });
     }
@@ -716,7 +751,7 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
       const sala = programma && programma.anteprima && programma.renderBlocchi
         ? () => apriSala({ apri, tabella, programma, caricaStoria: storiaConConsegne, osserva: osservaDalVivo, titolo: `Sala · ${verifica.titolo}` })
         : null;
-      tabella = creaTabellaLive({ vd, vid, toast, guarda, sala, caricaFile, scaricaPdf: conPdf ? scaricaPdf : null, scaricaTutti: conPdf ? scaricaTutti : null, esportaJson: conPdf ? esportaJson : null });
+      tabella = creaTabellaLive({ vd, vid, toast, guarda, sala, caricaFile, riapriStudente: dialogoRiaperturaStudenti, selezione: { ha: (e) => selezionati.has(e), cambia: (e, on) => { if (on) selezionati.add(e); else selezionati.delete(e); dopoRiapertura(); } }, scaricaPdf: conPdf ? scaricaPdf : null, scaricaTutti: conPdf ? scaricaTutti : null, esportaJson: conPdf ? esportaJson : null });
       chiudiTabella = tabella.distruggi;
       lavoriLive = tabella.tutti;
       aggiornaScadenza();
@@ -724,7 +759,39 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
       const testoMancanti = el('span', {});
       const btnAggiungi = el('button', { type: 'button', class: 'modal-btn' }, E.aggiungiIscritti);
       const avvisoMancanti = el('p', { class: 'sketch-nota verifica-avviso avviso-mancanti', role: 'status', hidden: '' }, testoMancanti, ' ', btnAggiungi);
+      // A verifica CHIUSA gli iscritti senza verifica si riaprono a mano: elenco con caselle (si sommano a quelle della tabella).
+      const elencoMancanti = el('div', { class: 'mancanti-elenco', hidden: '' });
+      const btnSelezionati = el('button', { type: 'button', class: 'modal-btn', onclick: () => dialogoRiaperturaStudenti([...selezionati].map((e) => ({ email: e, nome: nomeDi(e) }))) }, '');
+      const barraSelezione = el('p', { class: 'sketch-nota barra-selezione', hidden: '' }, btnSelezionati);
+      const nomeDi = (e) => lavoriLive().find((l) => l.email === e)?.lavoro.studenteNome ?? e;
+      function aggiornaSelezione() {
+        const attiva = stato() === 'chiusa' && !verifica.archiviata;
+        barraSelezione.hidden = !attiva;
+        btnSelezionati.disabled = selezionati.size === 0;
+        btnSelezionati.textContent = selezionati.size ? `Riapri per i selezionati (${selezionati.size})…` : 'Riapri per i selezionati…';
+        for (const c of elencoMancanti.querySelectorAll('input')) c.checked = selezionati.has(c.value);
+      }
       const aggiornaMancanti = async () => {
+        if (stato() === 'chiusa' && !verifica.archiviata) {
+          try {
+            mancanti = await vd.iscrittiSenzaLavoro(vid);
+            if (!finestre.has(f)) return;
+            avvisoMancanti.hidden = true;
+            elencoMancanti.textContent = '';
+            elencoMancanti.hidden = mancanti.length === 0;
+            if (mancanti.length) {
+              elencoMancanti.append(el('p', { class: 'sketch-nota' }, 'Iscritti al corso che non hanno la verifica (arrivati dopo). Spuntali per riaprirla anche a loro:'));
+              for (const e of mancanti) {
+                const c = el('input', { type: 'checkbox', value: e, 'aria-label': `Seleziona ${e}` });
+                c.checked = selezionati.has(e);
+                c.addEventListener('change', () => { if (c.checked) selezionati.add(e); else selezionati.delete(e); aggiornaSelezione(); });
+                elencoMancanti.append(el('label', { class: 'scegli-fine-riga' }, c, ` ${e}`));
+              }
+            }
+            aggiornaSelezione();
+          } catch { /* niente elenco se non si riesce a controllare */ }
+          return;
+        }
         if (stato() !== 'aperta') { avvisoMancanti.hidden = true; return; }
         try {
           const m = await vd.iscrittiSenzaLavoro(vid);
@@ -744,7 +811,9 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
         aggiornaMancanti();
       });
       aggiornaMancanti();
-      const pannelloSituazione = el('div', { class: 'situazione' }, avvisoMancanti, tabella.elemento);
+      const pannelloSituazione = el('div', { class: 'situazione' }, avvisoMancanti, barraSelezione, tabella.elemento, elencoMancanti);
+      aggiornaSelezione();
+      dopoRiapertura = () => { aggiornaSelezione(); aggiornaMancanti(); };
       const schede = [['situazione', E.situazione], ['tracce', 'Tracce']];
       const bottoni = new Map();
       const mostra = (cosa) => {

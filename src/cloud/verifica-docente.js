@@ -186,7 +186,13 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
   async function raccogli(vid, { daRaccogliere = [] } = {}) {
     const v = await verifiche.leggi(vid);
     if (v.stato !== 'chiusa') throw vuoto('stato', 'Si raccoglie a verifica chiusa.');
-    return consegne.raccogli(vid, await lavori.elenca(vid), { daRaccogliere });
+    // Chi è stato riaperto da solo e sta ancora lavorando non si raccoglie: il suo lavoro non è finito (consegna da sé o allo
+    // scadere del tempo; se poi non arriva, si raccoglie di nuovo). Si dice in `inCorso`.
+    const adesso = Date.now();
+    const lavora = (l) => l.riaperto && !l.consegnato && l.scadenza && l.scadenza.getTime() + verificaConfig.regole.graziaSecondi * 1000 > adesso;
+    const tutti = await lavori.elenca(vid);
+    const esito = await consegne.raccogli(vid, tutti.filter((l) => !lavora(l)), { daRaccogliere });
+    return { ...esito, inCorso: tutti.filter(lavora).map((l) => l.email) };
   }
 
   // chiusa -> aperta, PER TUTTI, in un solo batch atomico con la verifica:
@@ -206,9 +212,10 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
     for (const l of await lavori.elenca(vid)) {
       const campi = { scadenza: sdk.Timestamp.fromDate(new Date(nuovaFine.getTime() + l.minutiExtra * MINUTO)) };
       if (l.consegnato) { campi.consegnato = false; sbloccati++; }
+      if (l.riaperto) campi.riaperto = false;                      // ora vale la verifica aperta per tutti
       b.update(rifLavoro(vid, l.email), campi);
     }
-    b.update(rifVerifica(vid), { stato: 'aperta', apertaIl: sdk.serverTimestamp(), fine: sdk.Timestamp.fromDate(nuovaFine) });
+    b.update(rifVerifica(vid), { stato: 'aperta', apertaIl: sdk.serverTimestamp(), fine: sdk.Timestamp.fromDate(nuovaFine), riaperturaIndividuale: false });
     try { await b.commit(); } catch (err) {
       const c = err && err.code;
       if (c === 'permission-denied') throw vuoto('negato', 'Non posso riaprire la verifica.');
@@ -222,6 +229,54 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
     try { const r = await aggiungiIscritti(vid); aggiunti = r.create; rifiutati = r.rifiutate; } catch { rifiutati = ['?']; }
     return { sbloccati, aggiunti, rifiutati };
   }
+
+  // chiusa -> chiusa, ma alcuni studenti (uno o più) possono lavorare di nuovo: ritardatario, assente da recuperare, consegna per
+  // errore, iscritto dopo. Batch atomico (tutti o nessuno). Per chi HA il lavoro: `riaperto` vero, la scadenza (`fine`, un Date nel
+  // futuro: «N minuti da adesso» o un'ora precisa, lo decide chi chiama), `consegnato` falso se aveva consegnato. Per chi è iscritto
+  // al corso ma NON ha il lavoro (arrivato dopo l'apertura): il lavoro nasce già riaperto, con la traccia `tracciaId` (di default se
+  // non indicata). Sulla verifica il segno `riaperturaIndividuale`, che fa controllare agli studenti il proprio lavoro. Gli altri
+  // restano chiusi. I `minutiExtra` non si toccano: la scadenza è assoluta, e una riapertura generale successiva la ricalcola dalla
+  // nuova fine. La consegna di prima resta (si riconsegna: v2). Chi non è iscritto al corso non si può riaprire.
+  // Restituisce { sbloccati: chi aveva consegnato, creati: chi ha avuto il lavoro adesso, riaperti: tutti }.
+  async function riapriStudenti(vid, emails, { fine, tracciaId } = {}) {
+    const elenco = [...new Set((emails || []).map((e) => String(e || '').toLowerCase()).filter(Boolean))];
+    if (elenco.length === 0) throw vuoto('dati', 'Scegli almeno uno studente.');
+    if (elenco.length > 200) throw vuoto('dati', 'Troppi studenti in una volta (massimo 200).');
+    const v = await verifiche.leggi(vid);
+    if (v.stato !== 'chiusa') throw vuoto('stato', 'Si sbloccano singoli studenti solo a verifica chiusa.');
+    if (v.archiviata) throw vuoto('stato', 'La verifica è archiviata: ripristinala prima di riaprirla.');
+    if (!valida(fine) || fine.getTime() <= Date.now()) throw vuoto('fine', 'Indica una fine nel futuro.');
+    const hanno = new Map((await lavori.elenca(vid)).map((l) => [l.email, l]));
+    const daCreare = elenco.filter((e) => !hanno.has(e));
+    if (daCreare.length) {
+      const iscritti = new Set((await corsi.iscritti(v.corsoId)).map((e) => e.toLowerCase()));
+      const fuori = daCreare.filter((e) => !iscritti.has(e));
+      if (fuori.length) throw vuoto('assente', `${fuori.join(', ')}: non risulta iscritto al corso. Deve prima iscriversi con il codice del corso.`);
+    }
+    const traccia = tracciaId ?? v.tracciaDefault;
+    if (daCreare.length && !traccia) throw vuoto('traccia', 'Manca la traccia da assegnare a chi non ha ancora la verifica.');
+    const scadenza = sdk.Timestamp.fromDate(fine);
+    const b = sdk.writeBatch(db);
+    let sbloccati = 0;
+    for (const e of elenco) {
+      const l = hanno.get(e);
+      if (l) {
+        b.update(rifLavoro(vid, e), { riaperto: true, scadenza, ...(l.consegnato ? { consegnato: false } : {}) });
+        if (l.consegnato) sbloccati++;
+      } else {
+        b.set(rifLavoro(vid, e), { studenteEmail: e, tracciaId: traccia, scadenza, entrato: null, consegnato: false, riaperto: true });
+      }
+    }
+    b.update(rifVerifica(vid), { riaperturaIndividuale: true });
+    try { await b.commit(); } catch (err) {
+      const c = err && err.code;
+      if (c === 'permission-denied') throw vuoto('negato', 'Non posso riaprire la verifica per questi studenti (la traccia deve esistere).');
+      if (c === 'unavailable' || c === 'deadline-exceeded') throw vuoto('rete', 'Rete non disponibile: riprova tra poco.');
+      throw vuoto('altro', 'Qualcosa è andato storto. Riprova.');
+    }
+    return { sbloccati, creati: daCreare.length, riaperti: elenco.length };
+  }
+  const riapriStudente = (vid, email, opzioni) => riapriStudenti(vid, [email], opzioni);
 
   // Carica il file di emergenza di uno studente (a verifica chiusa) come nuova versione.
   async function caricaFile(vid, email, file) {
@@ -345,7 +400,7 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
     // pezzi di base, se servono alla UI
     verifiche, lavori, consegne,
     // operazioni composte
-    crea, cambiaFine, assegna, apri, aggiungiIscritti, iscrittiSenzaLavoro, tempoAggiuntivo, chiudi, raccogli, riapri, caricaFile, situazione, ascoltaSituazione,
+    crea, cambiaFine, assegna, apri, aggiungiIscritti, iscrittiSenzaLavoro, tempoAggiuntivo, chiudi, raccogli, riapri, riapriStudente, riapriStudenti, caricaFile, situazione, ascoltaSituazione,
     archivia, riepilogoApertura, eliminaTraccia, studentiConTraccia, impattoUsaPerTutti, impostaTracciaDefault, riepilogoEliminazione, eliminaVerifica, assegnazioni,
   };
 }

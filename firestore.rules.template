@@ -293,7 +293,7 @@ service cloud.firestore {
       // con valori precisi: un controllo di tipo in più sarebbe ridondante.
       function verificaValida(d) {
         return d.keys().hasOnly(['corsoId', 'titolo', 'stato', 'fine', 'tracciaDefault', 'creataDa',
-                                 'creato', 'apertaIl', 'chiusaIl', 'archiviata'])
+                                 'creato', 'apertaIl', 'chiusaIl', 'archiviata', 'riaperturaIndividuale'])
           && d.keys().hasAll(['corsoId', 'titolo', 'stato', 'fine', 'tracciaDefault', 'creataDa',
                               'creato', 'apertaIl', 'chiusaIl'])
           && d.titolo is string && d.titolo.size() > 0 && d.titolo.size() <= maxTitoloVerifica()
@@ -303,7 +303,13 @@ service cloud.firestore {
           // CHIUSE. Una archiviata non si riapre finché non si ripristina (la riapertura la lascerebbe
           // archiviata e aperta: vietato da qui).
           && d.get('archiviata', false) is bool
-          && (d.get('archiviata', false) == false || d.stato == 'chiusa');
+          && (d.get('archiviata', false) == false || d.stato == 'chiusa')
+          // `riaperturaIndividuale` (facoltativo): il docente lo accende quando sblocca UN studente a verifica chiusa. Non dice
+          // chi (i nomi stanno nei lavori, che lo studente non legge): serve solo a far guardare il proprio lavoro a chi
+          // altrimenti non avrebbe motivo di controllare una verifica chiusa.
+          && d.get('riaperturaIndividuale', false) is bool
+          && (d.get('riaperturaIndividuale', false) == false
+              || (d.stato == 'chiusa' && d.get('archiviata', false) == false));
       }
       function cambiate() {
         return request.resource.data.diff(resource.data).affectedKeys();
@@ -342,10 +348,10 @@ service cloud.firestore {
               && cambiate().hasOnly(['stato', 'chiusaIl'])
               && request.resource.data.chiusaIl == request.time)
           // chiusa: il titolo, e archiviare o ripristinare
-          || (resource.data.stato == 'chiusa' && cambiate().hasOnly(['titolo', 'archiviata']))
+          || (resource.data.stato == 'chiusa' && cambiate().hasOnly(['titolo', 'archiviata', 'riaperturaIndividuale']))
           // riapertura: la fine può restare nel passato (si riapre per dare tempo a qualcuno)
           || (resource.data.stato == 'chiusa' && request.resource.data.stato == 'aperta'
-              && cambiate().hasOnly(['stato', 'apertaIl', 'fine'])
+              && cambiate().hasOnly(['stato', 'apertaIl', 'fine', 'riaperturaIndividuale'])
               && request.resource.data.apertaIl == request.time
               && request.resource.data.fine is timestamp)
         );
@@ -436,10 +442,26 @@ service cloud.firestore {
             && d.entrato == null
             && d.consegnato == false;
         }
+        // Lavoro creato a verifica CHIUSA, solo per riaprire subito chi si è iscritto dopo (o non aveva il lavoro): nasce già
+        // `riaperto`, con una traccia esistente e una scadenza nel futuro, e nello stesso batch si accende il segno sulla verifica.
+        function lavoroRiapertoNuovo(d) {
+          return verificaLav().stato == 'chiusa' && verificaLav().get('archiviata', false) == false
+            && d.keys().hasOnly(['studenteEmail', 'tracciaId', 'scadenza', 'minutiExtra', 'entrato', 'consegnato', 'riaperto'])
+            && d.keys().hasAll(['studenteEmail', 'tracciaId', 'scadenza', 'entrato', 'consegnato', 'riaperto'])
+            && d.riaperto == true
+            && extraValido(d)
+            && d.studenteEmail == lid
+            && d.tracciaId is string && tracciaEsiste(d.tracciaId)
+            && d.scadenza is timestamp && d.scadenza > request.time
+            && d.entrato == null
+            && d.consegnato == false
+            && getAfter(/databases/$(database)/documents/verifiche/$(vid)).data.get('riaperturaIndividuale', false) == true;
+        }
         function aggiornamentoDocente() {
           let cambiate = request.resource.data.diff(resource.data).affectedKeys();
           return docenteLav()
-            && cambiate.hasOnly(['scadenza', 'minutiExtra', 'tracciaId', 'consegnato', 'osservato'])
+            && cambiate.hasOnly(['scadenza', 'minutiExtra', 'tracciaId', 'consegnato', 'osservato', 'riaperto'])
+            && request.resource.data.get('riaperto', false) is bool
             && extraValido(request.resource.data)
             // Vista dal vivo: il segno «lo sto guardando» è l'ora del server, solo a verifica aperta e per chi è già entrato.
             && (!cambiate.hasAny(['osservato'])
@@ -451,11 +473,19 @@ service cloud.firestore {
                 || (resource.data.entrato == null
                     && tracciaOk(request.resource.data.tracciaId)))
             // Sblocco per la riconsegna: `consegnato` torna falso SOLO riaprendo la verifica, cioè nello
-            // stesso batch che la porta da chiusa ad aperta.
+            // stesso batch che la porta da chiusa ad aperta, oppure sbloccando QUESTO studente (`riaperto`, sotto).
             && (!cambiate.hasAny(['consegnato'])
                 || (resource.data.consegnato == true && request.resource.data.consegnato == false
                     && verificaLav().stato == 'chiusa'
-                    && getAfter(/databases/$(database)/documents/verifiche/$(vid)).data.stato == 'aperta'));
+                    && (getAfter(/databases/$(database)/documents/verifiche/$(vid)).data.stato == 'aperta'
+                        || request.resource.data.get('riaperto', false) == true)))
+            // Riapertura INDIVIDUALE: a verifica chiusa (e non archiviata), per chi ha il lavoro, con una scadenza nel futuro.
+            // Il flag sulla verifica (`riaperturaIndividuale`) va acceso nello stesso batch: è così che lo studente sa guardare.
+            && (request.resource.data.get('riaperto', false) == resource.data.get('riaperto', false)
+                || request.resource.data.get('riaperto', false) == false
+                || (verificaLav().stato == 'chiusa' && verificaLav().get('archiviata', false) == false
+                    && request.resource.data.scadenza > request.time
+                    && getAfter(/databases/$(database)/documents/verifiche/$(vid)).data.get('riaperturaIndividuale', false) == true));
         }
         function esecuzioniValide(e) {
           return e.keys().hasOnly(['n', 'esito', 'quando'])
@@ -463,10 +493,16 @@ service cloud.firestore {
             && e.esito in ['mai', 'ok', 'errore']
             && (e.quando == null || e.quando is int);
         }
+        // Lo studente lavora a verifica aperta, oppure a verifica chiusa se il docente lo ha riaperto (e la verifica non è archiviata).
+        function staLavorando() {
+          return verificaLav().stato == 'aperta'
+            || (verificaLav().stato == 'chiusa' && verificaLav().get('archiviata', false) == false
+                && resource.data.get('riaperto', false) == true);
+        }
         function aggiornamentoStudente() {
           let d = request.resource.data;
           return mioLavoro()
-            && verificaLav().stato == 'aperta'
+            && staLavorando()
             // una traccia ancora «di tutti» (vuota) non è risolta: meglio che la scrittura fallisca
             // in modo visibile che far lavorare lo studente senza traccia
             && resource.data.tracciaId != null
@@ -504,9 +540,9 @@ service cloud.firestore {
         // `docenteLav()` per lui costerebbe una lettura di `docenti` inutile. Per un docente `mioLavoro()` cade subito, senza letture.
         allow read: if (mioLavoro() && verificaLav().stato != 'bozza') || docenteLav();
         allow create: if docenteLav()
-          && verificaLav().stato in ['bozza', 'aperta']
           && exists(/databases/$(database)/documents/iscrizioni/$(verificaLav().corsoId + '_' + lid))
-          && lavoroNuovoValido(request.resource.data);
+          && ((verificaLav().stato in ['bozza', 'aperta'] && lavoroNuovoValido(request.resource.data))
+              || lavoroRiapertoNuovo(request.resource.data));
         // Prima lo studente: è quasi tutto il traffico durante una verifica, e se il ramo studente vale le regole si fermano lì
         // senza leggere `docenti` (ogni get/exists nelle regole si paga come lettura). Per un docente il ramo studente cade
         // subito su `mioLavoro()`, senza letture: stesso esito di prima, meno letture.
@@ -537,7 +573,9 @@ service cloud.firestore {
           }
           allow read: if docenteLav();
           allow create, update: if mioLavoro()
-            && verificaLav().stato == 'aperta'
+            && (verificaLav().stato == 'aperta'
+                || (verificaLav().stato == 'chiusa' && verificaLav().get('archiviata', false) == false
+                    && lavoroSt().get('riaperto', false) == true))
             && lavoroSt().entrato != null
             && lavoroSt().consegnato == false
             && request.time <= lavoroSt().scadenza + duration.value(graziaSecondi(), 's')

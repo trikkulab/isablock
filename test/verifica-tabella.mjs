@@ -1,6 +1,6 @@
 // Prova di src/cloud/verifica-tabella.js (righe della tabella live del docente), con un orologio finto.
 import assert from 'node:assert/strict';
-import { contaBlocchi, creaStimaOra, incrementoBlocchi, saltoBlocchi, statoRiga, timerRiga, connessioneRiga, costruisciRighe, riepilogo, ordinaRighe, testoDurata, stimaConsumi } from '../src/cloud/verifica-tabella.js';
+import { lavoraAdesso, contaBlocchi, creaStimaOra, incrementoBlocchi, saltoBlocchi, statoRiga, timerRiga, connessioneRiga, costruisciRighe, riepilogo, ordinaRighe, testoDurata, stimaConsumi } from '../src/cloud/verifica-tabella.js';
 
 let test = 0;
 const prova = (nome, fn) => { fn(); test++; console.log(`OK      ${nome}`); };
@@ -166,5 +166,20 @@ prova('stima dei consumi: il tempo si ferma alla scadenza personale; soglie gial
   const senza = stimaConsumi({ verifica, lavori: [l], ora: ORA, config: { ...CFG, quotaLetture: null, quotaScritture: null } });
   assert.equal(senza.frazioneLetture, null);
   assert.equal(senza.livello, 'ok');
+});
+prova('riapertura individuale: a verifica chiusa lavora solo chi è riaperto e finché il suo tempo (più la grazia) non è finito', () => {
+  const chiusa = { stato: 'chiusa', apertaIl: d(ORA - 120 * MIN) };
+  assert.equal(lavoraAdesso(verifica, lavoro(), ORA), true);                                       // aperta: tutti
+  assert.equal(lavoraAdesso(chiusa, lavoro(), ORA), false);                                        // chiusa: nessuno
+  assert.equal(lavoraAdesso(chiusa, lavoro({ riaperto: true }), ORA), true);
+  assert.equal(lavoraAdesso(chiusa, lavoro({ riaperto: true, scadenza: d(ORA - 5 * MIN) }), ORA), false);   // tempo finito (oltre la grazia)
+  const [r] = costruisciRighe({ verifica: chiusa, lavori: [lavoro({ riaperto: true })], ultime: { 'a@x.it': { versione: 1, programma: '{}', origine: 'raccolta' } }, ora: ORA });
+  assert.equal(r.riaperto, true);
+  assert.equal(r.stato, 'scrive');                                                                 // la consegna di prima non lo fa risultare «consegnato»
+  assert.ok(r.timer && r.timer.restante > 0);
+  const [f] = costruisciRighe({ verifica: chiusa, lavori: [lavoro()], ultime: { 'a@x.it': { versione: 1, programma: '{}', origine: 'raccolta' } }, ora: ORA });
+  assert.equal(f.riaperto, false);
+  assert.equal(f.stato, 'consegnato');
+  assert.equal(f.timer, null);
 });
 console.log(`\n${test} prove superate`);

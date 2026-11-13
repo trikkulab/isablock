@@ -234,7 +234,7 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
       el('span', { class: 'banda-verifica-titolo', title: titolo }, titolo),
       timerEl, consegna, puntoDomanda('fascia'));
     document.querySelector('header.toolbar').after(banda);
-    totaleMs = item.verifica.apertaIl && sessione.scadenza() ? Math.max(0, sessione.scadenza().getTime() - item.verifica.apertaIl.getTime()) : (sessione.restanteMs() ?? 0);
+    totaleMs = item.verifica.stato !== 'chiusa' && item.verifica.apertaIl && sessione.scadenza() ? Math.max(0, sessione.scadenza().getTime() - item.verifica.apertaIl.getTime()) : (sessione.restanteMs() ?? 0);
     const aggiorna = () => {
       if (!sessione) return;
       const resta = sessione.restanteMs() ?? 0;

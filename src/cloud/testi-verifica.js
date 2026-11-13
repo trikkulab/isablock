@@ -53,11 +53,22 @@ export const testoRiapertura = {
   ],
 };
 
+// Riapertura di UN solo studente (a verifica chiusa): la finestra aperta dal pulsante sulla sua riga nella tabella.
+export const testoRiaperturaStudenti = {
+  righe: (nome, quanti) => [
+    nome ? `Riapri la verifica solo per ${nome}: gli altri restano chiusi.` : `Riapri la verifica solo per questi ${quanti} studenti: gli altri restano chiusi.`,
+    'Ognuno riparte dal proprio lavoro, con la sua traccia, e ha tempo fino alla fine che scegli qui sotto. Chi aveva già consegnato può consegnare di nuovo: la consegna di prima resta nello storico, la valida è l\'ultima. Chi non era mai entrato entra adesso.',
+    'Alla fine consegnano da sé, o si consegnano da soli allo scadere del tempo. Finché stanno lavorando non li raccogli con «Raccogli i lavori».',
+  ],
+  nuovi: (n) => (n === 1 ? 'Uno di loro non aveva ancora la verifica (è arrivato dopo): riceve la traccia' : `${n} di loro non avevano ancora la verifica (sono arrivati dopo): ricevono la traccia`),
+};
+
 export const testoArchivia = 'La verifica sparisce dall\'elenco (la ritrovi con «Mostra anche le archiviate»). Gli studenti vedono ancora la propria consegna. Per riaprirla dovrai prima ripristinarla.';
 
 // Messaggio dopo la raccolta
-export function esitoRaccolta({ create, giaAggiornati, nonEntrati, rifiutate, conflitti = [] }) {
+export function esitoRaccolta({ create, giaAggiornati, nonEntrati, rifiutate, conflitti = [], inCorso = [] }) {
   const parti = [`raccolti ${create.length}`];
+  if (inCorso.length) parti.push(`ancora al lavoro ${inCorso.length}`);
   if (conflitti.length) parti.push(`da decidere ${conflitti.length}`);
   if (giaAggiornati.length) parti.push(`già consegnati ${giaAggiornati.length}`);
   if (nonEntrati.length) parti.push(`non entrati ${nonEntrati.length}`);

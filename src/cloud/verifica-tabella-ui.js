@@ -16,7 +16,7 @@ function testoOffline(ms) {
 }
 
 // `vd`: oggetto di verifica-docente.js. Restituisce { elemento, distruggi }.
-export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = null, scaricaPdf = null, scaricaTutti = null, esportaJson = null, sala = null }) {
+export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = null, scaricaPdf = null, scaricaTutti = null, esportaJson = null, sala = null, riapriStudente = null, selezione = null }) {
   let ultimo = null;                // ultimo { verifica, lavori, ultime, ora } ricevuto
   let modo = 'email';
   const seguaci = new Set();        // chi vuole il lavoro di uno studente a ogni aggiornamento: { email, cb }
@@ -31,6 +31,7 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
   const intestazione = (testo, titolo, aiuto) => el('th', titolo ? { title: titolo } : {}, testo, aiuto ? puntoDomanda(aiuto) : '');
   const tabella = el('table', { class: 'tabella-live' },
     el('thead', {}, el('tr', {},
+      selezione ? el('th', { class: 'tabella-selez', 'aria-label': 'Selezione' }) : '',
       intestazione('Studente'), intestazione('Stato'),
       intestazione('Blocchi', `Blocchi adesso e variazione negli ultimi ${C.finestraIncrementoMin} minuti`),
       intestazione('Esecuzioni', 'Numero di esecuzioni e esito dell\'ultima'),
@@ -79,8 +80,13 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
       const blocchi = x.nBlocchi === null || x.nBlocchi === undefined ? '–'
         : `${x.nBlocchi}${x.incremento ? ` (${x.incremento > 0 ? '+' : ''}${x.incremento})` : ''}`;
       const esec = x.esecuzioni ? `${x.esecuzioni.n}${x.esecuzioni.esito ? ` · ${x.esecuzioni.esito === 'ok' ? 'ok' : 'errore'}` : ''}` : '–';
-      const stato = STATI_RIGA[x.stato] + (x.stato === 'consegnato' && x.versioneConsegna > 1 ? ` (v${x.versioneConsegna})` : '') + (x.stato === 'consegnato' && x.origineConsegna === 'file' ? ' · da file' : '');
+      const stato = STATI_RIGA[x.stato] + (x.stato === 'consegnato' && x.versioneConsegna > 1 ? ` (v${x.versioneConsegna})` : '') + (x.stato === 'consegnato' && x.origineConsegna === 'file' ? ' · da file' : '') + (x.riaperto ? ' · riaperto' : '');
+      // Casella per «Riapri per i selezionati»: solo a verifica chiusa, per chi non sta già lavorando.
+      const selezionabile = selezione && ultimo.verifica.stato === 'chiusa' && !ultimo.verifica.archiviata && !x.riaperto;
+      const casella = selezionabile ? el('input', { type: 'checkbox', 'aria-label': `Seleziona ${x.nome || x.email}`, checked: selezione.ha(x.email) ? '' : null }) : '';
+      if (casella) { casella.checked = selezione.ha(x.email); casella.addEventListener('change', () => selezione.cambia(x.email, casella.checked)); }
       corpo.append(el('tr', { 'data-stato': x.stato },
+        selezione ? el('td', { class: 'tabella-selez' }, casella) : '',
         el('th', { scope: 'row', title: x.email }, x.nome || x.email),
         cella(x, el('span', { class: 'tabella-stato', 'data-stato': x.stato }, stato),
           x.doppiaSessione ? el('span', { class: 'tabella-doppia', title: 'Questo lavoro è stato scritto da due sessioni insieme (due computer o due schede): controlla', role: 'img', 'aria-label': 'Due sessioni attive' }, ' ⚠ due dispositivi') : ''),
@@ -91,7 +97,8 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
         cella(x,
           guarda ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Guarda il programma (sola lettura)', onclick: () => guarda(x.email, x.nome) }, E.guarda) : '',
           scaricaPdf && ultimo.verifica.stato === 'chiusa' && x.versioneConsegna !== null ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Scarica la scheda di consegna di questo studente in PDF (A4)', onclick: () => scaricaPdf(x.email) }, E.scaricaPdf) : '',
-          caricaFile && ultimo.verifica.stato === 'chiusa' ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Carica il file di emergenza di questo studente come nuova consegna', onclick: () => caricaFile(x.email, x.nome) }, E.caricaFile) : '')));
+          caricaFile && ultimo.verifica.stato === 'chiusa' ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Carica il file di emergenza di questo studente come nuova consegna', onclick: () => caricaFile(x.email, x.nome) }, E.caricaFile) : '',
+          riapriStudente && ultimo.verifica.stato === 'chiusa' && !ultimo.verifica.archiviata && !x.riaperto ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Riapri la verifica solo per questo studente (gli altri restano chiusi)', onclick: () => riapriStudente([{ email: x.email, nome: x.nome }]) }, E.riapriStudente) : '')));
     }
   }
 

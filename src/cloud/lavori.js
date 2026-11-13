@@ -38,6 +38,7 @@ export function lavoroDaDocumento(snap) {
     minutiExtra: d.minutiExtra ?? 0,           // il tempo in più dato a mano; la scadenza è fine + questo
     entrato: data(d.entrato),
     consegnato: d.consegnato === true,
+    riaperto: d.riaperto === true,             // sbloccato dal docente a verifica CHIUSA (riapertura individuale)
     ultimoSegnale: data(d.ultimoSegnale),
     programma: d.programma ?? null,
     programmaHash: d.programmaHash ?? null,

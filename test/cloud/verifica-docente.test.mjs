@@ -305,6 +305,156 @@ test('riapertura: chi aveva consegnato da solo viene sbloccato e riconsegna (v2)
   assert.equal((await d.situazione(vid)).ultime[ANNA].versione, 2);
 });
 
+// Una verifica chiusa: Anna ha consegnato da sé, Bruno lavorava (raccolto), Carla non è mai entrata.
+async function chiusaConTre(d) {
+  const { vid } = await bozza(d);
+  await d.apri(vid, { tracciaDefault: 't0' });
+  await lavoroDi(ANNA).salva(vid, { programma: prog(1) });
+  await consDi(ANNA).consegna(vid, {});
+  await lavoroDi(BRUNO).salva(vid, { programma: prog(2) });
+  await d.chiudi(vid);
+  return vid;
+}
+
+test('riapertura individuale: solo Anna lavora di nuovo e riconsegna (v2); Bruno resta chiuso', async () => {
+  const d = docente();
+  const vid = await chiusaConTre(d);
+  const r = await d.riapriStudente(vid, ANNA, { fine: tra(ORA) });
+  assert.equal(r.sbloccati, 1);
+  const s = await d.situazione(vid);
+  assert.equal(s.verifica.stato, 'chiusa');                                     // per gli altri resta chiusa
+  assert.equal(s.verifica.riaperturaIndividuale, true);
+  assert.equal(s.lavori.find((l) => l.email === ANNA).riaperto, true);
+  await lavoroDi(ANNA).salva(vid, { programma: prog(7) });                       // lei scrive...
+  await assert.rejects(lavoroDi(BRUNO).salva(vid, { programma: prog(9) }), (e) => e.codice === 'negato');   // ...lui no
+  await consDi(ANNA).consegna(vid, {});
+  const mie = (await d.situazione(vid)).consegne.filter((c) => c.studenteEmail === ANNA);
+  assert.deepEqual(mie.map((c) => c.versione).sort(), [1, 2]);
+  assert.equal(mie.find((c) => c.versione === 2).programma, prog(7));
+  await assert.rejects(consDi(ANNA).consegna(vid, {}), (e) => e.codice === 'gia' || e.codice === 'negato');   // una sola riconsegna per sblocco
+});
+
+test('riapertura individuale: chi non è mai entrato entra a verifica chiusa, con la sua traccia', async () => {
+  const d = docente();
+  const vid = await chiusaConTre(d);
+  await d.riapriStudente(vid, CARLA, { fine: tra(ORA) });
+  const trovate = await creaVerificheStudente({ sdk, db: dbDi(CARLA) }, CARLA, 'Carla').daFare(['AB12CD']);
+  assert.equal(trovate.length, 1);
+  assert.equal(trovate[0].lavoro.tracciaId, 't0');
+  await lavoroDi(CARLA).salva(vid, { programma: prog(3) });
+  await consDi(CARLA).consegna(vid, {});
+  assert.equal((await d.situazione(vid)).ultime[CARLA].programma, prog(3));
+});
+
+test('riapertura individuale: la verifica viene proposta solo a chi è stato riaperto (e solo finché non consegna)', async () => {
+  const d = docente();
+  const vid = await chiusaConTre(d);
+  const daFare = (e) => creaVerificheStudente({ sdk, db: dbDi(e) }, e, nomeDi(e)).daFare(['AB12CD']);
+  assert.equal((await daFare(ANNA)).length, 0);                                   // chiusa per tutti
+  await d.riapriStudente(vid, ANNA, { fine: tra(ORA) });
+  assert.equal((await daFare(ANNA)).length, 1);
+  assert.equal((await daFare(BRUNO)).length, 0);                                  // il flag sulla verifica non lo riguarda
+  await consDi(ANNA).consegna(vid, {});
+  assert.equal((await daFare(ANNA)).length, 0);
+});
+
+test('riapertura individuale: la scadenza personale decide, e non si raccoglie chi sta ancora lavorando', async () => {
+  const d = docente();
+  const vid = await chiusaConTre(d);
+  await d.riapriStudente(vid, BRUNO, { fine: tra(ORA) });
+  assert.ok(vicino((await scadenze(d, vid))[BRUNO], Date.now() + ORA));
+  await lavoroDi(BRUNO).salva(vid, { programma: prog(5) });
+  const esito = await d.raccogli(vid);
+  assert.deepEqual(esito.inCorso, [BRUNO]);
+  assert.equal((await d.situazione(vid)).ultime[BRUNO].programma, prog(2));       // resta la raccolta di prima, non il lavoro a metà
+});
+
+test('riapertura di un gruppo: più studenti insieme, anche chi si è iscritto dopo la chiusura (traccia scelta)', async () => {
+  const d = docente();
+  const vid = await chiusaConTre(d);
+  await iscrivi(DARIO);                                                           // iscritto DOPO: non ha il lavoro
+  assert.deepEqual(await d.iscrittiSenzaLavoro(vid), [DARIO]);
+  const r = await d.riapriStudenti(vid, [ANNA, CARLA, DARIO], { fine: tra(ORA), tracciaId: 't1' });
+  assert.deepEqual([r.riaperti, r.creati, r.sbloccati], [3, 1, 1]);
+  const s = await d.situazione(vid);
+  assert.equal(s.verifica.stato, 'chiusa');
+  const l = (e) => s.lavori.find((x) => x.email === e);
+  assert.deepEqual([ANNA, BRUNO, CARLA, DARIO].map((e) => !!l(e)?.riaperto), [true, false, true, true]);
+  assert.equal(l(DARIO).tracciaId, 't1');                                         // la traccia scelta
+  assert.equal(l(ANNA).tracciaId, 't0');                                          // chi ce l'aveva non cambia
+  const daFare = (e) => creaVerificheStudente({ sdk, db: dbDi(e) }, e, nomeDi(e)).daFare(['AB12CD']);
+  assert.equal((await daFare(DARIO)).length, 1);                                  // gli viene proposta
+  assert.equal((await daFare(BRUNO)).length, 0);
+  await lavoroDi(DARIO).salva(vid, { programma: prog(6) });
+  await consDi(DARIO).consegna(vid, {});
+  assert.equal((await d.situazione(vid)).ultime[DARIO].tracciaId, 't1');
+  assert.deepEqual(await d.iscrittiSenzaLavoro(vid), []);
+});
+
+test('riapertura di un gruppo: tutto o niente; non iscritti o traccia inesistente fermano l\'intero gruppo', async () => {
+  const d = docente();
+  const vid = await chiusaConTre(d);
+  await assert.rejects(d.riapriStudenti(vid, [ANNA, 'estraneo@isarome.it'], { fine: tra(ORA) }), (e) => e.codice === 'assente' && /iscriver|iscritto/.test(e.message));
+  await iscrivi(DARIO);
+  await assert.rejects(d.riapriStudenti(vid, [ANNA, DARIO], { fine: tra(ORA), tracciaId: 't9' }), (e) => e.codice === 'negato');
+  const s = await d.situazione(vid);
+  assert.equal(s.verifica.riaperturaIndividuale ?? false, false);                  // nessuna scrittura a metà
+  assert.ok(!s.lavori.some((l) => l.riaperto || l.email === DARIO));
+  await assert.rejects(d.riapriStudenti(vid, []), (e) => e.codice === 'dati');
+});
+
+// Regole: il lavoro creato a verifica chiusa è ammesso solo riaperto, per un iscritto, e col segno sulla verifica nello stesso batch.
+test('riapertura di un gruppo: regole sul lavoro nuovo a verifica chiusa', async () => {
+  const d = docente();
+  const vid = await chiusaConTre(d);
+  await iscrivi(DARIO);
+  const db = dbDi(DOC);
+  const lav = (extra = {}) => ({ studenteEmail: DARIO, tracciaId: 't0', scadenza: sdk.Timestamp.fromDate(tra(ORA)), entrato: null, consegnato: false, riaperto: true, ...extra });
+  const rif = sdk.doc(db, `verifiche/${vid}/lavori/${DARIO}`);
+  await assert.rejects(sdk.setDoc(rif, lav()));                                                     // senza il segno sulla verifica
+  const conSegno = (dati) => { const b = sdk.writeBatch(db); b.set(rif, dati); b.update(sdk.doc(db, `verifiche/${vid}`), { riaperturaIndividuale: true }); return b.commit(); };
+  await assert.rejects(conSegno(lav({ riaperto: false })));                                          // non riaperto: a chiusa non si crea
+  await assert.rejects(conSegno(lav({ scadenza: sdk.Timestamp.fromDate(tra(-ORA)) })));              // scadenza nel passato
+  await assert.rejects(conSegno(lav({ tracciaId: 't9' })));                                          // traccia inesistente
+  await assert.rejects(conSegno(lav({ tracciaId: null })));
+  await assert.rejects(conSegno(lav({ entrato: sdk.Timestamp.now() })));
+  await assert.rejects(sdk.setDoc(sdk.doc(dbDi(DARIO), `verifiche/${vid}/lavori/${DARIO}`), lav()));  // lo studente non si crea il lavoro
+  await conSegno(lav());                                                                              // il caso giusto
+});
+
+test('riapertura individuale: rifiuti (aperta, archiviata, fine nel passato, senza lavoro)', async () => {
+  const d = docente();
+  const { vid } = await bozza(d);
+  await assert.rejects(d.riapriStudente(vid, ANNA, { fine: tra(ORA) }), (e) => e.codice === 'stato');   // bozza
+  await d.apri(vid, { tracciaDefault: 't0' });
+  await assert.rejects(d.riapriStudente(vid, ANNA, { fine: tra(ORA) }), (e) => e.codice === 'stato');   // aperta
+  await d.chiudi(vid);
+  await assert.rejects(d.riapriStudente(vid, ANNA, { fine: tra(-ORA) }), (e) => e.codice === 'fine');
+  await assert.rejects(d.riapriStudente(vid, DARIO, { fine: tra(ORA) }), (e) => e.codice === 'assente');
+  await d.riapriStudente(vid, ANNA, { fine: tra(ORA) });
+  await d.archivia(vid);                                                                                   // archiviando si spegne il segno
+  assert.equal((await d.situazione(vid)).verifica.riaperturaIndividuale, false);
+  await assert.rejects(lavoroDi(ANNA).salva(vid, { programma: prog(1) }), (e) => e.codice === 'negato');  // e lei non scrive più
+  await d.archivia(vid, false);
+  await assert.rejects(creaVerificaDocente({ sdk, db: dbDi('collega@isarome.it') }, 'collega@isarome.it').riapriStudente(vid, ANNA, { fine: tra(ORA) }), (e) => e.codice === 'negato' || e.codice === 'stato' || e.codice === 'altro');
+});
+
+test('riapertura individuale: lo studente non si riapre da solo, e la riapertura generale azzera i segni', async () => {
+  const d = docente();
+  const vid = await chiusaConTre(d);
+  const rif = sdk.doc(dbDi(BRUNO), `verifiche/${vid}/lavori/${BRUNO}`);
+  await assert.rejects(sdk.updateDoc(rif, { riaperto: true }));                                            // lo studente non tocca `riaperto`
+  await assert.rejects(sdk.updateDoc(sdk.doc(dbDi(DOC), `verifiche/${vid}/lavori/${BRUNO}`), { riaperto: true }));   // il docente nemmeno senza il segno sulla verifica
+  await d.riapriStudente(vid, ANNA, { fine: tra(ORA) });
+  await d.riapri(vid, { fine: tra(2 * ORA) });
+  const s = await d.situazione(vid);
+  assert.equal(s.verifica.stato, 'aperta');
+  assert.equal(s.verifica.riaperturaIndividuale, false);
+  assert.equal(s.lavori.find((l) => l.email === ANNA).riaperto, false);
+  await d.chiudi(vid);                                                                                     // richiusa: Anna non è più riaperta
+  await assert.rejects(lavoroDi(ANNA).salva(vid, { programma: prog(8) }), (e) => e.codice === 'negato');
+});
+
 test('riapertura: solo una verifica chiusa e non archiviata', async () => {
   const d = docente();
   const { vid } = await bozza(d);
