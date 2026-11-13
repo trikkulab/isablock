@@ -751,7 +751,7 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
       const sala = programma && programma.anteprima && programma.renderBlocchi
         ? () => apriSala({ apri, tabella, programma, caricaStoria: storiaConConsegne, osserva: osservaDalVivo, titolo: `Sala · ${verifica.titolo}` })
         : null;
-      tabella = creaTabellaLive({ vd, vid, toast, guarda, sala, caricaFile, riapriStudente: dialogoRiaperturaStudenti, selezione: { ha: (e) => selezionati.has(e), cambia: (e, on) => { if (on) selezionati.add(e); else selezionati.delete(e); dopoRiapertura(); } }, scaricaPdf: conPdf ? scaricaPdf : null, scaricaTutti: conPdf ? scaricaTutti : null, esportaJson: conPdf ? esportaJson : null });
+      tabella = creaTabellaLive({ vd, vid, toast, guarda, sala, caricaFile, selezione: { ha: (e) => selezionati.has(e), cambia: (e, on) => { if (on) selezionati.add(e); else selezionati.delete(e); dopoRiapertura(); } }, scaricaPdf: conPdf ? scaricaPdf : null, scaricaTutti: conPdf ? scaricaTutti : null, esportaJson: conPdf ? esportaJson : null });
       chiudiTabella = tabella.distruggi;
       azioni.prepend(tabella.azioniTutti);                 // «Scarica PDF di tutti» ed «Esporta JSON di tutti» stanno accanto a «Raccogli i lavori»
       lavoriLive = tabella.tutti;
