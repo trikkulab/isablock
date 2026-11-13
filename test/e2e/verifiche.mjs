@@ -307,7 +307,7 @@ try {
   await page.waitForSelector('.tabella-live tbody tr');
   verifica((await page.$$('.tabella-live tbody tr')).length === 3 && (await page.$$('.tabella-stato[data-stato="non-entrato"]')).length === 3, 'tabella: 3 righe, tutti «Non entrato»');
   verifica(/Entrati 0 su 3/.test(await page.textContent('.tabella-sommario')), 'riepilogo: Entrati 0 su 3');
-  verifica(!(await page.isVisible('button:has-text("Scarica PDF di tutti")')) && (await page.$$('.tabella-live tbody tr button:has-text("Scarica PDF")')).length === 0, 'a verifica aperta non ci sono i pulsanti del PDF');
+  verifica(!(await page.isVisible('button:has-text("Scarica PDF di tutti")')) && (await page.$$('.tabella-live tbody tr button:text-is("PDF")')).length === 0, 'a verifica aperta non ci sono i pulsanti del PDF');
   const lavoroAnna = `verifiche/${vid2}/lavori/anna@isarome.it`;
   const adesso = Date.now();
   await aggiorna(lavoroAnna, { entrato: T(adesso - 2 * 60000), ultimoSegnale: T(adesso), studenteNome: S('Anna Rossi'), nBlocchi: { integerValue: '7' },
@@ -561,13 +561,14 @@ try {
   const riscontroBruno = (infoBruno.match(/riscontro ([0-9A-F]{4}-[0-9A-F]{4})/) || [])[1] ?? null;
   verifica(/ultima consegna: v1 \(da file\) · 12 blocchi/.test(infoBruno) && !!riscontroBruno && !(await page.isVisible('.anteprima-vuoto')), `…e dice che è l\'ultima consegna, v1 da file, con il numero di blocchi e il codice di riscontro (${riscontroBruno})`);
   await page.keyboard.press('Escape');
-  verifica(await finche(async () => (await page.textContent('.tabella-live tbody tr:has-text("bruno@isarome.it") td:nth-child(3)')).trim() === '12'), 'la tabella mostra i blocchi della consegna da file (12), anche per chi non è mai entrato');
+  verifica(await finche(async () => (await page.textContent('.tabella-live tbody tr:has-text("bruno@isarome.it") td:nth-child(4)')).trim() === '12'), 'la tabella mostra i blocchi della consegna da file (12), anche per chi non è mai entrato');
 
   // ── Schede di consegna in PDF ────────────────────────────────────────
   const conteggioPagine = (pdf) => (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
   // ── Scheda di consegna in PDF (una consegna) ──────────────────────────────
-  verifica((await page.$$('.tabella-live tbody tr button:has-text("Scarica PDF")')).length === 2 && await page.isVisible('button:has-text("Scarica PDF di tutti")'), 'a verifica chiusa: «Scarica PDF» sulle righe con una consegna (non su chi non ha consegnato)');
-  await page.click('.tabella-live tbody tr:has-text("Anna Rossi") button:has-text("Scarica PDF")');
+  await schermata(page, 'v-situazione-chiusa');
+  verifica((await page.$$('.tabella-live tbody tr button:text-is("PDF")')).length === 2 && await page.isVisible('button:has-text("Scarica PDF di tutti")'), 'a verifica chiusa: «Scarica PDF» sulle righe con una consegna (non su chi non ha consegnato)');
+  await page.click('.tabella-live tbody tr:has-text("Anna Rossi") button:text-is("PDF")');
   verifica(await page.isVisible('h2:has-text("Cosa vuoi nel PDF?")') && (await page.$$('.modal-box input[type=checkbox]:checked')).length === 5, '«Scarica PDF» apre la finestra con le quattro parti e i numeri di riga, tutto acceso');
   const [scaricato] = await Promise.all([
     page.waitForEvent('download', { timeout: 90000 }),

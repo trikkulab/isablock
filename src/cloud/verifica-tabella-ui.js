@@ -22,7 +22,7 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
   const seguaci = new Set();        // chi vuole il lavoro di uno studente a ogni aggiornamento: { email, cb }
   const ascoltatori = new Set();    // chi vuole tutta la situazione a ogni aggiornamento (la Sala): cb()
   const sommario = el('p', { class: 'tabella-sommario', 'aria-live': 'polite' });
-  const stima = el('p', { class: 'tabella-stima sketch-nota', hidden: '' });
+  const stima = el('span', { class: 'tabella-stima', hidden: '' });
   const corpo = el('tbody');
   const vuota = el('p', { class: 'sketch-nota' }, 'Carico la situazione…');
   const ordine = el('select', { class: 'tabella-ordine', 'aria-label': 'Ordine delle righe' },
@@ -42,21 +42,24 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
   const btnPdfTutti = el('button', { type: 'button', class: 'modal-btn secondary', hidden: '', title: 'Un solo PDF (A4) con la scheda di ogni consegna, in ordine alfabetico per cognome', onclick: () => scaricaTutti?.() }, E.scaricaPdfTutti);
   const btnJsonTutti = el('button', { type: 'button', class: 'modal-btn secondary', hidden: '', title: 'Un file JSON con i programmi senza nomi (solo un codice per consegna) e un file con le corrispondenze codice-studente', onclick: () => esportaJson?.() }, E.esportaJsonTutti);
   const btnSala = sala ? el('button', { type: 'button', class: 'modal-btn secondary', title: 'Tutti i programmi insieme, a tutto schermo', onclick: () => sala() }, E.sala) : '';
+  // I due pulsanti «di tutti» stanno accanto a «Raccogli i lavori» (li inserisce la scheda): qui si espongono solo.
+  const azioniTutti = el('span', { class: 'tabella-esporta' }, btnPdfTutti, btnJsonTutti);
   const elemento = el('div', { class: 'tabella-corpo' },
-    el('div', { class: 'tabella-testata' }, sommario, el('span', { class: 'tabella-azioni' }, btnPdfTutti, btnJsonTutti, btnSala, ordine)), stima, vuota, tabella);
+    el('div', { class: 'tabella-testata' }, el('span', { class: 'tabella-riepilogo' }, sommario, stima), el('span', { class: 'tabella-azioni' }, btnSala, ordine)), vuota, tabella);
 
   function cella(riga, ...figli) { return el('td', {}, ...figli); }
 
   // Promemoria del consumo di questa verifica sulle quote giornaliere (solo una stima: vedi `stimaConsumi` in verifica-config.js).
-  const numero = new Intl.NumberFormat('it-IT');
+  const numero = new Intl.NumberFormat('it-IT', { useGrouping: 'always' });
+  const arrotonda = (n) => (n >= 1000 ? Math.round(n / 100) * 100 : Math.round(n / 10) * 10);
   function disegnaStima(ora) {
     const s = stimaConsumi({ verifica: ultimo.verifica, lavori: ultimo.lavori, ora });
     stima.hidden = !s || (s.minutiStudente <= 0 && s.letture <= 0);
     if (stima.hidden) return;
     const pc = (f) => (f === null ? '' : ` (${f < 0.01 ? '<1' : Math.round(f * 100)}%)`);
     stima.dataset.livello = s.livello;
-    stima.textContent = `Consumo stimato di questa verifica: ~${numero.format(s.letture)} letture${pc(s.frazioneLetture)} · ~${numero.format(s.scritture)} scritture${pc(s.frazioneScritture)}${s.frazioneLetture === null ? '' : ' della quota giornaliera'}`;
-    stima.title = 'Stima dai dati delle prove di novembre 2026 (±20%), solo di questa verifica: altre classi e prove dello stesso giorno si sommano. I parametri sono in verifica-config.js.';
+    stima.textContent = `Stima: ~${numero.format(arrotonda(s.letture))} letture${pc(s.frazioneLetture)} · ~${numero.format(arrotonda(s.scritture))} scritture${pc(s.frazioneScritture)}`;
+    stima.title = `Consumo stimato di questa verifica${s.frazioneLetture === null ? '' : ', con la percentuale sulla quota giornaliera del progetto'}. Dai dati delle prove di novembre 2026 (±20%): altre classi e prove dello stesso giorno si sommano. I parametri sono in verifica-config.js.`;
   }
 
   function disegna() {
@@ -94,11 +97,11 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
         cella(x, esec),
         cella(x, x.connessione ? el('span', { class: 'tabella-conn', 'data-conn': x.connessione.stato }, x.connessione.stato === 'offline' ? testoOffline(x.connessione.da) : 'online') : '–'),
         cella(x, x.timer ? el('span', { class: 'tabella-timer', 'data-colore': x.timer.colore }, x.timer.restante > 0 ? testoDurata(x.timer.restante) : 'scaduto') : '–'),
-        cella(x,
+        cella(x, el('div', { class: 'tabella-pulsanti' },
           guarda ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Guarda il programma (sola lettura)', onclick: () => guarda(x.email, x.nome) }, E.guarda) : '',
           scaricaPdf && ultimo.verifica.stato === 'chiusa' && x.versioneConsegna !== null ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Scarica la scheda di consegna di questo studente in PDF (A4)', onclick: () => scaricaPdf(x.email) }, E.scaricaPdf) : '',
           caricaFile && ultimo.verifica.stato === 'chiusa' ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Carica il file di emergenza di questo studente come nuova consegna', onclick: () => caricaFile(x.email, x.nome) }, E.caricaFile) : '',
-          riapriStudente && ultimo.verifica.stato === 'chiusa' && !ultimo.verifica.archiviata && !x.riaperto ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Riapri la verifica solo per questo studente (gli altri restano chiusi)', onclick: () => riapriStudente([{ email: x.email, nome: x.nome }]) }, E.riapriStudente) : '')));
+          riapriStudente && ultimo.verifica.stato === 'chiusa' && !ultimo.verifica.archiviata && !x.riaperto ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Riapri la verifica solo per questo studente (gli altri restano chiusi)', onclick: () => riapriStudente([{ email: x.email, nome: x.nome }]) }, E.riapriStudente) : ''))));
     }
   }
 
@@ -123,5 +126,5 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
   const statoVerifica = () => (ultimo ? ultimo.verifica.stato : null);
   // `cb()` ogni volta che arriva qualcosa dal server (nessuna lettura in più). Restituisce la funzione per smettere.
   function ascolta(cb) { ascoltatori.add(cb); return () => ascoltatori.delete(cb); }
-  return { elemento, distruggi, segui, stato, tutti, righe, statoVerifica, ascolta };
+  return { elemento, azioniTutti, distruggi, segui, stato, tutti, righe, statoVerifica, ascolta };
 }

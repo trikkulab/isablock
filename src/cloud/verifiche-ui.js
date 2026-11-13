@@ -753,6 +753,7 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
         : null;
       tabella = creaTabellaLive({ vd, vid, toast, guarda, sala, caricaFile, riapriStudente: dialogoRiaperturaStudenti, selezione: { ha: (e) => selezionati.has(e), cambia: (e, on) => { if (on) selezionati.add(e); else selezionati.delete(e); dopoRiapertura(); } }, scaricaPdf: conPdf ? scaricaPdf : null, scaricaTutti: conPdf ? scaricaTutti : null, esportaJson: conPdf ? esportaJson : null });
       chiudiTabella = tabella.distruggi;
+      azioni.prepend(tabella.azioniTutti);                 // «Scarica PDF di tutti» ed «Esporta JSON di tutti» stanno accanto a «Raccogli i lavori»
       lavoriLive = tabella.tutti;
       aggiornaScadenza();
       // Iscritti arrivati dopo l'apertura: senza il loro lavoro non vedono la verifica. L'avviso compare solo se ce n'è almeno uno.
@@ -761,8 +762,8 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
       const avvisoMancanti = el('p', { class: 'sketch-nota verifica-avviso avviso-mancanti', role: 'status', hidden: '' }, testoMancanti, ' ', btnAggiungi);
       // A verifica CHIUSA gli iscritti senza verifica si riaprono a mano: elenco con caselle (si sommano a quelle della tabella).
       const elencoMancanti = el('div', { class: 'mancanti-elenco', hidden: '' });
-      const btnSelezionati = el('button', { type: 'button', class: 'modal-btn', onclick: () => dialogoRiaperturaStudenti([...selezionati].map((e) => ({ email: e, nome: nomeDi(e) }))) }, '');
-      const barraSelezione = el('p', { class: 'sketch-nota barra-selezione', hidden: '' }, btnSelezionati);
+      const btnSelezionati = el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => dialogoRiaperturaStudenti([...selezionati].map((e) => ({ email: e, nome: nomeDi(e) }))) }, '');
+      const barraSelezione = el('div', { class: 'barra-selezione', hidden: '' }, btnSelezionati, el('span', { class: 'sketch-nota' }, 'Spunta le caselle degli studenti da riaprire.'));
       const nomeDi = (e) => lavoriLive().find((l) => l.email === e)?.lavoro.studenteNome ?? e;
       function aggiornaSelezione() {
         const attiva = stato() === 'chiusa' && !verifica.archiviata;
@@ -780,12 +781,12 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
             elencoMancanti.textContent = '';
             elencoMancanti.hidden = mancanti.length === 0;
             if (mancanti.length) {
-              elencoMancanti.append(el('p', { class: 'sketch-nota' }, 'Iscritti al corso che non hanno la verifica (arrivati dopo). Spuntali per riaprirla anche a loro:'));
+              elencoMancanti.append(el('p', { class: 'mancanti-titolo' }, 'Iscritti al corso che non hanno la verifica (arrivati dopo). Spuntali per riaprirla anche a loro:'));
               for (const e of mancanti) {
                 const c = el('input', { type: 'checkbox', value: e, 'aria-label': `Seleziona ${e}` });
                 c.checked = selezionati.has(e);
                 c.addEventListener('change', () => { if (c.checked) selezionati.add(e); else selezionati.delete(e); aggiornaSelezione(); });
-                elencoMancanti.append(el('label', { class: 'scegli-fine-riga' }, c, ` ${e}`));
+                elencoMancanti.append(el('label', { class: 'mancanti-riga' }, el('span', { class: 'mancanti-casella' }, c), e));
               }
             }
             aggiornaSelezione();
