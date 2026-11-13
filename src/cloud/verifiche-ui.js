@@ -311,7 +311,7 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
       const { righe, avvertenza } = testoApertura(r);
       dialogo({
         titolo: `Avviare la verifica «${verifica.titolo}»?`, righe, avvertenza, extra: [quando.elemento], etichetta: 'Avvia la verifica',
-        impedimento: r.tracce === 0 || !r.tracciaPredefinita ? 'Prima di avviare serve almeno una traccia, e una traccia di tutti.' : null,
+        impedimento: r.tracce === 0 || !r.tracciaPredefinita ? 'Prima di avviare serve almeno una traccia, e una traccia per tutti.' : null,
         async onConferma(d) {
           const c = quando.calcola();
           if (c.errore) throw new Error(c.errore);
@@ -490,7 +490,7 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
           const altri = riceveranno === 0
             ? 'la riceveranno gli studenti che non hanno una traccia scelta (oggi nessuno)'
             : riceveranno === 1 ? 'la riceverà anche 1 altro studente' : `la riceveranno anche gli altri ${riceveranno} studenti`;
-          if (!window.confirm(`«${t.titolo}» è assegnata a mano a ${chi}.\nSe diventa la traccia di tutti, ${altri}.\n\nVuoi usarla per tutti?`)) return;
+          if (!window.confirm(`«${t.titolo}» è assegnata a mano a ${chi}.\nSe diventa la traccia per tutti, ${altri}.\n\nVuoi usarla per tutti?`)) return;
         }
         await vd.impostaTracciaDefault(vid, id);
         verifica = await vd.verifiche.leggi(vid);
@@ -867,7 +867,7 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
       };
 
       corpoAss.append(el('p', { class: 'sketch-nota' },
-        'Chi non è modificato qui usa la traccia di tutti e la fine prevista. Si registrano solo la traccia e i minuti in più, nessun motivo.'));
+        'Chi non è modificato qui usa la traccia per tutti e la fine prevista. Si registrano solo la traccia e i minuti in più, nessun motivo.'));
 
       const caselle = [];
       const tabella = el('div', { class: 'assegnazioni-righe' });
