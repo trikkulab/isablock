@@ -1251,7 +1251,7 @@ body.modo-verifica .autosave-info { display: none; }
 .tabella-live .tabella-selez { width: 1.6rem; }
 .barra-selezione { display: flex; flex-wrap: wrap; align-items: center; gap: 0.7rem; margin: 0.9rem 0 0.5rem; }
 .mancanti-elenco { margin-top: 1rem; padding: 0.7rem 0 0.5rem; border: 1px solid #e0b84a; border-radius: 8px; background: #fff9e6; }
-.mancanti-titolo { margin: 0 0.45rem 0.4rem; font-weight: 600; }
+.mancanti-elenco .mancanti-titolo { margin: 0 0.7rem 0.4rem; font-weight: 600; }   /* più forte di «.modal-box p», che azzerava il rientro */
 .mancanti-riga { display: flex; align-items: center; padding: 0.3rem 0.45rem; }
 .mancanti-casella { display: inline-block; width: 1.6rem; margin-right: 0.5rem; }
 .tabella-doppia { color: #b91c1c; font-weight: 600; white-space: nowrap; }
