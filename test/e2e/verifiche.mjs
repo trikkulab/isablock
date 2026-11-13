@@ -497,11 +497,19 @@ try {
   await page.click('button:has-text("Termina verifica")');
   await page.waitForSelector('h2:has-text("Terminare la verifica")');
   verifica(!(await page.$('.modal:last-of-type input[type="checkbox"]')) && /raccoglie i lavori/.test(await page.textContent('.modal:last-of-type .modal-box')), 'chiusura: nessuna casella, il testo dice che i lavori si raccolgono subito');
+  const TARDIVO = 'dario@isarome.it';                                                       // si iscrive dopo l'apertura: a chiusura compare tra gli iscritti senza la verifica
+  await scrivi(`iscrizioni/${corsoId}_${TARDIVO}`, { corsoId: { stringValue: corsoId }, email: { stringValue: TARDIVO }, creato: { timestampValue: new Date().toISOString() } });
   await page.click('button:has-text("Termina la verifica")');
   verifica(await toastContiene(/Verifica terminata\. Lavori: raccolti 1, non entrati 2\./), 'chiusura: dice com\'è andata la raccolta (Anna è entrata, gli altri no)');
   await page.waitForSelector('.verifica-azioni button:has-text("Archivia")');
   verifica(await stato2() === 'chiusa', 'la verifica è chiusa');
   verifica(await page.isVisible('button:has-text("Raccogli i lavori")') && await page.isVisible('button:has-text("Riapri")'), 'chiusa: si può raccogliere, riaprire, archiviare');
+  verifica(await finche(() => page.isVisible('.mancanti-elenco')) && (await page.textContent('.mancanti-elenco')).includes(TARDIVO) && (await page.$$('.mancanti-elenco input[type=checkbox]')).length === 1, 'chiusa: gli iscritti arrivati dopo compaiono in un riquadro sotto la tabella, con la loro casella');
+  await page.check(`.mancanti-elenco input[value="${TARDIVO}"]`);
+  verifica(/\(1\)/.test(await page.textContent('.barra-selezione button')) && await page.isEnabled('.barra-selezione button'), '…e spuntarli attiva «Riapri per i selezionati (1)»');
+  await schermata(page, 'v-mancanti-reale');
+  await page.uncheck(`.mancanti-elenco input[value="${TARDIVO}"]`);
+  await fetch(`http://${process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8186'}/v1/projects/demo-isablock/databases/(default)/documents/iscrizioni/${corsoId}_${TARDIVO}`, { method: 'DELETE', headers: { Authorization: 'Bearer owner' } });   // la prova non lascia l'iscritto in più
 
   // file di emergenza: il docente lo carica dalla riga dello studente (solo a verifica chiusa)
   verifica((await page.$$('.tabella-live tbody tr button:has-text("Carica file")')).length === 3, 'chiusa: ogni riga ha «Carica file…»');

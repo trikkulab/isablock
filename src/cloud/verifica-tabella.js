@@ -172,15 +172,18 @@ export function testoDurata(ms) {
 
 // Stima del consumo di questa verifica (letture e scritture del database), dai coefficienti di verifica-config.js
 // (`stimaConsumi`). Si basa su quanti sono iscritti, quanti sono entrati e per quanti minuti ognuno ha lavorato (fino alla
-// consegna, o alla scadenza personale, o a ora). Null se la verifica è ancora una bozza. Pura: `ora` è un argomento.
+// consegna, o alla scadenza personale, o a ora), contando solo dall'ULTIMA apertura della verifica: dopo una riapertura il primo
+// ingresso può essere di giorni prima. È un promemoria «in diretta»: null se la verifica non è aperta (la riapertura di singoli
+// studenti a verifica chiusa pesa poco e non si conta). Pura: `ora` è un argomento.
 export function stimaConsumi({ verifica, lavori, ora, config = C.stimaConsumi }) {
-  if (!config || verifica.stato === 'bozza') return null;
+  if (!config || verifica.stato !== 'aperta') return null;
   const entrati = lavori.filter((l) => l.entrato);
+  const apertura = verifica.apertaIl ? verifica.apertaIl.getTime() : -Infinity;
   let minutiStudente = 0;
   for (const l of entrati) {
-    const fermo = l.consegnato || !lavoraAdesso(verifica, l, ora);
-    const fine = fermo ? (l.ultimoSegnale ? l.ultimoSegnale.getTime() : ora) : Math.min(ora, l.scadenza ? l.scadenza.getTime() : ora);
-    minutiStudente += Math.max(0, (fine - l.entrato.getTime()) / MINUTO);
+    const inizio = Math.max(l.entrato.getTime(), apertura);
+    const fine = l.consegnato ? (l.ultimoSegnale ? l.ultimoSegnale.getTime() : ora) : Math.min(ora, l.scadenza ? l.scadenza.getTime() : ora);
+    minutiStudente += Math.max(0, (fine - inizio) / MINUTO);
   }
   const letture = config.ingresso * entrati.length + config.perIscritto * lavori.length
     + minutiStudente * (config.perStudenteMinuto + config.perDocenteStudenteMinuto * config.docentiAperti);

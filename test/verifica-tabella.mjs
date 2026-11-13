@@ -144,8 +144,9 @@ prova('testo della durata', () => {
   assert.equal(testoDurata(-5000), '0:00');
 });
 const CFG = Object.freeze({ ingresso: 30, perIscritto: 35, perStudenteMinuto: 6, perDocenteStudenteMinuto: 2, scrittureStudenteMinuto: 1.5, scrittureIscritto: 3, docentiAperti: 1, quotaLetture: 10000, quotaScritture: 4000, sogliaGialla: 0.5, sogliaRossa: 0.8 });
-prova('stima dei consumi: bozza niente; entrati e minuti di ognuno; consegnato si ferma al suo ultimo segnale', () => {
+prova('stima dei consumi: solo a verifica aperta; entrati e minuti di ognuno; consegnato si ferma al suo ultimo segnale', () => {
   assert.equal(stimaConsumi({ verifica: { stato: 'bozza' }, lavori: [lavoro()], ora: ORA, config: CFG }), null);
+  assert.equal(stimaConsumi({ verifica: { ...verifica, stato: 'chiusa' }, lavori: [lavoro()], ora: ORA, config: CFG }), null);
   const a = lavoro({ email: 'a@x.it', entrato: d(ORA - 10 * MIN) });
   const b = lavoro({ email: 'b@x.it', entrato: d(ORA - 20 * MIN), consegnato: true, ultimoSegnale: d(ORA - 10 * MIN) });   // ha lavorato 10 minuti
   const c = lavoro({ email: 'c@x.it', entrato: null });                                                                      // assente: conta solo come iscritto
@@ -157,8 +158,9 @@ prova('stima dei consumi: bozza niente; entrati e minuti di ognuno; consegnato s
   assert.ok(Math.abs(s.frazioneLetture - 0.0325) < 1e-9);
 });
 prova('stima dei consumi: il tempo si ferma alla scadenza personale; soglie gialla e rossa; quota null senza percentuale', () => {
+  const lunga = { ...verifica, apertaIl: d(ORA - 200 * MIN) };
   const l = lavoro({ entrato: d(ORA - 100 * MIN), scadenza: d(ORA - 40 * MIN) });                                          // ha avuto 60 minuti
-  const s = stimaConsumi({ verifica, lavori: [l], ora: ORA, config: CFG });
+  const s = stimaConsumi({ verifica: lunga, lavori: [l], ora: ORA, config: CFG });
   assert.equal(Math.round(s.minutiStudente), 60);
   const molti = Array.from({ length: 60 }, (_, i) => lavoro({ email: `s${i}@x.it`, entrato: d(ORA - 30 * MIN) }));
   assert.equal(stimaConsumi({ verifica, lavori: molti, ora: ORA, config: { ...CFG, quotaLetture: 30000 } }).livello, 'giallo');      // 18.300 letture su 30.000 = 61%
@@ -181,5 +183,10 @@ prova('riapertura individuale: a verifica chiusa lavora solo chi è riaperto e f
   assert.equal(f.riaperto, false);
   assert.equal(f.stato, 'consegnato');
   assert.equal(f.timer, null);
+});
+prova('stima dei consumi: dopo una riapertura si conta dall\'ultima apertura, non dal primo ingresso di giorni prima', () => {
+  const riaperta = { stato: 'aperta', apertaIl: d(ORA - 15 * MIN) };
+  const l = lavoro({ entrato: d(ORA - 3 * 24 * 60 * MIN), scadenza: d(ORA + 60 * MIN) });
+  assert.equal(Math.round(stimaConsumi({ verifica: riaperta, lavori: [l], ora: ORA, config: CFG }).minutiStudente), 15);
 });
 console.log(`\n${test} prove superate`);
