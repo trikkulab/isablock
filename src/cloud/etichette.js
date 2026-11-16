@@ -62,6 +62,8 @@ export const verificaDocenteEtichette = Object.freeze({
   apriCopiaProva: 'Apri una copia per provarla',
   partiJsonTitolo: 'Cosa vuoi nel JSON?',
   caricaFile: 'Carica file…',
+  terminaRiaperture: 'Termina le riaperture…',
+  terminaStudente: 'Termina',
   mostraArchiviate: 'Mostra anche le verifiche archiviate',
   stella: '★',
 });

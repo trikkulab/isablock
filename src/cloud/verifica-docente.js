@@ -33,13 +33,17 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
   // Applica `dati` alla verifica e, nello STESSO batch, aggiorna i lavori di chi non è ancora entrato:
   // la scadenza si sposta di `delta` ms e, con `traccia`, le tracce vuote («di tutti») diventano quella id.
   // `lavoriNoti` evita di rileggere l'elenco. Restituisce quanti lavori ha toccato.
-  async function aggiornaTutto(vid, dati, { delta = 0, traccia = null, lavoriNoti = null } = {}) {
-    const elenco = delta || traccia ? (lavoriNoti ?? await lavori.elenca(vid)).filter((l) => !l.entrato) : [];
+  // Con `assoluta` (un Date) invece, a verifica APERTA: ogni lavoro non ancora consegnato (anche chi sta già lavorando) prende
+  // come scadenza quella fine più i suoi minuti extra.
+  async function aggiornaTutto(vid, dati, { delta = 0, traccia = null, lavoriNoti = null, assoluta = null } = {}) {
+    const elenco = assoluta ? (lavoriNoti ?? await lavori.elenca(vid)).filter((l) => !l.consegnato)
+      : delta || traccia ? (lavoriNoti ?? await lavori.elenca(vid)).filter((l) => !l.entrato) : [];
     const b = sdk.writeBatch(db);
     let toccati = 0;
     for (const l of elenco) {
       const campi = {};
-      if (delta && l.scadenza) campi.scadenza = sdk.Timestamp.fromDate(new Date(l.scadenza.getTime() + delta));
+      if (assoluta) campi.scadenza = sdk.Timestamp.fromDate(new Date(assoluta.getTime() + l.minutiExtra * MINUTO));
+      else if (delta && l.scadenza) campi.scadenza = sdk.Timestamp.fromDate(new Date(l.scadenza.getTime() + delta));
       if (traccia && l.tracciaId === null) campi.tracciaId = traccia;
       if (Object.keys(campi).length) { b.update(rifLavoro(vid, l.email), campi); toccati++; }
     }
@@ -61,15 +65,16 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
     return verifiche.leggi(v.id);
   }
 
-  // Cambia la fine prevista. In bozza sposta con sé le scadenze di chi non è entrato
-  // (extra compresi); da aperta cambia solo il default (le scadenze personali restano).
+  // Cambia la fine prevista. In bozza sposta con sé le scadenze di chi non è entrato (extra compresi). Da aperta le scadenze
+  // di tutti quelli che non hanno ancora consegnato diventano la nuova fine più il loro tempo in più (chi ha già consegnato
+  // non si tocca). Restituisce quanti lavori ha spostato.
   async function cambiaFine(vid, nuovaFine) {
     if (!valida(nuovaFine)) throw vuoto('fine', 'La fine prevista non è una data valida.');
     const v = await verifiche.leggi(vid);
     if (v.stato === 'chiusa') throw vuoto('stato', 'La verifica è chiusa: per dare tempo si riapre o si cambia la scadenza di uno studente.');
     if (v.stato === 'aperta' && !(nuovaFine.getTime() > Date.now())) throw vuoto('fine', 'La nuova fine deve essere nel futuro.');
     const delta = v.stato === 'bozza' && v.fine ? nuovaFine.getTime() - v.fine.getTime() : 0;
-    await aggiornaTutto(vid, { fine: sdk.Timestamp.fromDate(nuovaFine) }, { delta });
+    return aggiornaTutto(vid, { fine: sdk.Timestamp.fromDate(nuovaFine) }, v.stato === 'aperta' ? { assoluta: nuovaFine } : { delta });
   }
 
   // Assegna traccia e/o tempo extra (in minuti, rispetto alla fine prevista) a uno studente, in bozza
@@ -278,6 +283,32 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
   }
   const riapriStudente = (vid, email, opzioni) => riapriStudenti(vid, [email], opzioni);
 
+  // Chiude le riaperture individuali (di tutti i riaperti, o solo di `emails`) e raccoglie subito il loro lavoro com'è: chi non
+  // aveva consegnato non può più farlo. Spegne il segno sulla verifica quando non resta nessun riaperto. Gli studenti se ne
+  // accorgono dal proprio lavoro (la sessione termina). Restituisce { terminati, raccolta }.
+  async function terminaRiaperture(vid, { emails = null } = {}) {
+    const v = await verifiche.leggi(vid);
+    if (v.stato !== 'chiusa') throw vuoto('stato', 'Le riaperture si terminano a verifica chiusa.');
+    const scelte = new Set((emails ?? []).map((e) => String(e).toLowerCase()));
+    const tutti = await lavori.elenca(vid);
+    const daChiudere = tutti.filter((l) => l.riaperto && (!emails || scelte.has(l.email)));
+    if (!daChiudere.length) return { terminati: 0, raccolta: null };
+    const resta = tutti.some((l) => l.riaperto && !daChiudere.includes(l));
+    const b = sdk.writeBatch(db);
+    for (const l of daChiudere) b.update(rifLavoro(vid, l.email), { riaperto: false });
+    if (!resta) b.update(rifVerifica(vid), { riaperturaIndividuale: false });
+    try { await b.commit(); } catch (err) {
+      const c = err && err.code;
+      if (c === 'permission-denied') throw vuoto('negato', 'Non posso terminare la riapertura.');
+      if (c === 'unavailable' || c === 'deadline-exceeded') throw vuoto('rete', 'Rete non disponibile: riprova tra poco.');
+      throw vuoto('altro', 'Qualcosa è andato storto. Riprova.');
+    }
+    // Si rilegge: nel frattempo qualcuno può aver consegnato, o scritto un'ultima volta.
+    const nomi = new Set(daChiudere.map((l) => l.email));
+    const raccolta = await consegne.raccogli(vid, (await lavori.elenca(vid)).filter((l) => nomi.has(l.email)));
+    return { terminati: daChiudere.length, raccolta };
+  }
+
   // Carica il file di emergenza di uno studente (a verifica chiusa) come nuova versione.
   async function caricaFile(vid, email, file) {
     const e = String(email || '').toLowerCase();
@@ -400,7 +431,7 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
     // pezzi di base, se servono alla UI
     verifiche, lavori, consegne,
     // operazioni composte
-    crea, cambiaFine, assegna, apri, aggiungiIscritti, iscrittiSenzaLavoro, tempoAggiuntivo, chiudi, raccogli, riapri, riapriStudente, riapriStudenti, caricaFile, situazione, ascoltaSituazione,
+    crea, cambiaFine, assegna, apri, aggiungiIscritti, iscrittiSenzaLavoro, tempoAggiuntivo, chiudi, raccogli, riapri, riapriStudente, riapriStudenti, terminaRiaperture, caricaFile, situazione, ascoltaSituazione,
     archivia, riepilogoApertura, eliminaTraccia, studentiConTraccia, impattoUsaPerTutti, impostaTracciaDefault, riepilogoEliminazione, eliminaVerifica, assegnazioni,
   };
 }

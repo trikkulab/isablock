@@ -422,6 +422,49 @@ test('riapertura di un gruppo: regole sul lavoro nuovo a verifica chiusa', async
   await conSegno(lav());                                                                              // il caso giusto
 });
 
+test('cambiaFine a verifica aperta: sposta la scadenza di chi non ha consegnato (extra compresi), non di chi ha consegnato', async () => {
+  const d = docente();
+  const { vid } = await bozza(d);
+  await d.assegna(vid, BRUNO, { minutiExtra: 10 });
+  await d.apri(vid, { tracciaDefault: 't0' });
+  await lavoroDi(ANNA).salva(vid, { programma: prog(1) });
+  await consDi(ANNA).consegna(vid, {});
+  await lavoroDi(BRUNO).salva(vid, { programma: prog(2) });                          // sta già lavorando
+  const prima = await scadenze(d, vid);
+  const nuova = tra(5 * ORA);
+  assert.equal(await d.cambiaFine(vid, nuova), 2);                                  // Bruno e Carla (non Anna)
+  const dopo = await scadenze(d, vid);
+  assert.equal(dopo[ANNA], prima[ANNA]);                                            // consegnato: non si tocca
+  assert.ok(vicino(dopo[BRUNO], nuova.getTime() + 10 * 60000));                     // fine + i suoi 10 minuti
+  assert.ok(vicino(dopo[CARLA], nuova.getTime()));
+  assert.ok(vicino((await d.situazione(vid)).verifica.fine.getTime(), nuova.getTime()));
+  await d.cambiaFine(vid, tra(ORA));                                                // anche accorciando
+  assert.ok(vicino((await scadenze(d, vid))[CARLA], Date.now() + ORA));
+});
+
+test('terminaRiaperture: chiude gli sblocchi, raccoglie il lavoro com\'è e spegne il segno sulla verifica', async () => {
+  const d = docente();
+  const vid = await chiusaConTre(d);
+  await d.riapriStudenti(vid, [ANNA, BRUNO], { fine: tra(ORA) });
+  await lavoroDi(BRUNO).salva(vid, { programma: prog(8) });                          // lavora e non consegna
+  const r = await d.terminaRiaperture(vid, { emails: [BRUNO] });                    // solo lui
+  assert.equal(r.terminati, 1);
+  let s = await d.situazione(vid);
+  assert.equal(s.ultime[BRUNO].programma, prog(8));                                  // il lavoro a metà è raccolto
+  assert.equal(s.lavori.find((l) => l.email === BRUNO).riaperto, false);
+  assert.equal(s.lavori.find((l) => l.email === ANNA).riaperto, true);
+  assert.equal(s.verifica.riaperturaIndividuale, true);                              // Anna è ancora riaperta
+  await assert.rejects(lavoroDi(BRUNO).salva(vid, { programma: prog(9) }), (e) => e.codice === 'negato');
+  assert.equal((await d.terminaRiaperture(vid)).terminati, 1);                      // tutti i rimasti
+  s = await d.situazione(vid);
+  assert.equal(s.verifica.riaperturaIndividuale, false);
+  await assert.rejects(lavoroDi(ANNA).salva(vid, { programma: prog(9) }), (e) => e.codice === 'negato');
+  assert.equal((await d.terminaRiaperture(vid)).terminati, 0);                      // niente da fare
+  const { vid: aperta } = await bozza(d);
+  await d.apri(aperta, { tracciaDefault: 't0' });
+  await assert.rejects(d.terminaRiaperture(aperta), (e) => e.codice === 'stato');
+});
+
 test('riapertura individuale: rifiuti (aperta, archiviata, fine nel passato, senza lavoro)', async () => {
   const d = docente();
   const { vid } = await bozza(d);
@@ -484,7 +527,7 @@ test('errori di stato e permessi', async () => {
   await assert.rejects(d.raccogli(vid), (e) => e.codice === 'stato');
   await d.apri(vid, { tracciaDefault: 't0' });
   await assert.rejects(d.cambiaFine(vid, tra(-ORA)), (e) => e.codice === 'fine');
-  await d.cambiaFine(vid, tra(4 * ORA));                                          // da aperta: solo il default
+  await d.cambiaFine(vid, tra(4 * ORA));                                          // da aperta: sposta le scadenze di chi non ha consegnato
   await d.chiudi(vid);
   await assert.rejects(d.cambiaFine(vid, tra(4 * ORA)), (e) => e.codice === 'stato');
   await assert.rejects(d.assegna(vid, ANNA, { tracciaId: 't1' }), (e) => e.codice === 'stato');

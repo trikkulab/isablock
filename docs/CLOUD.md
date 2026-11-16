@@ -439,10 +439,15 @@ apri → tempo aggiuntivo / iscritti tardivi → chiudi (raccoglie da sola) → 
   segno sparisce. La riapertura generale e l'archiviazione azzerano segno e `riaperto`; `raccogli` salta chi è riaperto e sta lavorando
   (`inCorso`). Nella tabella lo stato mostra «· riaperto», timer e connessione tornano (`lavoraAdesso` in `verifica-tabella.js`). Nessun «annulla»:
   si accorcia la scadenza con i minuti negativi. Nessun test e2e nel browser per questa parte.
+  **Fine delle riaperture (16 nov 2026, `terminaRiaperture(vid, {emails})`)**: «Termina le riaperture…» nella scheda (visibile solo se c'è qualcuno al
+  lavoro) e «Termina» sulla riga: `riaperto: false`, segno sulla verifica spento quando non ne resta nessuno, poi raccolta del lavoro com'è (chi non aveva
+  consegnato non può più farlo). La testata mostra «Chiusa · N riaperti» e «Riaperti fino a…» (la fine della verifica non cambia con le riaperture
+  individuali); «Archivia…» è rifiutato finché qualcuno lavora; «Carica file…» non compare sulle righe dei riaperti.
   **DA FARE per Ivan: `npm run rules:dev` (emulatore) e `npm run deploy:rules:dev` (sito di prova): regole nuove.**
 - **Scadenza personale = fine prevista + minuti extra**, assoluta nel lavoro. Se la fine cambia in bozza
   (`cambiaFine`) o all'apertura, le scadenze di chi non è entrato si spostano **della stessa differenza,
-  extra compresi, in un solo batch** con la modifica della verifica; da aperta cambia solo il default.
+  extra compresi, in un solo batch** con la modifica della verifica. **Da aperta (16 nov 2026, prima non succedeva)** le scadenze di tutti quelli
+  che NON hanno consegnato (anche chi sta lavorando) diventano nuova fine + i loro `minutiExtra`, sempre in un batch; chi ha consegnato non si tocca.
 - `apri`: crea il lavoro degli iscritti che non l'hanno (traccia di default, vecchia fine), poi in un batch
   sposta le scadenze e apre. Se fallisce non resta niente a metà e riprovare non sposta due volte.
 - `assegna` richiede la fine già impostata; il tempo extra si dà come totale rispetto alla fine, mentre

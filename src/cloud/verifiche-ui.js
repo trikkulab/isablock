@@ -12,7 +12,7 @@ import { rendiMarkdown } from './markdown.js';
 import { verificaConfig } from './verifica-config.js';
 import { perCampo, daCampo, finePredefinita, formatoDataOra } from './data-ora.js';
 import { creaTabellaLive } from './verifica-tabella-ui.js';
-import { contaBlocchi } from './verifica-tabella.js';
+import { contaBlocchi, lavoraAdesso } from './verifica-tabella.js';
 import { apriAnteprima } from './verifica-anteprima-ui.js';
 import { apriSala } from './sala-ui.js';
 import { apriConfronto } from './verifica-confronto-ui.js';
@@ -25,7 +25,7 @@ import { ordinaSchede, nomeFilePdf, nomeFilePdfTutte, nomeVisualizzato } from '.
 import { etichettaCorso } from './corsi.js';
 import { verificaDocenteEtichette as E } from './etichette.js';
 import { puntoDomanda } from './aiuto-ui.js';
-import { testoApertura, testoChiusura, testoRiapertura, testoRiaperturaStudenti, testoArchivia, testoConflitto, esitoRaccolta } from './testi-verifica.js';
+import { testoApertura, testoChiusura, testoRiapertura, testoRiaperturaStudenti, testoTerminaRiaperture, testoArchivia, testoConflitto, esitoRaccolta } from './testi-verifica.js';
 
 const L = verificaConfig.regole;
 const C = verificaConfig.client;
@@ -205,7 +205,11 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
       return !lavoriLive().some((x) => x.lavoro && x.lavoro.scadenza && !x.lavoro.consegnato && !x.ultimaConsegna
         && x.lavoro.scadenza.getTime() + L.graziaSecondi * 1000 > Date.now());
     };
-    const statoVisto = () => (tempoScaduto() ? 'scaduta' : stato());
+    // Studenti riaperti da soli a verifica chiusa che stanno ancora lavorando (tempo non finito, grazia compresa).
+    const riapertiOra = () => (verifica.stato === 'chiusa' && !verifica.archiviata
+      ? lavoriLive().filter((x) => x.lavoro && lavoraAdesso(verifica, x.lavoro, Date.now())).length : 0);
+    const statoVisto = () => (tempoScaduto() ? 'scaduta' : riapertiOra() > 0 ? 'riaperti' : stato());
+    const etichettaStato = (v) => (v === 'riaperti' ? `Chiusa · ${riapertiOra()} ${riapertiOra() === 1 ? 'riaperto' : 'riaperti'}` : STATI[v]);
     const bozza = () => stato() === 'bozza';
     const scrivibile = () => stato() !== 'chiusa';          // tracce e dati modificabili (a verifica aperta: con «Pubblica»)
     const titoloFinestra = () => { intestazione.textContent = `Verifica: ${verifica.titolo} · ${corso.nome}`; };
@@ -250,20 +254,27 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
         : 'Verifica chiusa: le tracce si possono solo leggere.',
     }[stato()];
     const avvisoScaduta = 'Il tempo è finito: gli studenti sono già usciti dalla verifica. Per chiuderla e raccogliere i lavori usa «Termina verifica…».';
-    const testoStato = el('span', { class: 'stato-corso', 'data-stato': statoVisto() }, STATI[statoVisto()]);
+    const avvisoRiaperti = 'Verifica chiusa per tutti tranne gli studenti riaperti, che stanno ancora lavorando: le tracce si possono solo leggere.';
+    const testoStato = el('span', { class: 'stato-corso', 'data-stato': statoVisto() }, etichettaStato(statoVisto()));
+    // Le riaperture individuali non cambiano la fine della verifica (resta quella di prima): si dice fino a quando lavorano i riaperti.
+    const testoRiaperti = el('span', { class: 'sketch-data verifica-riaperti', hidden: '' });
     const testoAvviso = avviso ? el('p', { class: 'sketch-nota verifica-avviso' }, tempoScaduto() ? avvisoScaduta : avviso) : '';
     f.corpo.append(
       el('div', { class: 'verifica-testata' },
         campo('Titolo', titolo),
         campo(bozza() ? 'Fine prevista (provvisoria)' : 'Fine prevista', fine, null, 'fine'),
-        el('div', { class: 'verifica-stato' }, testoStato, verifica.archiviata ? badge('archiviata') : '', esito)),
+        el('div', { class: 'verifica-stato' }, testoStato, testoRiaperti, verifica.archiviata ? badge('archiviata') : '', esito)),
       testoAvviso);
     // Aggiorna a vista lo stato quando il tempo scade (o torna aperta, se si sposta la fine) senza richiudere la scheda.
     const aggiornaScadenza = () => {
       const v = statoVisto();
       testoStato.dataset.stato = v;
-      testoStato.textContent = STATI[v];
-      if (avviso) testoAvviso.textContent = v === 'scaduta' ? avvisoScaduta : avviso;
+      testoStato.textContent = etichettaStato(v);
+      const fini = v === 'riaperti' ? lavoriLive().filter((x) => x.lavoro && lavoraAdesso(verifica, x.lavoro, Date.now())).map((x) => x.lavoro.scadenza.getTime()) : [];
+      testoRiaperti.hidden = fini.length === 0;
+      if (fini.length) testoRiaperti.textContent = `Riaperti fino a ${formatoDataOra.format(new Date(Math.max(...fini)))}`;
+      btnTerminaRiaperture.hidden = fini.length === 0;
+      if (avviso) testoAvviso.textContent = v === 'scaduta' ? avvisoScaduta : v === 'riaperti' ? avvisoRiaperti : avviso;
     };
     const timerScadenza = setInterval(() => { if (!finestre.has(f)) clearInterval(timerScadenza); else aggiornaScadenza(); }, 5000);
 
@@ -272,10 +283,13 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
     // La situazione live (passo 9) sta nella scheda «Situazione», sotto.
     const azioni = el('div', { class: 'verifica-azioni' });
     const bottone = (testo, fn, primario = false) => el('button', { type: 'button', class: `modal-btn${primario ? '' : ' secondary'}`, onclick: fn }, testo);
+    // «Termina le riaperture…»: compare solo se c'è qualcuno riaperto che sta lavorando (si aggiorna con i dati live).
+    const btnTerminaRiaperture = bottone(E.terminaRiaperture, () => dialogoTerminaRiaperture(null), true);
+    btnTerminaRiaperture.hidden = true;
     if (bozza()) azioni.append(bottone(E.avvia, () => dialogoApertura(), true));
     else if (stato() === 'aperta') azioni.append(bottone(E.termina, () => dialogoChiusura(), true));
     else if (verifica.archiviata) azioni.append(bottone(E.ripristina, () => ripristinaVerifica()));
-    else azioni.append(bottone(E.raccogli, () => raccogliLavori()), puntoDomanda('raccogli'), bottone(E.riapri, () => dialogoRiapertura()), puntoDomanda('riapri'), bottone(E.archivia, () => archiviaVerifica()));
+    else azioni.append(btnTerminaRiaperture, bottone(E.raccogli, () => raccogliLavori()), puntoDomanda('raccogli'), bottone(E.riapri, () => dialogoRiapertura()), puntoDomanda('riapri'), bottone(E.archivia, () => archiviaVerifica()));
     f.corpo.append(azioni);
 
     // Dopo un cambio di stato la scheda si richiude e si riapre aggiornata.
@@ -384,6 +398,21 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
       });
     }
 
+    // `emails` null = tutti i riaperti. Chiude le riaperture e raccoglie il loro lavoro com'è.
+    function dialogoTerminaRiaperture(emails) {
+      const quanti = emails ? emails.length : riapertiOra();
+      if (!quanti) return;
+      dialogo({
+        titolo: quanti === 1 ? 'Terminare la riapertura?' : `Terminare le ${quanti} riaperture?`, righe: testoTerminaRiaperture.righe(quanti), etichetta: 'Termina',
+        async onConferma(d) {
+          const r = await vd.terminaRiaperture(vid, { emails });
+          d.chiudi();
+          toast(r.terminati ? `Riapertura terminata. Lavori: ${esitoRaccolta(r.raccolta)}.` : 'Nessuna riapertura da terminare.', 'success');
+          dopoRiapertura();
+        },
+      });
+    }
+
     async function raccogliLavori() {
       try {
         const esito = await vd.raccogli(vid);
@@ -435,6 +464,8 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
         el('div', { class: 'modal-actions' }, conferma, el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => d.chiudi() }, 'Chiudi')));
     }
     async function archiviaVerifica() {
+      // Archiviare spegne lo sblocco individuale e butta fuori chi sta lavorando: prima si aspetta che finiscano.
+      if (riapertiOra() > 0) { toast(`Non si può archiviare: ${riapertiOra()} ${riapertiOra() === 1 ? 'studente sta ancora lavorando' : 'studenti stanno ancora lavorando'} (riaperti). Aspetta che consegnino o che il loro tempo finisca.`, 'error'); return; }
       if (!window.confirm(`Archivio la verifica «${verifica.titolo}»?\n${testoArchivia}`)) return;
       try {
         await vd.archivia(vid);
@@ -751,10 +782,11 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
       const sala = programma && programma.anteprima && programma.renderBlocchi
         ? () => apriSala({ apri, tabella, programma, caricaStoria: storiaConConsegne, osserva: osservaDalVivo, titolo: `Sala · ${verifica.titolo}` })
         : null;
-      tabella = creaTabellaLive({ vd, vid, toast, guarda, sala, caricaFile, selezione: { ha: (e) => selezionati.has(e), cambia: (e, on) => { if (on) selezionati.add(e); else selezionati.delete(e); dopoRiapertura(); } }, scaricaPdf: conPdf ? scaricaPdf : null, scaricaTutti: conPdf ? scaricaTutti : null, esportaJson: conPdf ? esportaJson : null });
+      tabella = creaTabellaLive({ vd, vid, toast, guarda, sala, caricaFile, terminaStudente: dialogoTerminaRiaperture, selezione: { ha: (e) => selezionati.has(e), cambia: (e, on) => { if (on) selezionati.add(e); else selezionati.delete(e); dopoRiapertura(); } }, scaricaPdf: conPdf ? scaricaPdf : null, scaricaTutti: conPdf ? scaricaTutti : null, esportaJson: conPdf ? esportaJson : null });
       chiudiTabella = tabella.distruggi;
       azioni.prepend(tabella.azioniTutti);                 // «Scarica PDF di tutti» ed «Esporta JSON di tutti» stanno accanto a «Raccogli i lavori»
       lavoriLive = tabella.tutti;
+      tabella.ascolta(aggiornaScadenza);                  // gli studenti riaperti compaiono/spariscono dalla testata appena arrivano i dati
       aggiornaScadenza();
       // Iscritti arrivati dopo l'apertura: senza il loro lavoro non vedono la verifica. L'avviso compare solo se ce n'è almeno uno.
       const testoMancanti = el('span', {});

@@ -16,7 +16,7 @@ function testoOffline(ms) {
 }
 
 // `vd`: oggetto di verifica-docente.js. Restituisce { elemento, distruggi }.
-export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = null, scaricaPdf = null, scaricaTutti = null, esportaJson = null, sala = null, selezione = null }) {
+export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = null, scaricaPdf = null, scaricaTutti = null, esportaJson = null, sala = null, terminaStudente = null, selezione = null }) {
   let ultimo = null;                // ultimo { verifica, lavori, ultime, ora } ricevuto
   let modo = 'email';
   const seguaci = new Set();        // chi vuole il lavoro di uno studente a ogni aggiornamento: { email, cb }
@@ -100,7 +100,8 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
         cella(x, el('div', { class: 'tabella-pulsanti' },
           guarda ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Guarda il programma (sola lettura)', onclick: () => guarda(x.email, x.nome) }, E.guarda) : '',
           scaricaPdf && ultimo.verifica.stato === 'chiusa' && x.versioneConsegna !== null ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Scarica la scheda di consegna di questo studente in PDF (A4)', onclick: () => scaricaPdf(x.email) }, E.scaricaPdf) : '',
-          caricaFile && ultimo.verifica.stato === 'chiusa' ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Carica il file di emergenza di questo studente come nuova consegna', onclick: () => caricaFile(x.email, x.nome) }, E.caricaFile) : ''))));
+          terminaStudente && x.riaperto ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Chiudi la riapertura di questo studente e raccogli il suo lavoro', onclick: () => terminaStudente([x.email]) }, E.terminaStudente) : '',
+          caricaFile && ultimo.verifica.stato === 'chiusa' && !x.riaperto ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Carica il file di emergenza di questo studente come nuova consegna', onclick: () => caricaFile(x.email, x.nome) }, E.caricaFile) : ''))));
     }
   }
 

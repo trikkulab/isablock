@@ -63,6 +63,14 @@ export const testoRiaperturaStudenti = {
   nuovi: (n) => (n === 1 ? 'Uno di loro non aveva ancora la verifica (è arrivato dopo): riceve la traccia' : `${n} di loro non avevano ancora la verifica (sono arrivati dopo): ricevono la traccia`),
 };
 
+// Fine delle riaperture individuali (pulsante nella scheda, o «Termina» sulla riga di uno studente).
+export const testoTerminaRiaperture = {
+  righe: (quanti) => [
+    quanti === 1 ? 'Lo studente riaperto esce subito dalla verifica.' : `I ${quanti} studenti riaperti escono subito dalla verifica.`,
+    'Il loro lavoro viene raccolto com\'è adesso: chi non ha ancora consegnato non potrà più farlo (si può sempre riaprire di nuovo).',
+  ],
+};
+
 export const testoArchivia = 'La verifica sparisce dall\'elenco (la ritrovi con «Mostra anche le archiviate»). Gli studenti vedono ancora la propria consegna. Per riaprirla dovrai prima ripristinarla.';
 
 // Messaggio dopo la raccolta
