@@ -3,6 +3,8 @@
 // nell'editor per lavorarci (non cambia la consegna) o salvarla su file. Non c'è per le verifiche aperte né in verifica
 // (il menu del cloud, in verifica, è spento).
 import { el, apriFinestra } from './dom.js';
+import { creaPannelloTraccia } from './pannello-traccia.js';
+import { mostraTracciaEditor } from './scheda-traccia-editor.js';
 import { formatoDataOra } from './data-ora.js';
 import { etichettaCorso } from './corsi.js';
 import { apriAnteprima } from './verifica-anteprima-ui.js';
@@ -34,13 +36,17 @@ export function montaConsegne({ toast, programma, dopoCaricamento = () => {} }) 
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
+  const contestoTraccia = (v, c) => `Consegna v${c.versione} · ${v.titolo}`;
+
   function guarda(v, c) {
     apriAnteprima({
+      // La traccia che aveva, nella scheda «Traccia» aperta all'inizio: come in verifica. Lo studente legge solo la sua (regole del database).
+      leggiTraccia: (id) => api.verifiche.leggiTraccia(v.id, id), schedaIniziale: 'traccia', contestoTraccia: contestoTraccia(v, c),
       apri: (titolo, onChiudi, opzioni) => apriFinestra(titolo, onChiudi, opzioni),
       programma, email: api.email, nome: `${v.titolo} · consegna v${c.versione}`,
       titolo: `La tua consegna v${c.versione}: ${v.titolo}`,
       nota: 'Sola lettura: è la copia che hai consegnato e non si può modificare.',
-      segui: (_e, cb) => { cb({ programma: c.programma, nBlocchi: contaBlocchi(c.programma), consegnato: true, ultimoSegnale: null }); return () => {}; },
+      segui: (_e, cb) => { cb({ tracciaId: c.tracciaId ?? null, programma: c.programma, nBlocchi: contaBlocchi(c.programma), consegnato: true, ultimoSegnale: null }); return () => {}; },
     });
   }
 
@@ -50,6 +56,12 @@ export function montaConsegne({ toast, programma, dopoCaricamento = () => {} }) 
     try { programma.carica(c.programma); } catch { toast('Non riesco ad aprire questa consegna.', 'error'); return; }
     dopoCaricamento();
     finestra?.chiudi();
+    // La traccia di quella consegna nella scheda «Traccia» dell'editor (aperta, come in verifica); se non si legge, niente.
+    if (c.tracciaId) {
+      api.verifiche.leggiTraccia(v.id, c.tracciaId)
+        .then(async (t) => mostraTracciaEditor(await creaPannelloTraccia({ traccia: t, contesto: contestoTraccia(v, c) }), { apri: true }))
+        .catch(() => {});
+    }
     toast(`Consegna v${c.versione} aperta nell'editor: è una copia, la consegna resta com'è.`, 'success');
   }
 

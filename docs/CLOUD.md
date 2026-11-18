@@ -634,6 +634,18 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
       (ordine alfabetico per cognome come nel PDF; a verifica chiusa vale la consegna, altrimenti il lavoro). Passando da uno studente all'altro non
       si chiede conferma se la copia aperta non è stata modificata (si confronta l'hash del JSON all'apertura con quello attuale). Prove:
       `test/copia-di-prova.mjs`, e2e docente (clic vero, banda, copia automatica ferma, ritorno alla verifica).
+    - **La traccia nelle consegne (13-18 nov 2026, `pannello-traccia.js`, `scheda-traccia-editor.js`)**: il pannello (titolo, Markdown reso, zoom A−/A+ con
+      la stessa chiave dello zoom dello studente in verifica) è una funzione sola. (1) Finestra «Guarda», di docente E studente (`apriAnteprima`, parametro
+      `leggiTraccia(id)`): scheda «Traccia» ULTIMA, dopo Python, e sopra il programma una riga fissa «Traccia: titolo» sempre in vista. Il docente apre
+      lo pseudocodice e la scheda scelta per ultima resta (anche riaprendo la finestra); lo studente che rivede una consegna parte dalla traccia
+      (`schedaIniziale: 'traccia'`), come in verifica. La traccia è quella del lavoro o, a verifica chiusa, della consegna. (2) Copia di prova del docente: la
+      banda dice «· Traccia: titolo» e nel pannello dei codici dell'editor compare la scheda «Traccia» (la stessa di `index.html` che usa lo studente in
+      verifica), NON aperta da sola; con ◀ ▶ si aggiorna e, se era aperta, resta aperta. (3) Lo studente che apre una consegna nell'editor (`consegne-ui.js`):
+      scheda «Traccia» nell'editor, aperta, con la traccia di quella consegna; il salvataggio automatico per lui resta acceso (è suo lavoro). La scheda sparisce
+      quando il programma viene sostituito (`programma.onSostituzione` di main.js, che fa sparire anche la banda; Nuovo/file/esempio via `scollega`).
+      Lo studente legge solo la traccia assegnata nel suo lavoro (regola già in vigore, anche a verifica chiusa: nessuna regola cambiata). (4) Tabella live:
+      colonna «Traccia» (titolo) solo se la verifica ha più di una traccia. Il pannello dello studente in verifica (`verifica-studente-ui.js`) NON usa ancora la
+      funzione condivisa (circa 25 righe duplicate): da unificare. Prove: `test/verifica-tabella.mjs`, e2e docente e studente.
     - **Disposizione adattiva**: le parti scelte, nell'ordine blocchi · pseudocodice · C · Python. Due parti consecutive stanno AFFIANCATE
       solo se entrambe ci stanno nella colonna SENZA andare a capo (codice: riga più lunga entro la colonna; blocchi: scala non sotto 0,8 e
       pagina intera sufficiente); altrimenti ognuna sta a tutta larghezza. Una riga di codice più larga della pagina rimpicciolisce il

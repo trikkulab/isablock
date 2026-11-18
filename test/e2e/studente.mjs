@@ -476,6 +476,8 @@ try {
   await scrivi('verifiche/vy', { corsoId: S('ST1DEN'), titolo: S('Verifica più vecchia'), stato: S('chiusa'), fine: T(ora() - 9 * 60 * MIN), tracciaDefault: S('t0'), creataDa: S('docente@isarome.it'), creato: T(ora() - 10 * 60 * MIN), apertaIl: T(ora() - 9.5 * 60 * MIN), chiusaIl: T(ora() - 9 * 60 * MIN) });
   await scrivi(`verifiche/vy/consegne/${ANNA}_1`, { studenteEmail: S(ANNA), studenteNome: S('Anna Rossi'), corsoId: S('ST1DEN'), titolo: S('Verifica più vecchia'), versione: { integerValue: '1' }, origine: S('raccolta'), tracciaId: S('t0'), programma: S(programmaZ), creato: T(ora() - 9 * 60 * MIN), docenteEmail: S('docente@isarome.it') });
   await consegnaZ(1, 'studente');
+  await scrivi('verifiche/vz/tracce/t0', { titolo: S('Somma dei numeri'), testoMd: S('Calcola la **somma** dei numeri.'), rev: { integerValue: '0' }, modificato: T(ora() - 4 * 60 * MIN) });
+  await scrivi(`verifiche/vz/lavori/${ANNA}`, { email: S(ANNA), tracciaId: S('t0') });                // lo studente legge solo la traccia che ha nel lavoro
   await consegnaZ(2, 'file', { docenteEmail: S('docente@isarome.it'), impronta: S('abc'), nomeFile: S('anna.isablock') });
   await page.waitForSelector('h2:has-text("Lavoro di verifica non consegnato")', { timeout: 8000 }).then(() => page.click('.modal:not([hidden]) button:has-text("Ok")')).catch(() => {});   // la proposta del file, se è comparsa
   await page.click('.cloud-menu-btn');
@@ -497,6 +499,8 @@ try {
   await page.waitForSelector('h2:has-text("La tua consegna v2")');
   verifica(await finche(page, async () => (await page.$$('.anteprima-blocchi .blocklyBlockCanvas [data-id]')).length > 3), 'Guarda: i blocchi della consegna');
   verifica(/non si può modificare/.test(await page.textContent('.modal:not([hidden]):last-of-type .modal-box')) && !(await page.isVisible('button:has-text("Storia")')), '…in sola lettura, senza storia');
+  verifica(await finche(page, async () => /Traccia: Somma dei numeri/.test(await page.textContent('.anteprima-traccia-titolo'))), 'Guarda: il titolo della traccia che aveva è sempre in vista');
+  verifica(await page.isVisible('.anteprima-traccia .traccia-md') && /somma/.test(await page.textContent('.anteprima-traccia .traccia-md')) && !(await page.isVisible('.anteprima-codice >> nth=0')) && /Consegna v2 · Verifica già conclusa/.test(await page.textContent('.anteprima-traccia')), '…e la scheda «Traccia» è quella aperta all\'inizio (come in verifica), con la consegna di cui si parla'); 
   await page.keyboard.press('Escape');
   verifica(await page.isVisible('h2:has-text("Le mie consegne")'), 'Esc chiude solo la consegna guardata, l\'elenco resta');
   verifica(await page.evaluate(() => !!window.Blockly.getMainWorkspace().getParentSvg().closest('#blocklyDiv')), 'dopo Guarda il workspace principale di Blockly è ancora quello dell\'editor (non un\'anteprima chiusa)');
@@ -511,6 +515,10 @@ try {
   await page.waitForSelector('h2:has-text("Le mie consegne")', { state: 'detached', timeout: 5000 });
   verifica(/andrà perso/.test(conferma), 'Apri nell\'editor: con del lavoro nell\'editor chiede conferma');
   verifica((await pseudo(page)).includes('Legge i due numeri'), '…e il programma consegnato è nell\'editor (una copia)');
+  verifica(await finche(page, async () => await page.isVisible('#tabTraccia') && await page.$eval('#tabTraccia', (e) => e.classList.contains('active')) && /somma/.test(await page.textContent('#tracciaBox'))), '…con la scheda «Traccia» nell\'editor, aperta come in verifica');
+  page.once('dialog', (d) => d.accept());
+  await page.click('#btnNew');
+  verifica(await finche(page, async () => !(await page.isVisible('#tabTraccia'))), '…e la scheda «Traccia» sparisce quando il programma viene sostituito (Nuovo)');
   const consegneZ = (await leggi('verifiche/vz/consegne')).documents ?? [];
   verifica(consegneZ.length === 2, 'la consegna non cambia (immutabile): restano le due versioni');
 

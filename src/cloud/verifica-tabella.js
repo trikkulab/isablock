@@ -135,6 +135,7 @@ export function costruisciRighe({ verifica, lavori, ultime = {}, ora }) {
       timer: timerRiga({ lavoro, verifica, ora, consegnato }),
       connessione: connessioneRiga({ lavoro, verifica, ora, consegnato }),
       doppiaSessione: lavoro.doppiaSessione > 0,
+      tracciaId: (consegna && consegna.tracciaId) || lavoro.tracciaId || null,       // a verifica chiusa fa fede la traccia della consegna
       versioneConsegna: consegna ? consegna.versione : null,
       origineConsegna: consegna ? consegna.origine : null,
     };

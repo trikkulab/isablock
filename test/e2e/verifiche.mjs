@@ -356,6 +356,16 @@ try {
   verifica(/Programma di Anna Rossi/.test(await page.textContent('h2:has-text("Programma di")')) && /ultimo segnale alle/.test(await page.textContent('.anteprima-info')), 'Guarda: titolo con il nome e ultimo segnale');
   verifica(await page.$('.anteprima-blocchi .blocklyToolboxDiv') === null && await page.$('.anteprima-blocchi .blocklyFlyout') === null, 'Guarda: nessuna tavolozza (non si può modificare)');
   verifica(await page.isVisible('.modal-actions button:has-text("Apri una copia per provarla")'), 'Guarda: c\'è «Apri una copia per provarla»');
+  const schedeGuarda = await page.$$eval('.anteprima-lato .verifica-scheda', (b) => b.map((x) => x.textContent));
+  verifica(JSON.stringify(schedeGuarda) === JSON.stringify(['Pseudocodice', 'C', 'Python', 'Traccia']) && (await page.$$('.anteprima-lato .verifica-scheda.attiva')).length === 1, 'Guarda: la scheda «Traccia» è l\'ultima, dopo Python (si apre l\'ultima scheda scelta in precedenza, non la traccia da sola)');
+  verifica(await finche(async () => /^Traccia: \S/.test(await page.textContent('.anteprima-traccia-titolo')) && !/non disponibile|nessuna/.test(await page.textContent('.anteprima-traccia-titolo'))), 'Guarda: il titolo della traccia è sempre in vista sopra il programma');
+  await page.click('.anteprima-lato .verifica-scheda:has-text("Traccia")');
+  verifica(await finche(async () => await page.isVisible('.anteprima-traccia .traccia-md') && (await page.textContent('.anteprima-traccia .traccia-md')).length > 3), 'Guarda: la scheda «Traccia» mostra il testo');
+  await page.click('.anteprima-lato .verifica-scheda:has-text("Pseudocodice")');
+  const nTracceVerifica = (await page.$$('.traccia-nome')).length;
+  const colonnaTraccia = (await page.$$eval('.tabella-live thead th', (t) => t.filter((x) => !x.hidden).map((x) => x.textContent))).some((t) => /^Traccia/.test(t));
+  console.log(`        (tracce nella verifica: ${nTracceVerifica}, colonna «Traccia» visibile: ${colonnaTraccia})`);
+  verifica(colonnaTraccia === (nTracceVerifica > 1) && (!colonnaTraccia || (await page.$$('.tabella-live tbody td.tabella-traccia')).length > 0), 'tabella: la colonna «Traccia» c\'è solo con più di una traccia, e allora mostra i titoli');
   await schermata(page, 'v-9c-guarda');
   // storia: istantanee seminate dal database (come le scriverebbe lo studente), cursore, salti
   const piccolo = JSON.stringify({ ...esempio, blocks: { ...esempio.blocks, blocks: [{ type: 'program', id: 'p1', x: 40, y: 40 }] } });
@@ -404,6 +414,8 @@ try {
   const testoBanda = await page.textContent('.banda-copia');
   verifica(/COPIA DI PROVA/.test(testoBanda) && /Anna Rossi/.test(testoBanda) && /non modifica l'originale/.test(testoBanda), 'Copia di prova: la banda dice di chi è la copia e che non modifica la consegna');
   verifica(!(await page.isVisible('.banda-copia button:has-text("Ho capito")')), 'Copia di prova: la banda non si può nascondere');
+  verifica(/Traccia: \S/.test(await page.textContent('.banda-copia')) && await page.isVisible('#tabTraccia') && !(await page.$eval('#tabTraccia', (e) => e.classList.contains('active'))), 'Copia di prova: la banda dice la traccia e nell\'editor c\'è la scheda «Traccia» (dopo Python), non aperta da sola');
+  verifica(/./.test(await page.textContent('#tracciaBox')) && (await page.$$eval('.outputs .tab-btn', (b) => b.filter((x) => !x.hidden).map((x) => x.textContent))).slice(-1)[0] === 'Traccia', 'Copia di prova: la scheda mostra il testo della traccia di quella consegna');
   const blocchiEditor = await page.evaluate(() => { const w = window.Blockly.Workspace.getAll().find((x) => x.getParentSvg().closest('#blocklyDiv')); return w ? w.getAllBlocks(false).length : -1; });
   verifica(blocchiEditor > 3, `Copia di prova: i blocchi di Anna sono nell'editor (${blocchiEditor})`);
   verifica((await page.$$('.modal:visible')).length === 0, 'Copia di prova: tutte le finestre si chiudono (anche quella dei corsi), l\'editor è libero');

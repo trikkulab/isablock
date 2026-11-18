@@ -6,8 +6,11 @@ import { el } from './dom.js';
 import { contaBlocchi } from './verifica-tabella.js';
 import { codiceRiscontro } from './scheda-stampa.js';
 import { verificaDocenteEtichette as E } from './etichette.js';
+import { creaPannelloTraccia } from './pannello-traccia.js';
 
 const CODICI = [['pseudocode', 'Pseudocodice'], ['c', 'C'], ['python', 'Python']];
+// L'ultima scheda scelta da chi guarda (docente), che resta aperta anche riaprendo la finestra o passando a un altro studente.
+let ultimaScheda = 'pseudocode';
 const ora = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
 // `apri(titolo, onChiudi, opzioni)`: la finestra del modulo chiamante. `segui(email, cb)` chiama cb(lavoro, consegna, verifica) subito (se noto)
@@ -16,23 +19,33 @@ const ora = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit
 // avvia la vista dal vivo (lo studente salva più spesso finché la finestra è aperta) e restituisce la funzione per fermarla,
 // oppure null se non si può (verifica non aperta, studente non entrato).
 // Restituisce la finestra, o null se mancano i mezzi.
+// `leggiTraccia(id)`: se c'è, compare la scheda «Traccia» (dopo Python) e, sopra, il titolo della traccia sempre visibile; legge { titolo, testoMd } o
+// lancia. `schedaIniziale`: la scheda aperta all'inizio (lo studente che rivede una consegna parte dalla traccia, com'era in verifica); senza, resta
+// quella scelta l'ultima volta. `contestoTraccia`: riga sopra il testo della traccia («Consegna v2 · …»).
 // `apriCopia({ programma, chi })`: se c'è, in fondo compare «Apri una copia per provarla» (carica nell'editor ciò che si sta guardando).
-export function apriAnteprima({ apri, programma, segui, caricaStoria = null, osserva = null, email, nome, titolo = null, nota = null, apriCopia = null }) {
+export function apriAnteprima({ apri, programma, segui, caricaStoria = null, osserva = null, email, nome, titolo = null, nota = null, apriCopia = null, leggiTraccia = null, schedaIniziale = null, contestoTraccia = null }) {
   if (!programma || !programma.anteprima) return null;
   const blocchi = el('div', { class: 'anteprima-blocchi' });
   const pre = Object.fromEntries(CODICI.map(([k]) => [k, el('pre', { class: 'code-body anteprima-codice' })]));
   const bottoni = new Map();
+  const schede = leggiTraccia ? [...CODICI, ['traccia', 'Traccia']] : CODICI;
+  const pannelli = { ...pre };
+  if (leggiTraccia) pannelli.traccia = el('div', { class: 'traccia-pannello anteprima-traccia', hidden: '' });
+  const ricorda = schedaIniziale === null;
   const scegli = (k) => {
-    for (const [c] of CODICI) { pre[c].hidden = c !== k; bottoni.get(c).classList.toggle('attiva', c === k); bottoni.get(c).setAttribute('aria-selected', String(c === k)); }
+    if (ricorda) ultimaScheda = k;
+    for (const [c] of schede) { pannelli[c].hidden = c !== k; bottoni.get(c).classList.toggle('attiva', c === k); bottoni.get(c).setAttribute('aria-selected', String(c === k)); }
   };
   const barra = el('div', { class: 'verifica-schede', role: 'tablist' });
-  for (const [k, testo] of CODICI) {
+  for (const [k, testo] of schede) {
     const b = el('button', { type: 'button', role: 'tab', class: 'verifica-scheda', onclick: () => scegli(k) }, testo);
     bottoni.set(k, b); barra.append(b);
   }
   const info = el('p', { class: 'sketch-nota anteprima-info', 'aria-live': 'off' });
+  const rigaTraccia = leggiTraccia ? el('p', { class: 'anteprima-traccia-titolo' }) : '';
   const vuoto = el('p', { class: 'sketch-nota anteprima-vuoto', hidden: '' }, 'Questo studente non ha ancora scritto niente.');
   let anteprima = null;
+  let tracciaMostrata;   // id della traccia mostrata (undefined: nessuna ancora); dichiarata qui perché `segui` chiama subito disegna()
   let annulla = () => {};
   let fermaOsserva = () => {};
   const f = apri(titolo ?? `Programma di ${nome || email}`, () => { annulla(); fermaOsserva(); anteprima?.distruggi(); }, { larga: true });
@@ -40,12 +53,13 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, oss
   fermaOsserva = stopOsserva || (() => {});
   f.corpo.append(
     info,
+    rigaTraccia,
     vuoto,
-    el('div', { class: 'anteprima-corpo' }, blocchi, el('div', { class: 'anteprima-lato' }, barra, ...CODICI.map(([k]) => pre[k]))),
+    el('div', { class: 'anteprima-corpo' }, blocchi, el('div', { class: 'anteprima-lato' }, barra, ...schede.map(([k]) => pannelli[k]))),
     el('p', { class: 'sketch-nota' }, nota ?? (stopOsserva
       ? 'Sola lettura. Finché questa finestra è aperta lo studente salva più spesso: il programma si aggiorna da solo, di solito entro pochi secondi.'
       : 'Sola lettura. Il programma si aggiorna da solo quando lo studente salva (di solito entro 25 secondi).')));
-  scegli('pseudocode');
+  scegli(schedaIniziale ?? (schede.some(([k]) => k === ultimaScheda) ? ultimaScheda : 'pseudocode'));
   anteprima = programma.anteprima({ blocchi, codici: pre });
   requestAnimationFrame(() => anteprima?.ridimensiona());
 
@@ -155,7 +169,7 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, oss
   if (apriCopia) {
     f.corpo.append(el('div', { class: 'modal-actions' },
       el('button', { type: 'button', class: 'modal-btn secondary', title: 'Carica nell\'editor una copia di ciò che stai guardando, per eseguirla e provarla: la consegna non cambia',
-        onclick: () => apriCopia({ programma: ultimo, chi: `${nome || email}` }) }, E.apriCopiaProva)));
+        onclick: () => apriCopia({ programma: ultimo, chi: `${nome || email}`, tracciaId: tracciaMostrata ?? null }) }, E.apriCopiaProva)));
   }
   annulla = segui(email, (lavoro, consegna = null, verifica = null) => {
     if (!lavoro) return;
@@ -168,9 +182,9 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, oss
   // aperta il lavoro in diretta, e solo se è vuoto (per esempio chi non è mai entrato) la consegna, se c'è.
   function sorgente({ lavoro, consegna, verifica }) {
     const dallaConsegna = consegna && consegna.programma && (verifica?.stato === 'chiusa' || !lavoro.programma);
-    if (!dallaConsegna) return lavoro;
+    if (!dallaConsegna) return { ...lavoro, tracciaId: lavoro.tracciaId ?? consegna?.tracciaId ?? null };
     const come = consegna.origine === 'file' ? ' (da file)' : consegna.origine === 'raccolta' ? ' (raccolta)' : '';
-    return { programma: consegna.programma, nBlocchi: contaBlocchi(consegna.programma), consegnato: false, ultimoSegnale: null, etichetta: ` · ultima consegna: v${consegna.versione}${come}`, riscontro: codiceRiscontro(consegna.programma) };
+    return { tracciaId: consegna.tracciaId ?? lavoro.tracciaId ?? null, programma: consegna.programma, nBlocchi: contaBlocchi(consegna.programma), consegnato: false, ultimoSegnale: null, etichetta: ` · ultima consegna: v${consegna.versione}${come}`, riscontro: codiceRiscontro(consegna.programma) };
   }
 
   // Il lavoro sul server è più recente di una consegna da file di emergenza: lo dice, perché la raccolta è da decidere.
@@ -181,8 +195,26 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, oss
     if (c) avvisoConsegna.textContent = 'Sul server c\'è un lavoro più recente dell\'ultima consegna: la raccolta è da decidere. Lo vedi nella Storia, dopo la consegna.';
   }
 
+  // Titolo della traccia sempre visibile e testo nella scheda «Traccia»: si rileggono solo quando la traccia cambia.
+  async function aggiornaTraccia(id) {
+    if (!leggiTraccia || id === tracciaMostrata) return;
+    tracciaMostrata = id;
+    rigaTraccia.textContent = id ? 'Traccia: …' : 'Traccia: nessuna assegnata';
+    pannelli.traccia.textContent = '';
+    if (!id) { pannelli.traccia.append(await creaPannelloTraccia({ traccia: null, contesto: contestoTraccia })); return; }
+    let t = null;
+    try { t = await leggiTraccia(id); } catch { t = null; }
+    if (id !== tracciaMostrata) return;                  // nel frattempo è cambiata
+    const pannello = await creaPannelloTraccia({ traccia: t, contesto: contestoTraccia });
+    if (id !== tracciaMostrata) return;
+    rigaTraccia.textContent = t ? `Traccia: ${t.titolo}` : 'Traccia: non disponibile';
+    pannelli.traccia.textContent = '';
+    pannelli.traccia.append(pannello);
+  }
+
   function disegna(stato) {
     const lavoro = sorgente(stato);
+    aggiornaTraccia(lavoro.tracciaId ?? null);
     segnalaConflitto(stato, !!lavoro.etichetta);
     if (!lavoro.programma) {
       if (ultimo !== '') { anteprima.vuota(); ultimo = ''; }

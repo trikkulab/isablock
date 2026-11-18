@@ -16,7 +16,7 @@ function testoOffline(ms) {
 }
 
 // `vd`: oggetto di verifica-docente.js. Restituisce { elemento, distruggi }.
-export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = null, scaricaPdf = null, scaricaTutti = null, esportaJson = null, sala = null, terminaStudente = null, selezione = null }) {
+export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = null, scaricaPdf = null, scaricaTutti = null, esportaJson = null, sala = null, terminaStudente = null, selezione = null, tracce = null }) {
   let ultimo = null;                // ultimo { verifica, lavori, ultime, ora } ricevuto
   let modo = 'email';
   const seguaci = new Set();        // chi vuole il lavoro di uno studente a ogni aggiornamento: { email, cb }
@@ -28,11 +28,14 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
   const ordine = el('select', { class: 'tabella-ordine', 'aria-label': 'Ordine delle righe' },
     el('option', { value: 'email' }, 'Ordina per nome'), el('option', { value: 'attenzione' }, 'Prima chi richiede attenzione'));
   ordine.addEventListener('change', () => { modo = ordine.value; disegna(); });
+  // La colonna «Traccia» c'è solo se la verifica ha più di una traccia (con una sola non dice niente).
+  const thTraccia = el('th', { title: 'La traccia che ha lo studente (a verifica chiusa, quella della consegna)', hidden: '' }, 'Traccia');
+  const conTraccia = () => !!(tracce && tracce.quante() > 1);
   const intestazione = (testo, titolo, aiuto) => el('th', titolo ? { title: titolo } : {}, testo, aiuto ? puntoDomanda(aiuto) : '');
   const tabella = el('table', { class: 'tabella-live' },
     el('thead', {}, el('tr', {},
       selezione ? el('th', { class: 'tabella-selez', 'aria-label': 'Selezione' }) : '',
-      intestazione('Studente'), intestazione('Stato'),
+      intestazione('Studente'), intestazione('Stato'), thTraccia,
       intestazione('Blocchi', `Blocchi adesso e variazione negli ultimi ${C.finestraIncrementoMin} minuti`),
       intestazione('Esecuzioni', 'Numero di esecuzioni e esito dell\'ultima'),
       intestazione('Connessione'), intestazione('Tempo'), intestazione('Programma', null, 'caricaFile'))),
@@ -79,6 +82,8 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
     tabella.hidden = righe.length === 0;
     if (righe.length === 0) { vuota.textContent = 'Nessuno studente assegnato a questa verifica.'; return; }
     corpo.textContent = '';
+    const mostraTraccia = conTraccia();
+    thTraccia.hidden = !mostraTraccia;
     for (const x of righe) {
       const blocchi = x.nBlocchi === null || x.nBlocchi === undefined ? '–'
         : `${x.nBlocchi}${x.incremento ? ` (${x.incremento > 0 ? '+' : ''}${x.incremento})` : ''}`;
@@ -93,6 +98,7 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
         el('th', { scope: 'row', title: x.email }, x.nome || x.email),
         cella(x, el('span', { class: 'tabella-stato', 'data-stato': x.stato }, stato),
           x.doppiaSessione ? el('span', { class: 'tabella-doppia', title: 'Questo lavoro è stato scritto da due sessioni insieme (due computer o due schede): controlla', role: 'img', 'aria-label': 'Due sessioni attive' }, ' ⚠ due dispositivi') : ''),
+        mostraTraccia ? el('td', { class: 'tabella-traccia', title: x.tracciaId ? '' : 'Nessuna traccia assegnata' }, (x.tracciaId && tracce.titolo(x.tracciaId)) || '–') : '',
         cella(x, blocchi, x.salto ? el('span', { class: 'tabella-salto', title: `Salto di ${x.salto} blocchi tra due controlli`, role: 'img', 'aria-label': `Salto di ${x.salto} blocchi` }, ' ⚠') : ''),
         cella(x, esec),
         cella(x, x.connessione ? el('span', { class: 'tabella-conn', 'data-conn': x.connessione.stato }, x.connessione.stato === 'offline' ? testoOffline(x.connessione.da) : 'online') : '–'),

@@ -16,6 +16,7 @@ import { montaCommenti } from './commenti-ui.js';
 import { montaConsegne } from './consegne-ui.js';
 import { montaVerificaStudente } from './verifica-studente-ui.js';
 import { nascondiBandaCopia } from './banda-copia.js';
+import { nascondiTracciaEditor } from './scheda-traccia-editor.js';
 import { el, apriFinestra } from './dom.js';
 import { titoloAccesso, introAccesso, titoloDati, apriTuttoEtichetta, chiudiTuttoEtichetta } from './testi.js';
 import { menuCloud as M } from './etichette.js';
@@ -51,6 +52,8 @@ export function montaCloud({ contenitore, toast, programma, guida = null }) {
     nuoviEl.hidden = n === 0;
   } });
   const sketchUi = montaSketch({ toast, programma, commentiUi });
+  // Un caricamento che sostituisce il programma chiude ciò che era legato alla copia di prima: banda della copia di prova, scheda «Traccia».
+  programma.onSostituzione?.(() => { nascondiBandaCopia(); nascondiTracciaEditor(); });
   // In verifica il menu del cloud si spegne (niente sketch, corsi, esci): il resto lo spegne main.js.
   const verificaStudenteUi = montaVerificaStudente({ toast, programma, quandoCambiaModo: (on) => modoVerifica(on) });
   const corsiUi = montaCorsi({ toast, programma, commentiUi, dopoCaricamento: () => sketchUi.scollega() });
@@ -235,5 +238,5 @@ export function montaCloud({ contenitore, toast, programma, guida = null }) {
   if (eraEntrato()) carica().catch(() => memo(false));
 
   // Il programma è stato sostituito da altro: sketch aperto e commenti non valgono più.
-  return { scollega: () => { sketchUi.scollega(); commentiUi.nascondi(); nascondiBandaCopia(); programma.copiaDiProva?.fine(); } };
+  return { scollega: () => { sketchUi.scollega(); commentiUi.nascondi(); nascondiBandaCopia(); nascondiTracciaEditor(); programma.copiaDiProva?.fine(); } };
 }

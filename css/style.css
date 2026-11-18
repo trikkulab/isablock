@@ -1275,7 +1275,10 @@ body.modo-verifica .autosave-info { display: none; }
   background: var(--code-bg); color: var(--code-fg);
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 0.9rem; line-height: 1.5; white-space: pre;
 }
-.anteprima-codice[hidden], .anteprima-blocchi[hidden] { display: none; }
+.anteprima-codice[hidden], .anteprima-blocchi[hidden], .anteprima-traccia[hidden] { display: none; }
+.anteprima-traccia { flex: 1; min-height: 0; border: 1px solid var(--border); }
+.anteprima-traccia-titolo { margin: 0 0 0.4rem; font-weight: 600; }
+.banda-copia-traccia { font-weight: 400; opacity: 0.9; }
 @media (max-width: 800px) { .anteprima-corpo { grid-template-columns: 1fr; height: auto; } .anteprima-blocchi { height: 45vh; } .anteprima-codice { max-height: 40vh; } }
 /* Confronto affiancato (verifica-confronto-ui.js): due colonne, un solo selettore */
 .confronto-colonne { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.8rem; margin-top: 0.5rem; }

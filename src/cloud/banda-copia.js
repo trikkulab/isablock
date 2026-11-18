@@ -10,9 +10,10 @@ export function nascondiBandaCopia() {
   banda = null;
 }
 
-// `chi`: «Anna Rossi». `titolo`: titolo della verifica. `posizione`: { n, tot } (o null). `tornaAllaVerifica`, `precedente`,
+// `chi`: «Anna Rossi». `titolo`: titolo della verifica. `traccia`: titolo della traccia di quella consegna (sempre in vista, così non serve aprire la scheda).
+//  `posizione`: { n, tot } (o null). `tornaAllaVerifica`, `precedente`,
 // `successivo`: funzioni (o null: il pulsante resta, spento).
-export function mostraBandaCopia({ chi, titolo, posizione = null, tornaAllaVerifica = null, precedente = null, successivo = null }) {
+export function mostraBandaCopia({ chi, titolo, traccia = null, posizione = null, tornaAllaVerifica = null, precedente = null, successivo = null }) {
   nascondiBandaCopia();
   const freccia = (simbolo, nome, fn) => {
     const b = el('button', { type: 'button', class: 'modal-btn secondary banda-copia-freccia', title: nome, 'aria-label': nome }, simbolo);
@@ -20,7 +21,7 @@ export function mostraBandaCopia({ chi, titolo, posizione = null, tornaAllaVerif
     if (fn) b.addEventListener('click', fn);
     return b;
   };
-  const testo = `${chi}${posizione ? ` (${posizione.n} di ${posizione.tot})` : ''} — copia di una consegna: non modifica l'originale, non si salva sul cloud né da sola.`;
+  const testo = `${chi}${posizione ? ` (${posizione.n} di ${posizione.tot})` : ''}${traccia ? ` · Traccia: ${traccia}` : ''} — copia di una consegna: non modifica l'originale, non si salva sul cloud né da sola.`;
   const torna = el('button', { type: 'button', class: 'modal-btn secondary banda-copia-torna', title: 'Riapre la verifica con l\'elenco degli studenti' }, `← ${titolo}`);
   torna.disabled = !tornaAllaVerifica;
   if (tornaAllaVerifica) torna.addEventListener('click', tornaAllaVerifica);

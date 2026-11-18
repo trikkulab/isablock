@@ -315,6 +315,8 @@ let inVerifica = false;
 let inCopiaProva = false;
 let hashCopiaProva = null;           // com'era la copia appena aperta, per sapere se è stata modificata
 const autosavePausa = () => inVerifica || inCopiaProva;
+const sostituzioneListeners = new Set();    // il cloud ascolta quando un caricamento sostituisce il programma (copia di prova, scheda Traccia)
+const avvisaSostituzione = () => sostituzioneListeners.forEach((cb) => cb());
 let lavoroPrimaDellaVerifica = null; // { json, fileName } del programma che c'era all'ingresso (null se l'editor era vuoto)
 let startupDeferred = false;         // all'avvio c'era una verifica in corso: la proposta di ripristino aspetta la fine
 const modificaListeners = new Set();    // il cloud ascolta le modifiche del programma per salvare il lavoro
@@ -660,12 +662,15 @@ if (appConfig.cloud.enabled) {
         occupato: () => execGenerator !== null,
         carica: (json) => {
           inCopiaProva = false; hashCopiaProva = null;       // un caricamento normale chiude la copia di prova
+          avvisaSostituzione();
           caricaProgramma(json);
         },
+        onSostituzione: (cb) => { sostituzioneListeners.add(cb); return () => sostituzioneListeners.delete(cb); },
         // Copia di prova di un programma di uno studente: la copia automatica si ferma finché non viene sostituita.
         copiaDiProva: {
           apri: (json) => {
             if (!inCopiaProva) autosaver.flush();            // l'ultimo lavoro vero di questa scheda resta nella copia automatica
+            avvisaSostituzione();
             caricaProgramma(json);
             autosaver.cancel();
             inCopiaProva = true;

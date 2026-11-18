@@ -189,4 +189,13 @@ prova('stima dei consumi: dopo una riapertura si conta dall\'ultima apertura, no
   const l = lavoro({ entrato: d(ORA - 3 * 24 * 60 * MIN), scadenza: d(ORA + 60 * MIN) });
   assert.equal(Math.round(stimaConsumi({ verifica: riaperta, lavori: [l], ora: ORA, config: CFG }).minutiStudente), 15);
 });
+prova('la riga porta la traccia: a verifica chiusa quella della consegna, altrimenti quella del lavoro, o nulla', () => {
+  const ver = { ...verifica, stato: 'chiusa' };
+  const [c] = costruisciRighe({ verifica: ver, lavori: [lavoro({ email: 'a@x.it', consegnato: true, tracciaId: 't0' })], ultime: { 'a@x.it': { versione: 1, origine: 'studente', tracciaId: 't1' } }, ora: ORA });
+  assert.equal(c.tracciaId, 't1', 'la consegna fa fede (può essere una traccia nuova data a un assente)');
+  const [a] = costruisciRighe({ verifica, lavori: [lavoro({ email: 'a@x.it', tracciaId: 't0' })], ultime: {}, ora: ORA });
+  assert.equal(a.tracciaId, 't0');
+  const [n] = costruisciRighe({ verifica, lavori: [lavoro({ email: 'a@x.it' })], ultime: {}, ora: ORA });
+  assert.equal(n.tracciaId, null);
+});
 console.log(`\n${test} prove superate`);

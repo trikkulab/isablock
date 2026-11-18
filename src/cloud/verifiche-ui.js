@@ -21,6 +21,8 @@ import { scaricaPdfSchede } from './pdf-ui.js';
 import { esportaJsonSchede } from './esporta-ui.js';
 import { apriCopiaDiProva } from './copia-di-prova.js';
 import { mostraBandaCopia } from './banda-copia.js';
+import { creaPannelloTraccia } from './pannello-traccia.js';
+import { mostraTracciaEditor } from './scheda-traccia-editor.js';
 import { ordinaSchede, nomeFilePdf, nomeFilePdfTutte, nomeVisualizzato } from './scheda-stampa.js';
 import { etichettaCorso } from './corsi.js';
 import { verificaDocenteEtichette as E } from './etichette.js';
@@ -713,26 +715,34 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
       // chiusa vale la consegna, altrimenti il lavoro in diretta (con l'altro come ripiego).
       const provabili = () => ordinaSchede(tabella.tutti().map((x) => {
         const json = stato() === 'chiusa' ? (x.ultimaConsegna?.programma || x.lavoro?.programma) : (x.lavoro?.programma || x.ultimaConsegna?.programma);
-        return { nome: x.lavoro?.studenteNome ?? null, email: x.email, programma: json };
+        const tracciaId = (stato() === 'chiusa' ? (x.ultimaConsegna?.tracciaId || x.lavoro?.tracciaId) : (x.lavoro?.tracciaId || x.ultimaConsegna?.tracciaId)) || null;
+        return { nome: x.lavoro?.studenteNome ?? null, email: x.email, programma: json, tracciaId };
       }).filter((x) => x.programma));
+      const tracciaPerId = (id) => (id ? tracce.find((t) => t.id === id) ?? null : null);
       // Apre la copia dello studente `i` dell'elenco e mostra la banda con il link alla verifica e le frecce ◀ ▶ tra gli studenti.
       const provaCopia = (lista, i) => apriCopiaDiProva({
         programma, json: lista[i].programma, toast, confermaSostituzione: (m) => window.confirm(m),
         chi: nomeVisualizzato(lista[i].nome, lista[i].email), dopoCaricamento, chiudiFinestre: chiudiTutteLeFinestre,
-        mostraBanda: (chi) => mostraBandaCopia({
-          chi, titolo: verifica.titolo, posizione: lista.length > 1 ? { n: i + 1, tot: lista.length } : null,
+        mostraBanda: async (chi) => {
+          const traccia = tracciaPerId(lista[i].tracciaId);
+          mostraBandaCopia({
+          chi, titolo: verifica.titolo, traccia: traccia?.titolo ?? null, posizione: lista.length > 1 ? { n: i + 1, tot: lista.length } : null,
           tornaAllaVerifica: () => { chiudiTutteLeFinestre(); scheda(corso, vid, dopo); },
           precedente: i > 0 ? () => provaCopia(lista, i - 1) : null,
           successivo: i < lista.length - 1 ? () => provaCopia(lista, i + 1) : null,
-        }),
+          });
+          // La traccia di quella consegna nella scheda «Traccia» dell'editor (dopo Python), senza aprirla da sola: il docente preferisce lo pseudocodice.
+          if (traccia) mostraTracciaEditor(await creaPannelloTraccia({ traccia, contesto: `${chi} · ${verifica.titolo}` }), { ripristina: true });
+        },
       });
       const guarda = programma && programma.anteprima
         ? (email, nome) => apriAnteprima({
           apri, programma, segui: (e, cb) => tabella.segui(e, cb), caricaStoria: () => storiaConConsegne(email), osserva: () => osservaDalVivo(email), email, nome,
-          apriCopia: ({ programma: json }) => {
+          leggiTraccia: async (id) => tracciaPerId(id) ?? vd.verifiche.leggiTraccia(vid, id),
+          apriCopia: ({ programma: json, tracciaId }) => {
             let lista = provabili();
             let i = lista.findIndex((x) => x.email === email);
-            if (i < 0) { lista = [{ nome, email, programma: json }]; i = 0; } else lista[i] = { ...lista[i], programma: json };   // quel che stai guardando (può essere un punto della Storia)
+            if (i < 0) { lista = [{ nome, email, programma: json, tracciaId }]; i = 0; } else lista[i] = { ...lista[i], programma: json };   // quel che stai guardando (può essere un punto della Storia)
             provaCopia(lista, i);
           },
         })
@@ -803,7 +813,7 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
       const sala = programma && programma.anteprima && programma.renderBlocchi
         ? () => apriSala({ apri, tabella, programma, caricaStoria: storiaConConsegne, osserva: osservaDalVivo, titolo: `Sala · ${verifica.titolo}` })
         : null;
-      tabella = creaTabellaLive({ vd, vid, toast, guarda, sala, caricaFile, terminaStudente: dialogoTerminaRiaperture, selezione: { ha: (e) => selezionati.has(e), cambia: (e, on) => { if (on) selezionati.add(e); else selezionati.delete(e); dopoRiapertura(); } }, scaricaPdf: conPdf ? scaricaPdf : null, scaricaTutti: conPdf ? scaricaTutti : null, esportaJson: conPdf ? esportaJson : null });
+      tabella = creaTabellaLive({ vd, vid, toast, guarda, sala, caricaFile, terminaStudente: dialogoTerminaRiaperture, selezione: { ha: (e) => selezionati.has(e), cambia: (e, on) => { if (on) selezionati.add(e); else selezionati.delete(e); dopoRiapertura(); } }, scaricaPdf: conPdf ? scaricaPdf : null, scaricaTutti: conPdf ? scaricaTutti : null, esportaJson: conPdf ? esportaJson : null, tracce: { quante: () => tracce.length, titolo: (id) => tracciaPerId(id)?.titolo ?? null } });
       chiudiTabella = tabella.distruggi;
       azioni.prepend(tabella.azioniTutti);                 // «Scarica PDF di tutti» ed «Esporta JSON di tutti» stanno accanto a «Raccogli i lavori»
       lavoriLive = tabella.tutti;
