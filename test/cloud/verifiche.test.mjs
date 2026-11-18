@@ -93,7 +93,9 @@ test('ciclo di vita: apri (fine e traccia obbligatorie), chiudi, riapri', async 
   await p.modificaTraccia(v.id, 't0', { titolo: 'Traccia 1', testoMd: 'refuso corretto' });             // a verifica aperta
   await p.chiudi(v.id);
   assert.equal((await p.leggi(v.id)).stato, 'chiusa');
-  await assert.rejects(p.nuovaTraccia(v.id, TR), (e) => e.codice === 'negato');
+  const dopo = await p.nuovaTraccia(v.id, TR);                                                          // a verifica chiusa si aggiungono tracce, per chi svolge dopo
+  assert.equal(dopo.postChiusura, true);
+  await assert.rejects(p.modificaTraccia(v.id, 't0', { titolo: 'x', testoMd: 'y' }), (e) => e.codice === 'negato');   // ma le originali restano com'erano
   await p.riapri(v.id, { fine: tra(600_000) });
   assert.equal((await p.leggi(v.id)).stato, 'aperta');
 });

@@ -212,6 +212,10 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
     const etichettaStato = (v) => (v === 'riaperti' ? `Chiusa · ${riapertiOra()} ${riapertiOra() === 1 ? 'riaperto' : 'riaperti'}` : STATI[v]);
     const bozza = () => stato() === 'bozza';
     const scrivibile = () => stato() !== 'chiusa';          // tracce e dati modificabili (a verifica aperta: con «Pubblica»)
+    // A verifica chiusa (non archiviata) si possono ANCORA aggiungere tracce, per chi svolge la verifica dopo (assenti, iscritti
+    // dopo), e correggere/eliminare quelle: le originali restano in sola lettura (`postChiusura` nelle regole).
+    const chiusaAttiva = () => stato() === 'chiusa' && !verifica.archiviata;
+    const traccePuoScrivere = (t) => scrivibile() || (chiusaAttiva() && (!t || t.postChiusura));
     const titoloFinestra = () => { intestazione.textContent = `Verifica: ${verifica.titolo} · ${corso.nome}`; };
     titoloFinestra();
 
@@ -251,10 +255,10 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
       aperta: 'Verifica aperta: le modifiche alle tracce sono visibili subito agli studenti (che vedranno un avviso di traccia aggiornata).',
       chiusa: verifica.archiviata
         ? 'Verifica chiusa e archiviata: non compare nell\'elenco finché non la ripristini. Le tracce si possono solo leggere.'
-        : 'Verifica chiusa: le tracce si possono solo leggere.',
+        : 'Verifica chiusa: le tracce originali si possono solo leggere. Per chi svolge la verifica dopo (assenti, iscritti dopo) puoi aggiungere nuove tracce e correggerle.',
     }[stato()];
     const avvisoScaduta = 'Il tempo è finito: gli studenti sono già usciti dalla verifica. Per chiuderla e raccogliere i lavori usa «Termina verifica…».';
-    const avvisoRiaperti = 'Verifica chiusa per tutti tranne gli studenti riaperti, che stanno ancora lavorando: le tracce si possono solo leggere.';
+    const avvisoRiaperti = 'Verifica chiusa per tutti tranne gli studenti riaperti, che stanno ancora lavorando: le tracce originali si possono solo leggere, quelle aggiunte dopo la chiusura si possono correggere.';
     const testoStato = el('span', { class: 'stato-corso', 'data-stato': statoVisto() }, etichettaStato(statoVisto()));
     // Le riaperture individuali non cambiano la fine della verifica (resta quella di prima): si dice fino a quando lavorano i riaperti.
     const testoRiaperti = el('span', { class: 'sketch-data verifica-riaperti', hidden: '' });
@@ -373,14 +377,30 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
     function dialogoRiaperturaStudenti(studenti) {
       if (!studenti.length) return;
       const quando = scegliFine({ durataMin: C.durataRiaperturaMin });
-      const nuovi = studenti.filter((s) => mancanti.includes(s.email));
+      // La traccia si sceglie per chi non ha ancora lavorato: gli iscritti senza verifica e gli assenti (nessun ingresso). Chi ha già
+      // lavorato, se lo riapri, tiene la sua.
+      const lavoroDi = (e) => lavoriLive().find((x) => x.email === e)?.lavoro ?? null;
+      const daAssegnare = studenti.filter((s) => mancanti.includes(s.email) || (lavoroDi(s.email) && !lavoroDi(s.email).entrato && !lavoroDi(s.email).consegnato));
+      const scelti = new Set(studenti.map((s) => s.email));
       const extra = [quando.elemento];
       let menu = null;
-      if (nuovi.length) {
-        menu = el('select', { class: 'sketch-nome', 'aria-label': 'Traccia per chi non ha ancora la verifica' },
-          ...tracce.map((t) => el('option', { value: t.id }, t.titolo)));
-        if (verifica.tracciaDefault && tracce.some((t) => t.id === verifica.tracciaDefault)) menu.value = verifica.tracciaDefault;
-        extra.unshift(el('p', { class: 'sketch-nota' }, testoRiaperturaStudenti.nuovi(nuovi.length), ' ', menu));
+      if (daAssegnare.length) {
+        menu = el('select', { class: 'sketch-nome', 'aria-label': 'Traccia per chi non ha ancora svolto la verifica' },
+          ...tracce.map((t) => el('option', { value: t.id }, t.postChiusura ? `${t.titolo} (aggiunta dopo)` : t.titolo)));
+        // Di partenza l'ultima traccia aggiunta dopo la chiusura (è fatta per loro); se non ce n'è, la predefinita.
+        const dopo = tracce.filter((t) => t.postChiusura);
+        const partenza = dopo.length ? dopo[dopo.length - 1].id : verifica.tracciaDefault;
+        if (partenza && tracce.some((t) => t.id === partenza)) menu.value = partenza;
+        // Avviso: la traccia è già stata svolta da altri? (consegne visibili agli studenti: potrebbero avere le soluzioni)
+        const avvisoUsata = el('p', { class: 'verifica-avviso verifica-avviso-forte', role: 'alert', hidden: '' });
+        const controllaUsata = () => {
+          const usata = lavoriLive().filter((x) => x.lavoro && !scelti.has(x.email) && x.lavoro.tracciaId === menu.value && (x.lavoro.entrato || x.lavoro.consegnato)).length;
+          avvisoUsata.hidden = usata === 0;
+          if (usata) avvisoUsata.textContent = testoRiaperturaStudenti.tracciaUsata(usata);
+        };
+        menu.addEventListener('change', controllaUsata);
+        controllaUsata();
+        extra.unshift(el('p', { class: 'sketch-nota' }, testoRiaperturaStudenti.daAssegnare(daAssegnare.length, studenti.length), ' ', menu), avvisoUsata);
       }
       const chi = studenti.length === 1 ? (studenti[0].nome || studenti[0].email) : `${studenti.length} studenti`;
       dialogo({
@@ -499,13 +519,14 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
         }
         colonnaElenco.append(el('div', { class: `traccia-voce${selezione === t.id ? ' attiva' : ''}` },
           el('button', { type: 'button', class: 'traccia-nome', onclick: () => seleziona(t.id) }, t.titolo),
+          t.postChiusura ? el('span', { class: 'sketch-nota traccia-dopo', title: 'Aggiunta dopo la chiusura, per chi svolge la verifica in ritardo' }, 'dopo') : '',
           segno));
       }
       if (selezione === 'nuova') {
         colonnaElenco.append(el('div', { class: 'traccia-voce attiva' }, el('span', { class: 'traccia-nome traccia-bozza' }, 'Nuova traccia (non salvata)')));
       }
       const aggiungi = el('button', { type: 'button', class: 'modal-btn secondary traccia-aggiungi', onclick: () => seleziona('nuova') }, E.nuovaTraccia);
-      aggiungi.disabled = !scrivibile() || tracce.length >= L.maxTracce;
+      aggiungi.disabled = !traccePuoScrivere(null) || tracce.length >= L.maxTracce;
       colonnaElenco.append(aggiungi);
     }
 
@@ -545,14 +566,14 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
       colonnaEditor.textContent = '';
       if (selezione === null) {
         colonnaEditor.append(el('p', { class: 'sketch-nota' }, tracce.length === 0
-          ? (scrivibile() ? 'Questa verifica non ha ancora tracce. Crea la prima con «Nuova traccia».' : 'Questa verifica non ha tracce.')
+          ? (traccePuoScrivere(null) ? 'Questa verifica non ha ancora tracce. Crea la prima con «Nuova traccia».' : 'Questa verifica non ha tracce.')
           : 'Scegli una traccia dall\'elenco.'));
         return;
       }
       const esistente = selezione === 'nuova' ? null : tracce.find((t) => t.id === selezione);
       if (selezione !== 'nuova' && !esistente) { selezione = null; disegnaEditor(); return; }
 
-      if (!scrivibile()) {                                   // chiusa: sola lettura
+      if (!traccePuoScrivere(esistente)) {                   // chiusa: sola lettura (tranne le tracce aggiunte dopo la chiusura)
         const resa = el('div', { class: 'traccia-md' });
         rendiMarkdown(esistente.testoMd).then((html) => { resa.innerHTML = html; });   // output sicuro di markdown.js
         colonnaEditor.append(el('h3', { class: 'corsi-titolo' }, esistente.titolo), resa);
@@ -642,7 +663,7 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
         avvisoElimina,
         el('div', { class: 'modal-actions' },
           salvaBtn,
-          esistente && bozza() ? el('button', { type: 'button', class: 'modal-btn secondary', onclick: elimina }, 'Elimina') : ''));
+          esistente && (bozza() || (chiusaAttiva() && esistente.postChiusura)) ? el('button', { type: 'button', class: 'modal-btn secondary', onclick: elimina }, 'Elimina') : ''));
       (esistente ? editor : { focus: () => titoloTraccia.select() }).focus();
     }
 

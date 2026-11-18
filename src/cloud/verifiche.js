@@ -63,6 +63,7 @@ function tracciaDaDocumento(snap) {
     testoMd: d.testoMd,
     rev: d.rev,
     modificato: d.modificato ? d.modificato.toDate() : null,
+    postChiusura: d.postChiusura === true,      // aggiunta a verifica chiusa (per assenti e iscritti dopo): ancora correggibile
   };
 }
 
@@ -190,8 +191,10 @@ export function creaVerifiche({ sdk, db }, emailUtente) {
     let n = 0;
     while (esistenti.has(n)) n++;
     if (n >= L.maxTracce) throw new ErroreVerifica('pieno', `Una verifica può avere al massimo ${L.maxTracce} tracce.`);
+    // A verifica chiusa la traccia si segna `postChiusura`: è l'unica che poi si può ancora correggere o eliminare.
+    const dopo = (await leggi(vid)).stato === 'chiusa';
     try {
-      await sdk.setDoc(docTraccia(vid, idTraccia(n)), { titolo: t, testoMd: m, rev: 0, modificato: sdk.serverTimestamp() });
+      await sdk.setDoc(docTraccia(vid, idTraccia(n)), { titolo: t, testoMd: m, rev: 0, modificato: sdk.serverTimestamp(), ...(dopo ? { postChiusura: true } : {}) });
     } catch (err) { throw traduci(err, 'Non posso aggiungere la traccia (verifica chiusa, o non è tua).'); }
     return leggiTraccia(vid, idTraccia(n));
   }
@@ -202,14 +205,14 @@ export function creaVerifiche({ sdk, db }, emailUtente) {
     const m = testo(testoMd, L.maxTestoTraccia, 'il testo della traccia');
     const attuale = await leggiTraccia(vid, tid);
     try {
-      await sdk.setDoc(docTraccia(vid, tid), { titolo: t, testoMd: m, rev: attuale.rev + 1, modificato: sdk.serverTimestamp() });
+      await sdk.setDoc(docTraccia(vid, tid), { titolo: t, testoMd: m, rev: attuale.rev + 1, modificato: sdk.serverTimestamp(), ...(attuale.postChiusura ? { postChiusura: true } : {}) });
     } catch (err) { throw traduci(err, 'Non posso modificare la traccia (verifica chiusa, o non è tua).'); }
     return leggiTraccia(vid, tid);
   }
 
   const eliminaTraccia = async (vid, tid) => {
     try { await sdk.deleteDoc(docTraccia(vid, tid)); }
-    catch (err) { throw traduci(err, 'Una traccia si elimina solo finché la verifica è in bozza.'); }
+    catch (err) { throw traduci(err, 'Una traccia si elimina solo finché la verifica è in bozza (o se l\'hai aggiunta dopo la chiusura).'); }
   };
 
   return { crea, leggi, elenca, modifica, apri, chiudi, archivia, riapri, elimina, tracce, leggiTraccia, nuovaTraccia, modificaTraccia, eliminaTraccia };

@@ -368,8 +368,14 @@ service cloud.firestore {
         function verificaTr() {
           return get(/databases/$(database)/documents/verifiche/$(vid)).data;
         }
+        // `postChiusura` (facoltativo): la traccia è stata aggiunta a verifica CHIUSA, per chi la svolge dopo (assenti, iscritti
+        // dopo). Solo queste si possono ancora correggere ed eliminare a verifica chiusa: le originali restano com'erano.
+        function postChiusuraOk(d) {
+          return d.get('postChiusura', false) is bool;
+        }
         function tracciaValida(d) {
-          return d.keys().hasOnly(['titolo', 'testoMd', 'rev', 'modificato'])
+          return d.keys().hasOnly(['titolo', 'testoMd', 'rev', 'modificato', 'postChiusura'])
+            && postChiusuraOk(d)
             && d.keys().hasAll(['titolo', 'testoMd', 'rev', 'modificato'])
             && d.titolo is string && d.titolo.size() > 0 && d.titolo.size() <= maxTitoloTraccia()
             && d.testoMd is string && d.testoMd.size() > 0 && d.testoMd.size() <= maxTestoTraccia()
@@ -379,16 +385,24 @@ service cloud.firestore {
           || (isAmmesso()
               && verificaTr().stato != 'bozza'
               && get(/databases/$(database)/documents/verifiche/$(vid)/lavori/$(emailVer())).data.get('tracciaId', null) == tid);
+        function chiusaAttiva() {
+          return verificaTr().stato == 'chiusa' && verificaTr().get('archiviata', false) == false;
+        }
         allow create: if idTracciaValido(tid)
           && docenteDelCorsoVer(verificaTr().corsoId)
-          && verificaTr().stato in ['bozza', 'aperta']
+          && ((verificaTr().stato in ['bozza', 'aperta'] && request.resource.data.get('postChiusura', false) == false)
+              || (chiusaAttiva() && request.resource.data.get('postChiusura', false) == true))
           && tracciaValida(request.resource.data)
           && request.resource.data.rev == 0;
         allow update: if docenteDelCorsoVer(verificaTr().corsoId)
-          && verificaTr().stato in ['bozza', 'aperta']
+          && ((verificaTr().stato in ['bozza', 'aperta']
+               && request.resource.data.get('postChiusura', false) == resource.data.get('postChiusura', false))
+              || (chiusaAttiva() && resource.data.get('postChiusura', false) == true
+                  && request.resource.data.get('postChiusura', false) == true))
           && tracciaValida(request.resource.data)
           && request.resource.data.rev == resource.data.rev + 1;
-        allow delete: if docenteDelCorsoVer(verificaTr().corsoId) && verificaTr().stato == 'bozza';
+        allow delete: if docenteDelCorsoVer(verificaTr().corsoId)
+          && (verificaTr().stato == 'bozza' || (chiusaAttiva() && resource.data.get('postChiusura', false) == true));
       }
 
       // Lavori: il documento PERSONALE di ogni studente in una verifica, id = email minuscola
@@ -423,9 +437,13 @@ service cloud.firestore {
         // `tracciaId` vuoto (null) = «traccia di tutti»: ammesso SOLO in bozza, dove segue la traccia
         // predefinita qualunque sia; all'apertura il client lo sostituisce con l'id vero nello stesso
         // batch. Da aperta in poi la traccia è sempre esplicita.
+        // A verifica CHIUSA la traccia si cambia solo riaprendo lo studente (`riaperto` nello stesso aggiornamento): serve a dare
+        // una traccia nuova a chi era assente. Vale solo per chi non è ancora entrato (lo impone aggiornamentoDocente).
         function tracciaOk(t) {
           return (t == null && verificaLav().stato == 'bozza')
-            || (verificaLav().stato != 'chiusa' && tracciaEsiste(t));
+            || (verificaLav().stato != 'chiusa' && tracciaEsiste(t))
+            || (verificaLav().stato == 'chiusa' && verificaLav().get('archiviata', false) == false
+                && request.resource.data.get('riaperto', false) == true && tracciaEsiste(t));
         }
         // Il tempo in più dato a mano (facoltativo: assente = 0). La scadenza è la fine più questo.
         function extraValido(d) {

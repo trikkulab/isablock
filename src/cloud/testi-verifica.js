@@ -60,7 +60,12 @@ export const testoRiaperturaStudenti = {
     'Ognuno riparte dal proprio lavoro, con la sua traccia, e ha tempo fino alla fine che scegli qui sotto. Chi aveva già consegnato può consegnare di nuovo: la consegna di prima resta nello storico, la valida è l\'ultima. Chi non era mai entrato entra adesso.',
     'Alla fine consegnano da sé, o si consegnano da soli allo scadere del tempo. Finché stanno lavorando non li raccogli con «Raccogli i lavori».',
   ],
-  nuovi: (n) => (n === 1 ? 'Uno di loro non aveva ancora la verifica (è arrivato dopo): riceve la traccia' : `${n} di loro non avevano ancora la verifica (sono arrivati dopo): ricevono la traccia`),
+  // Per chi non ha ancora svolto la verifica (assenti, iscritti dopo): scelgono la traccia; chi ha già lavorato tiene la sua.
+  daAssegnare: (n, tutti) => {
+    const chi = n === 1 ? 'Uno studente non ha ancora svolto la verifica (assente o iscritto dopo)' : `${n} studenti non hanno ancora svolto la verifica (assenti o iscritti dopo)`;
+    return `${chi}: ${n === 1 ? 'riceve' : 'ricevono'} la traccia` + (n < tutti ? ' (gli altri tengono la propria):' : ':');
+  },
+  tracciaUsata: (n) => `Attenzione: questa traccia è già stata svolta da ${n === 1 ? '1 altro studente' : `${n} altri studenti`}, che potrebbe averla passata ai compagni insieme alla soluzione. Meglio una traccia nuova (la aggiungi dalla scheda «Tracce»).`,
 };
 
 // Fine delle riaperture individuali (pulsante nella scheda, o «Termina» sulla riga di uno studente).

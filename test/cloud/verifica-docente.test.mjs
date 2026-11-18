@@ -465,6 +465,60 @@ test('terminaRiaperture: chiude gli sblocchi, raccoglie il lavoro com\'è e speg
   await assert.rejects(d.terminaRiaperture(aperta), (e) => e.codice === 'stato');
 });
 
+test('tracce a verifica chiusa: se ne aggiungono di nuove (solo queste si correggono), e l\'assente riceve quella nuova', async () => {
+  const d = docente();
+  const vid = await chiusaConTre(d);                                                 // Carla non è mai entrata: ha t0, quella dei compagni
+  const nuova = await d.verifiche.nuovaTraccia(vid, TR('Recupero'));
+  assert.equal(nuova.postChiusura, true);
+  assert.equal(nuova.id, 't2');
+  await d.verifiche.modificaTraccia(vid, nuova.id, { titolo: 'Recupero A', testoMd: 'testo corretto' });   // la nuova si corregge
+  assert.equal((await d.verifiche.leggiTraccia(vid, nuova.id)).rev, 1);
+  await assert.rejects(d.verifiche.modificaTraccia(vid, 't0', { titolo: 'x', testoMd: 'y' }));              // le originali no
+  await assert.rejects(d.verifiche.eliminaTraccia(vid, 't0'));
+  // scavalcando il client: una traccia originale non diventa «postChiusura» per potersi modificare
+  await assert.rejects(sdk.setDoc(sdk.doc(dbDi(DOC), `verifiche/${vid}/tracce/t0`), { titolo: 'x', testoMd: 'y', rev: 1, modificato: sdk.serverTimestamp(), postChiusura: true }));
+  const r = await d.riapriStudenti(vid, [CARLA, ANNA], { fine: tra(ORA), tracciaId: 't2' });
+  assert.equal(r.tracciaCambiata, 1);                                                // solo Carla: Anna aveva già lavorato
+  const s = await d.situazione(vid);
+  assert.equal(s.lavori.find((l) => l.email === CARLA).tracciaId, 't2');
+  assert.equal(s.lavori.find((l) => l.email === ANNA).tracciaId, 't0');
+  const tr = await creaVerificheStudente({ sdk, db: dbDi(CARLA) }, CARLA, 'Carla').verifiche.leggiTraccia(vid, 't2');   // la legge, e solo lei
+  assert.equal(tr.titolo, 'Recupero A');
+  await assert.rejects(creaVerificheStudente({ sdk, db: dbDi(BRUNO) }, BRUNO, 'Bruno').verifiche.leggiTraccia(vid, 't2'));
+  await assert.rejects(d.eliminaTraccia(vid, 't2'), (e) => e.codice === 'assegnata');                       // assegnata: non si elimina
+  await d.verifiche.modificaTraccia(vid, 't2', { titolo: 'Recupero B', testoMd: 'altro refuso' });         // ma si corregge ancora (avviso allo studente)
+  const libera = await d.verifiche.nuovaTraccia(vid, TR('Inutile'));
+  await d.eliminaTraccia(vid, libera.id);                                                                   // quella non assegnata sì
+});
+
+test('tracce a verifica chiusa: l\'iscritto dopo riceve la traccia nuova alla riapertura; un\'archiviata non accetta tracce', async () => {
+  const d = docente();
+  const vid = await chiusaConTre(d);
+  await iscrivi(DARIO);
+  const nuova = await d.verifiche.nuovaTraccia(vid, TR('Recupero'));
+  await d.riapriStudenti(vid, [DARIO], { fine: tra(ORA), tracciaId: nuova.id });
+  assert.equal((await d.situazione(vid)).lavori.find((l) => l.email === DARIO).tracciaId, nuova.id);
+  await d.terminaRiaperture(vid);
+  await d.archivia(vid);
+  await assert.rejects(d.verifiche.nuovaTraccia(vid, TR('No')));
+  await assert.rejects(d.verifiche.modificaTraccia(vid, nuova.id, { titolo: 'x', testoMd: 'y' }));
+});
+
+test('tracce a verifica chiusa: chi è entrato non cambia traccia, anche se riaperto; e lo studente non si assegna tracce', async () => {
+  const d = docente();
+  const vid = await chiusaConTre(d);
+  const nuova = await d.verifiche.nuovaTraccia(vid, TR('Recupero'));
+  await d.riapriStudenti(vid, [BRUNO], { fine: tra(ORA), tracciaId: nuova.id });                // Bruno era entrato
+  assert.equal((await d.situazione(vid)).lavori.find((l) => l.email === BRUNO).tracciaId, 't0');
+  const rif = sdk.doc(dbDi(BRUNO), `verifiche/${vid}/lavori/${BRUNO}`);
+  await assert.rejects(sdk.updateDoc(rif, { tracciaId: nuova.id }));                              // nemmeno da solo
+  // il docente, scavalcando il client, non può cambiare la traccia a chi è entrato
+  const dd = sdk.doc(dbDi(DOC), `verifiche/${vid}/lavori/${BRUNO}`);
+  await assert.rejects(sdk.updateDoc(dd, { tracciaId: nuova.id, riaperto: true }));
+  // né cambiarla a chi non è entrato senza riaprirlo (a verifica chiusa)
+  await assert.rejects(sdk.updateDoc(sdk.doc(dbDi(DOC), `verifiche/${vid}/lavori/${CARLA}`), { tracciaId: nuova.id }));
+});
+
 test('riapertura individuale: rifiuti (aperta, archiviata, fine nel passato, senza lavoro)', async () => {
   const d = docente();
   const { vid } = await bozza(d);

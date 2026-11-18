@@ -439,6 +439,12 @@ apri → tempo aggiuntivo / iscritti tardivi → chiudi (raccoglie da sola) → 
   segno sparisce. La riapertura generale e l'archiviazione azzerano segno e `riaperto`; `raccogli` salta chi è riaperto e sta lavorando
   (`inCorso`). Nella tabella lo stato mostra «· riaperto», timer e connessione tornano (`lavoraAdesso` in `verifica-tabella.js`). Nessun «annulla»:
   si accorcia la scadenza con i minuti negativi. Nessun test e2e nel browser per questa parte.
+  **Tracce nuove per gli assenti (18 nov 2026)**: a verifica chiusa (non archiviata) si possono AGGIUNGERE tracce, che il client segna `postChiusura` (campo
+  facoltativo della traccia, nelle regole): solo queste si correggono (`rev`+1, lo studente vede l'avviso) e si eliminano (se non assegnate); le originali
+  restano in sola lettura (provato anche scavalcando il client). Alla riapertura il menu della traccia vale per chi non è mai entrato (lavoro con
+  `entrato` nullo) e per chi non ha il lavoro; il cambio di `tracciaId` a verifica chiusa è ammesso dalle regole solo nello stesso aggiornamento che
+  mette `riaperto` e solo per chi non è entrato. Chi ha lavorato tiene la sua. Il menu parte dall'ultima traccia `postChiusura` e avvisa se la traccia scelta
+  è già stata svolta da altri. **DA FARE: `npm run rules:dev` e `npm run deploy:rules:dev` (regole nuove).**
   **Fine delle riaperture (16 nov 2026, `terminaRiaperture(vid, {emails})`)**: «Termina le riaperture…» nella scheda (visibile solo se c'è qualcuno al
   lavoro) e «Termina» sulla riga: `riaperto: false`, segno sulla verifica spento quando non ne resta nessuno, poi raccolta del lavoro com'è (chi non aveva
   consegnato non può più farlo). La testata mostra «Chiusa · N riaperti» e «Riaperti fino a…» (la fine della verifica non cambia con le riaperture

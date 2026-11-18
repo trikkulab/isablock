@@ -263,11 +263,15 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
     const scadenza = sdk.Timestamp.fromDate(fine);
     const b = sdk.writeBatch(db);
     let sbloccati = 0;
+    let cambiate = 0;
     for (const e of elenco) {
       const l = hanno.get(e);
       if (l) {
-        b.update(rifLavoro(vid, e), { riaperto: true, scadenza, ...(l.consegnato ? { consegnato: false } : {}) });
+        // Chi non è mai entrato (l'assente) riceve la traccia scelta, se diversa da quella che ha; chi ha lavorato tiene la sua.
+        const nuovaTraccia = tracciaId && !l.entrato && l.tracciaId !== tracciaId ? tracciaId : null;
+        b.update(rifLavoro(vid, e), { riaperto: true, scadenza, ...(l.consegnato ? { consegnato: false } : {}), ...(nuovaTraccia ? { tracciaId: nuovaTraccia } : {}) });
         if (l.consegnato) sbloccati++;
+        if (nuovaTraccia) cambiate++;
       } else {
         b.set(rifLavoro(vid, e), { studenteEmail: e, tracciaId: traccia, scadenza, entrato: null, consegnato: false, riaperto: true });
       }
@@ -279,7 +283,7 @@ export function creaVerificaDocente({ sdk, db }, emailDocente) {
       if (c === 'unavailable' || c === 'deadline-exceeded') throw vuoto('rete', 'Rete non disponibile: riprova tra poco.');
       throw vuoto('altro', 'Qualcosa è andato storto. Riprova.');
     }
-    return { sbloccati, creati: daCreare.length, riaperti: elenco.length };
+    return { sbloccati, creati: daCreare.length, riaperti: elenco.length, tracciaCambiata: cambiate };
   }
   const riapriStudente = (vid, email, opzioni) => riapriStudenti(vid, [email], opzioni);
 
