@@ -52,8 +52,10 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('#guidaSchede .verifica-scheda').length >= 2, null, { timeout: 15000 });
   const ids = await page.$$eval('#guidaSchede .verifica-scheda', (x) => x.map((e) => e.dataset.sezione));
   verifica(JSON.stringify(ids) === JSON.stringify(['editor', 'cloud-studente', 'cloud-docente', 'privacy']) && await page.isVisible('#guidaSchede'), `con il cloud la Guida ha la barra delle sezioni: ${JSON.stringify(ids)}`);
+  verifica(await page.isVisible('#helpModal .shortcuts'), 'sull\'Editor le Scorciatoie da tastiera ci sono');
   verifica(await page.isVisible('#guidaEditor') && /Trascina i blocchi/.test(await page.textContent('#guidaEditor')), 'si apre sull\'Editor, com\'è sempre stata');
   await page.click('#guidaSchede [data-sezione="privacy"]');
+  verifica(!(await page.isVisible('#helpModal .shortcuts')), 'le Scorciatoie da tastiera non compaiono nelle altre schede della Guida');
   verifica(!(await page.isVisible('#guidaEditor')) && (await page.$$eval('#guidaPagine .informativa-testo li', (x) => x.length)) === attesi, 'la sezione «Privacy e dati» mostra tutta l\'informativa');
   verifica((await page.$$eval('#guidaPagine .informativa-gruppo', (x) => x.length)) === 3, '…divisa in tre gruppi');
   await schermata(page, 'a-3-guida-privacy');
@@ -61,6 +63,7 @@ try {
   for (const id of ['cloud-studente', 'cloud-docente']) {
     await page.click(`#guidaSchede [data-sezione="${id}"]`);
     const capitoli = await page.$$('#guidaPagine .guida-cloud:visible .guida-cloud-capitoli .verifica-scheda');
+    verifica(!(await page.isVisible('#helpModal .shortcuts')), `la sezione ${id} non mostra le Scorciatoie dell'editor`);
     verifica(!(await page.isVisible('#guidaEditor')) && capitoli.length >= 4, `la sezione ${id} si apre e ha ${capitoli.length} capitoli`);
     let apertiBene = true;
     for (let i = 0; i < capitoli.length; i++) {
@@ -94,7 +97,7 @@ try {
   await senza.page.click('#btnHelp');
   await senza.page.waitForSelector('#guidaEditor', { state: 'visible' });
   await senza.page.waitForTimeout(800);
-  verifica(!(await senza.page.isVisible('#guidaSchede')) && (await senza.page.$$('#guidaEditor .guide-section')).length === 6, 'con il cloud spento la Guida non ha schede e mostra le sue 6 sezioni sull\'editor');
+  verifica(!(await senza.page.isVisible('#guidaSchede')) && (await senza.page.$$('#guidaEditor .guide-section')).length === 7, 'con il cloud spento la Guida non ha schede e mostra le sue 7 sezioni sull\'editor');
   verifica(!(await senza.page.textContent('#helpModal')).includes('Privacy e dati') && !(await senza.page.isVisible('.cloud-accedi')), '…e non parla di cloud né di privacy');
   verifica(senza.errori.length === 0, 'nessun errore nella pagina senza cloud');
   // ── Contatore di letture: spento di default, acceso solo con ?contatore=1 ───────────────────────────
