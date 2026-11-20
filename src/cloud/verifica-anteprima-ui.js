@@ -22,8 +22,10 @@ const ora = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit
 // `leggiTraccia(id)`: se c'è, compare la scheda «Traccia» (dopo Python) e, sopra, il titolo della traccia sempre visibile; legge { titolo, testoMd } o
 // lancia. `schedaIniziale`: la scheda aperta all'inizio (lo studente che rivede una consegna parte dalla traccia, com'era in verifica); senza, resta
 // quella scelta l'ultima volta. `contestoTraccia`: riga sopra il testo della traccia («Consegna v2 · …»).
+// `studente`: la finestra è dello studente che rivede la sua verifica: niente segni «⚠» né elenco dei salti (non deve sapere cosa cerca l'app),
+// e le diciture parlano della «consegna» che sta guardando. `etichettaCopia`: testo del pulsante «apri in editor» (default quello del docente).
 // `apriCopia({ programma, chi })`: se c'è, in fondo compare «Apri una copia per provarla» (carica nell'editor ciò che si sta guardando).
-export function apriAnteprima({ apri, programma, segui, caricaStoria = null, osserva = null, email, nome, titolo = null, nota = null, apriCopia = null, leggiTraccia = null, schedaIniziale = null, contestoTraccia = null }) {
+export function apriAnteprima({ apri, programma, segui, caricaStoria = null, osserva = null, email, nome, titolo = null, nota = null, apriCopia = null, leggiTraccia = null, schedaIniziale = null, contestoTraccia = null, studente = false, etichettaCopia = null }) {
   if (!programma || !programma.anteprima) return null;
   const blocchi = el('div', { class: 'anteprima-blocchi' });
   const pre = Object.fromEntries(CODICI.map(([k]) => [k, el('pre', { class: 'code-body anteprima-codice' })]));
@@ -84,9 +86,9 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, oss
   const barraStoria = el('div', { class: 'anteprima-storia', hidden: '' },
     el('div', { class: 'sketch-riga' }, bIndietro, cursore, bAvanti, bDiretta), eticCursore, saltiEl, riepilogo);
   const ore = (d) => ora.format(d);
-  const nomiTipo = { prima: 'prima del salto', dopo: 'dopo il salto', periodica: '' };
-  const segno = (p) => (p.tipo === 'periodica' || p.tipo === 'consegna' ? '' : ' ⚠');
-  const dalla = (o) => (o === 'file' ? ' (da file)' : o === 'raccolta' ? ' (raccolta)' : o === 'studente' ? ' (dello studente)' : '');
+  const nomiTipo = studente ? {} : { prima: 'prima del salto', dopo: 'dopo il salto', periodica: '' };
+  const segno = (p) => (studente || p.tipo === 'periodica' || p.tipo === 'consegna' ? '' : ' ⚠');
+  const dalla = (o) => (o === 'file' ? ' (da file)' : o === 'raccolta' ? ' (raccolta)' : o === 'studente' && !studente ? ' (dello studente)' : '');
   const quando = (o) => (o === 'file' ? 'caricata alle' : o === 'raccolta' ? 'raccolta alle' : 'consegnata alle');
 
   // A verifica chiusa si parte dall'ultima consegna; altrimenti dal lavoro in diretta.
@@ -106,7 +108,7 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, oss
   function mostraPosizione() {
     const attuale = posizioneEffettiva();
     const consegnaTesto = modoConsegna();
-    bDiretta.textContent = consegnaTesto ? 'Ultima consegna' : 'In diretta';
+    bDiretta.textContent = studente ? 'Questa consegna' : consegnaTesto ? 'Ultima consegna' : 'In diretta';
     cursore.max = String(ultimoPosto());
     cursore.value = String(attuale);
     bIndietro.disabled = attuale === 0 || punti.length === 0;
@@ -118,14 +120,16 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, oss
       const n = ultimoLavoro ? sorgente(ultimoLavoro).nBlocchi : null;
       const blocchiTesto = n === null || n === undefined ? '' : ` · ${n} blocchi`;
       eticCursore.textContent = consegnaTesto && c
-        ? `Ultima consegna: v${c.versione}${dalla(c.origine)}${c.creato ? ` · ${quando(c.origine)} ${ore(c.creato)}` : ''}${blocchiTesto}`
+        ? `${studente ? 'Consegna' : 'Ultima consegna'}: v${c.versione}${dalla(c.origine)}${c.creato ? ` · ${quando(c.origine)} ${ore(c.creato)}` : ''}${blocchiTesto}`
         : `In diretta${blocchiTesto}`;
       if (ultimoLavoro) disegna(ultimoLavoro);
     } else {
       const p = punti[posizione];
       const u = consegnaTesto ? punti[indiceUltima()] : null;
       if (p.tipo === 'consegna') {
-        eticCursore.textContent = consegnaTesto
+        eticCursore.textContent = studente
+          ? `Consegna v${p.versione}${dalla(p.origine)} · ${quando(p.origine)} ${ore(p.t)} · ${p.nBlocchi} blocchi`
+          : consegnaTesto
           ? `Consegna precedente (v${p.versione}${dalla(p.origine)}) · ${quando(p.origine)} ${ore(p.t)} · ${p.nBlocchi} blocchi — non è l'ultima consegna`
           : `Consegna v${p.versione}${dalla(p.origine)} · ${quando(p.origine)} ${ore(p.t)} · ${p.nBlocchi} blocchi`;
         info.textContent = `${nome || email} · consegna v${p.versione}${dalla(p.origine)}`;
@@ -154,7 +158,7 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, oss
     const nCons = punti.filter((p) => p.tipo === 'consegna').length;
     const nIst = punti.length - nCons;
     riepilogo.textContent = `Nella Storia: ${nCons === 0 ? 'nessuna consegna' : nCons === 1 ? '1 consegna' : `${nCons} consegne`} e ${nIst === 0 ? 'nessuna istantanea' : nIst === 1 ? '1 istantanea' : `${nIst} istantanee`} del lavoro (una ogni 5 minuti circa, più i salti di blocchi).`;
-    const salti = punti.map((p, i) => [p, i]).filter(([p]) => p.tipo === 'prima');
+    const salti = studente ? [] : punti.map((p, i) => [p, i]).filter(([p]) => p.tipo === 'prima');
     if (salti.length) {
       saltiEl.append(el('span', { class: 'sketch-nota' }, 'Salti di blocchi: '),
         ...salti.map(([p, i]) => el('button', { type: 'button', class: 'avviso-link', title: 'Mostra il programma subito prima del salto', onclick: () => vai(i) }, `⚠ ${ore(p.t)}`)));
@@ -169,7 +173,7 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, oss
   if (apriCopia) {
     f.corpo.append(el('div', { class: 'modal-actions' },
       el('button', { type: 'button', class: 'modal-btn secondary', title: 'Carica nell\'editor una copia di ciò che stai guardando, per eseguirla e provarla: la consegna non cambia',
-        onclick: () => apriCopia({ programma: ultimo, chi: `${nome || email}`, tracciaId: tracciaMostrata ?? null }) }, E.apriCopiaProva)));
+        onclick: () => apriCopia({ programma: ultimo, chi: `${nome || email}`, tracciaId: tracciaMostrata ?? null, quale: posizione !== null ? eticCursore.textContent.split(' — ')[0] : '' }) }, etichettaCopia ?? E.apriCopiaProva)));
   }
   annulla = segui(email, (lavoro, consegna = null, verifica = null) => {
     if (!lavoro) return;
@@ -184,7 +188,7 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, oss
     const dallaConsegna = consegna && consegna.programma && (verifica?.stato === 'chiusa' || !lavoro.programma);
     if (!dallaConsegna) return { ...lavoro, tracciaId: lavoro.tracciaId ?? consegna?.tracciaId ?? null };
     const come = consegna.origine === 'file' ? ' (da file)' : consegna.origine === 'raccolta' ? ' (raccolta)' : '';
-    return { tracciaId: consegna.tracciaId ?? lavoro.tracciaId ?? null, programma: consegna.programma, nBlocchi: contaBlocchi(consegna.programma), consegnato: false, ultimoSegnale: null, etichetta: ` · ultima consegna: v${consegna.versione}${come}`, riscontro: codiceRiscontro(consegna.programma) };
+    return { tracciaId: consegna.tracciaId ?? lavoro.tracciaId ?? null, programma: consegna.programma, nBlocchi: contaBlocchi(consegna.programma), consegnato: false, ultimoSegnale: null, etichetta: studente ? ` · consegna v${consegna.versione}${come}` : ` · ultima consegna: v${consegna.versione}${come}`, riscontro: codiceRiscontro(consegna.programma) };
   }
 
   // Il lavoro sul server è più recente di una consegna da file di emergenza: lo dice, perché la raccolta è da decidere.

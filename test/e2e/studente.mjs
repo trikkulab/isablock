@@ -475,6 +475,12 @@ try {
   const consegnaZ = (n, origine, extra = {}) => scrivi(`verifiche/vz/consegne/${ANNA}_${n}`, { studenteEmail: S(ANNA), studenteNome: S('Anna Rossi'), corsoId: S('ST1DEN'), titolo: S('Verifica già conclusa'), versione: { integerValue: String(n) }, origine: S(origine), tracciaId: S('t0'), programma: S(programmaZ), creato: T(ora() - (3 - n) * 60 * MIN), ...extra });
   await scrivi('verifiche/vy', { corsoId: S('ST1DEN'), titolo: S('Verifica più vecchia'), stato: S('chiusa'), fine: T(ora() - 9 * 60 * MIN), tracciaDefault: S('t0'), creataDa: S('docente@isarome.it'), creato: T(ora() - 10 * 60 * MIN), apertaIl: T(ora() - 9.5 * 60 * MIN), chiusaIl: T(ora() - 9 * 60 * MIN) });
   await scrivi(`verifiche/vy/consegne/${ANNA}_1`, { studenteEmail: S(ANNA), studenteNome: S('Anna Rossi'), corsoId: S('ST1DEN'), titolo: S('Verifica più vecchia'), versione: { integerValue: '1' }, origine: S('raccolta'), tracciaId: S('t0'), programma: S(programmaZ), creato: T(ora() - 9 * 60 * MIN), docenteEmail: S('docente@isarome.it') });
+  // la storia del lavoro (istantanee): una periodica con un programma piccolo, poi «prima di un salto» e una periodica con lo STESSO programma (da togliere)
+  const programmaPiccolo = JSON.stringify({ ...JSON.parse(programmaZ), blocks: { ...JSON.parse(programmaZ).blocks, blocks: [{ type: 'program', id: 'p1', x: 40, y: 40 }] } });
+  const istantaneaZ = (sid, tipo, programmaX, minutiFa, nB) => scrivi(`verifiche/vz/lavori/${ANNA}/storia/${sid}`, { programma: S(programmaX), nBlocchi: { integerValue: String(nB) }, t: T(ora() - minutiFa * MIN), tipo: S(tipo) });
+  await istantaneaZ('p0', 'periodica', programmaPiccolo, 150, 0);
+  await istantaneaZ('a0', 'prima', programmaZ, 140, 12);
+  await istantaneaZ('p1', 'periodica', programmaZ, 135, 12);
   await consegnaZ(1, 'studente');
   await scrivi('verifiche/vz/tracce/t0', { titolo: S('Somma dei numeri'), testoMd: S('Calcola la **somma** dei numeri.'), rev: { integerValue: '0' }, modificato: T(ora() - 4 * 60 * MIN) });
   await scrivi(`verifiche/vz/lavori/${ANNA}`, { email: S(ANNA), tracciaId: S('t0') });                // lo studente legge solo la traccia che ha nel lavoro
@@ -498,7 +504,16 @@ try {
   await page.click('.consegna-riga:has-text("v2") button:has-text("Guarda")');
   await page.waitForSelector('h2:has-text("La tua consegna v2")');
   verifica(await finche(page, async () => (await page.$$('.anteprima-blocchi .blocklyBlockCanvas [data-id]')).length > 3), 'Guarda: i blocchi della consegna');
-  verifica(/non si può modificare/.test(await page.textContent('.modal:not([hidden]):last-of-type .modal-box')) && !(await page.isVisible('button:has-text("Storia")')), '…in sola lettura, senza storia');
+  verifica(/non si può modificare/.test(await page.textContent('.modal:not([hidden]):last-of-type .modal-box')) && await page.isVisible('.modal:not([hidden]):last-of-type button:has-text("Storia")'), '…in sola lettura, con il pulsante «Storia…»');
+  await page.click('.modal:not([hidden]):last-of-type button:has-text("Storia")');
+  await page.waitForSelector('.anteprima-cursore');
+  verifica((await page.getAttribute('.anteprima-cursore', 'max')) === '3' && /^Consegna: v2/.test(await page.textContent('.anteprima-etichetta')), 'Storia dello studente: 4 punti (2 istantanee, la v1 e la v2: la periodica identica al «prima» è stata tolta) e si parte dalla consegna v2');
+  verifica(!/⚠|salto/.test(await page.textContent('.anteprima-storia')) && (await page.$$('.anteprima-salti button')).length === 0 && /Questa consegna/.test(await page.textContent('.anteprima-storia')), '…senza segni «⚠» né elenco dei salti');
+  await page.click('button[aria-label="Istantanea precedente"]');
+  verifica(/^Consegna v1/.test(await page.textContent('.anteprima-etichetta')), '…◀ porta alla consegna v1');
+  await page.click('button[aria-label="Istantanea precedente"]'); await page.click('button[aria-label="Istantanea precedente"]');
+  verifica(/^Istantanea del lavoro alle/.test(await page.textContent('.anteprima-etichetta')) && !/⚠|salto/.test(await page.textContent('.anteprima-etichetta')) && await finche(page, async () => (await page.$$('.anteprima-blocchi .blocklyBlockCanvas [data-id]')).length === 1), '…e le istantanee sono tutte uguali (nessun cenno ai salti); la prima ha il programma piccolo');
+  verifica(await page.isVisible('.modal:not([hidden]):last-of-type button:has-text("Apri nell\'editor")'), '…e il punto che si guarda si può aprire nell\'editor');
   verifica(await finche(page, async () => /Traccia: Somma dei numeri/.test(await page.textContent('.anteprima-traccia-titolo'))), 'Guarda: il titolo della traccia che aveva è sempre in vista');
   verifica(await page.isVisible('.anteprima-traccia .traccia-md') && /somma/.test(await page.textContent('.anteprima-traccia .traccia-md')) && !(await page.isVisible('.anteprima-codice >> nth=0')) && /Consegna v2 · Verifica già conclusa/.test(await page.textContent('.anteprima-traccia')), '…e la scheda «Traccia» è quella aperta all\'inizio (come in verifica), con la consegna di cui si parla'); 
   await page.keyboard.press('Escape');
@@ -521,6 +536,19 @@ try {
   verifica(await finche(page, async () => !(await page.isVisible('#tabTraccia'))), '…e la scheda «Traccia» sparisce quando il programma viene sostituito (Nuovo)');
   const consegneZ = (await leggi('verifiche/vz/consegne')).documents ?? [];
   verifica(consegneZ.length === 2, 'la consegna non cambia (immutabile): restano le due versioni');
+  // aprire nell'editor un punto della storia (l'istantanea con il programma piccolo)
+  await page.click('.cloud-menu-btn');
+  await page.click('.cloud-voce:has-text("Le mie consegne")');
+  await page.waitForSelector('.consegne-titolo:has-text("Verifica già conclusa")', { timeout: 15000 });
+  await page.click('.consegna-riga:has-text("v2") button:has-text("Guarda")');
+  await page.waitForSelector('h2:has-text("La tua consegna v2")');
+  await page.click('.modal:not([hidden]):last-of-type button:has-text("Storia")');
+  await page.waitForSelector('.anteprima-cursore');
+  for (let i = 0; i < 3; i++) await page.click('button[aria-label="Istantanea precedente"]');
+  page.once('dialog', (d) => d.accept());
+  await page.click('.modal:not([hidden]):last-of-type .modal-actions button:has-text("Apri nell\'editor")');
+  verifica(await finche(page, async () => (await page.$$('.modal:visible')).length === 0 && (await page.evaluate(() => window.Blockly.Workspace.getAll().find((x) => x.getParentSvg().closest('#blocklyDiv')).getAllBlocks(false).length)) === 1), 'Storia: «Apri nell\'editor» porta l\'istantanea scelta nell\'editor (programma piccolo) e chiude tutte le finestre');
+  verifica(await finche(page, async () => await page.isVisible('#tabTraccia') && /somma/.test(await page.textContent('#tracciaBox'))), '…con la scheda «Traccia»');
 
   verifica(errori.length === 0, `nessun errore nella pagina${errori.length ? `: ${errori.join(' | ')}` : ''}`);
   riuscito = riepilogo();

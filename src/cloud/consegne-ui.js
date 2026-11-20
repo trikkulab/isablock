@@ -2,7 +2,7 @@
 // immutabile e resta com'è. Per ogni versione si può guardarla (blocchi + pseudocodice/C/Python), aprirne una COPIA
 // nell'editor per lavorarci (non cambia la consegna) o salvarla su file. Non c'è per le verifiche aperte né in verifica
 // (il menu del cloud, in verifica, è spento).
-import { el, apriFinestra } from './dom.js';
+import { el, apriFinestra, chiudiTutteLeFinestre } from './dom.js';
 import { creaPannelloTraccia } from './pannello-traccia.js';
 import { mostraTracciaEditor } from './scheda-traccia-editor.js';
 import { formatoDataOra } from './data-ora.js';
@@ -38,40 +38,57 @@ export function montaConsegne({ toast, programma, dopoCaricamento = () => {} }) 
 
   const contestoTraccia = (v, c) => `Consegna v${c.versione} · ${v.titolo}`;
 
-  function guarda(v, c) {
+  // La storia che vede lo studente: le istantanee del suo lavoro fino a questa consegna (senza distinguere i «salti»: tutte uguali) e le sue
+  // consegne fino a questa, ognuna al suo posto nel tempo. Si tolgono le istantanee IDENTICHE al punto precedente (spesso quella dei 5 minuti
+  // e quella «prima del salto» coincidono): quelle solo simili restano.
+  async function storiaDelloStudente(v, c, tutte) {
+    const istantanee = (await api.lavoro.storia(v.id)).filter((p) => !c.creato || p.t <= c.creato)
+      .map((p) => ({ id: p.id, tipo: 'periodica', programma: p.programma, nBlocchi: p.nBlocchi, t: p.t }));
+    const consegne = tutte.filter((x) => x.creato && x.versione <= c.versione)
+      .map((x) => ({ id: x.id ?? `c${x.versione}`, tipo: 'consegna', programma: x.programma, nBlocchi: contaBlocchi(x.programma), t: x.creato, versione: x.versione, origine: x.origine }));
+    const tutti = [...istantanee, ...consegne].sort((a, b) => a.t - b.t || (a.versione ?? 0) - (b.versione ?? 0));
+    return tutti.filter((p, i) => p.tipo === 'consegna' || i === 0 || p.programma !== tutti[i - 1].programma);
+  }
+
+  function guarda(v, c, tutte) {
     apriAnteprima({
+      studente: true, etichettaCopia: K.apriNellEditor,
+      caricaStoria: () => storiaDelloStudente(v, c, tutte),
+      apriCopia: ({ programma: json, tracciaId, quale }) => apriProgrammaInEditor(v, json, tracciaId ?? c.tracciaId, quale ? `${quale} · ${v.titolo}` : contestoTraccia(v, c), quale ? 'Il punto scelto è aperto nell\'editor' : `Consegna v${c.versione} aperta nell'editor`),
       // La traccia che aveva, nella scheda «Traccia» aperta all'inizio: come in verifica. Lo studente legge solo la sua (regole del database).
       leggiTraccia: (id) => api.verifiche.leggiTraccia(v.id, id), schedaIniziale: 'traccia', contestoTraccia: contestoTraccia(v, c),
       apri: (titolo, onChiudi, opzioni) => apriFinestra(titolo, onChiudi, opzioni),
-      programma, email: api.email, nome: `${v.titolo} · consegna v${c.versione}`,
+      programma, email: api.email, nome: v.titolo,
       titolo: `La tua consegna v${c.versione}: ${v.titolo}`,
-      nota: 'Sola lettura: è la copia che hai consegnato e non si può modificare.',
-      segui: (_e, cb) => { cb({ tracciaId: c.tracciaId ?? null, programma: c.programma, nBlocchi: contaBlocchi(c.programma), consegnato: true, ultimoSegnale: null }); return () => {}; },
+      nota: 'Sola lettura: è la copia che hai consegnato e non si può modificare. Con «Storia…» rivedi come è cambiato il lavoro durante la verifica (un\'istantanea ogni circa 5 minuti: non è un registro di ogni modifica).',
+      segui: (_e, cb) => { cb({ tracciaId: c.tracciaId ?? null, programma: c.programma, nBlocchi: contaBlocchi(c.programma), consegnato: true, ultimoSegnale: null }, c, { stato: 'chiusa' }); return () => {}; },
     });
   }
 
-  function apriInEditor(v, c) {
-    if (programma.occupato()) { toast('Interrompi l\'esecuzione prima di aprire la consegna.', 'error'); return; }
-    if (!programma.isVuoto() && !window.confirm('Aprire la consegna nell\'editor? Il programma corrente andrà perso.')) return;
-    try { programma.carica(c.programma); } catch { toast('Non riesco ad aprire questa consegna.', 'error'); return; }
+  // Carica nell'editor un programma della sua verifica (la consegna o un punto della storia): una copia, la consegna non cambia.
+  function apriProgrammaInEditor(v, json, tracciaId, contesto, messaggio) {
+    if (programma.occupato()) { toast('Interrompi l\'esecuzione prima di aprirlo.', 'error'); return; }
+    if (!programma.isVuoto() && !window.confirm('Aprirlo nell\'editor? Il programma corrente andrà perso.')) return;
+    try { programma.carica(json); } catch { toast('Non riesco ad aprire questo programma.', 'error'); return; }
     dopoCaricamento();
-    finestra?.chiudi();
-    // La traccia di quella consegna nella scheda «Traccia» dell'editor (aperta, come in verifica); se non si legge, niente.
-    if (c.tracciaId) {
-      api.verifiche.leggiTraccia(v.id, c.tracciaId)
-        .then(async (t) => mostraTracciaEditor(await creaPannelloTraccia({ traccia: t, contesto: contestoTraccia(v, c) }), { apri: true }))
+    chiudiTutteLeFinestre();                  // la lista delle consegne e la finestra «Guarda» (con la storia) che stanno sopra l'editor
+    // La traccia nella scheda «Traccia» dell'editor (aperta, come in verifica); se non si legge, niente.
+    if (tracciaId) {
+      api.verifiche.leggiTraccia(v.id, tracciaId)
+        .then(async (t) => mostraTracciaEditor(await creaPannelloTraccia({ traccia: t, contesto }), { apri: true }))
         .catch(() => {});
     }
-    toast(`Consegna v${c.versione} aperta nell'editor: è una copia, la consegna resta com'è.`, 'success');
+    toast(`${messaggio}: è una copia, la consegna resta com'è.`, 'success');
   }
+  const apriInEditor = (v, c) => apriProgrammaInEditor(v, c.programma, c.tracciaId, contestoTraccia(v, c), `Consegna v${c.versione} aperta nell'editor`);
 
-  function riga(v, c, valida) {
+  function riga(v, c, valida, tutte) {
     const n = contaBlocchi(c.programma);
     return el('div', { class: 'consegna-riga' },
       el('div', { class: 'consegna-info' },
         el('strong', {}, `v${c.versione}${valida ? ' · quella che vale' : ''}`),
         el('span', { class: 'sketch-data' }, [ORIGINE[c.origine] ?? c.origine, c.creato ? formatoDataOra.format(c.creato) : '', n === null ? '' : `${n} blocchi`].filter(Boolean).join(' · '))),
-      el('button', { type: 'button', class: 'modal-btn', onclick: () => guarda(v, c) }, K.guarda),
+      el('button', { type: 'button', class: 'modal-btn', onclick: () => guarda(v, c, tutte) }, K.guarda),
       el('button', { type: 'button', class: 'modal-btn secondary', title: 'Apre una copia nell\'editor, per lavorarci', onclick: () => apriInEditor(v, c) }, K.apriNellEditor),
       el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => scarica(c.programma, `${slug(v.titolo)}_consegna-v${c.versione}.json`) }, K.salvaSuFile));
   }
@@ -99,7 +116,7 @@ export function montaConsegne({ toast, programma, dopoCaricamento = () => {} }) 
           el('header', { class: 'consegne-testata' },
             el('h3', { class: 'consegne-titolo' }, v.titolo),
             el('p', { class: 'consegne-meta' }, [corsiPerId.has(v.corsoId) ? etichettaCorso(corsiPerId.get(v.corsoId)) : '', chiusa ? `conclusa il ${formatoDataOra.format(chiusa)}` : ''].filter(Boolean).join(' · '))),
-          el('div', { class: 'consegne-righe' }, ...[...consegne].reverse().map((c, i) => riga(v, c, i === 0)))));
+          el('div', { class: 'consegne-righe' }, ...[...consegne].reverse().map((c, i) => riga(v, c, i === 0, consegne)))));
       }
     } catch (err) {
       if (finestra !== f) return;

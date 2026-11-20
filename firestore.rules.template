@@ -571,7 +571,8 @@ service cloud.firestore {
         // Id a ANELLO: `p<k>` periodiche (k < maxIstantanee), `a<k>`/`d<k>` coppia prima/dopo un salto di blocchi
         // (k < maxIstantaneeSalto): la nuova prende il posto della più vecchia, quindi i dati non crescono. Le scrive
         // solo lo studente, a verifica aperta, entro la scadenza personale più la grazia, finché non ha consegnato; le
-        // legge solo il docente del corso. Mai cancellate da qui (le toglie la pulizia di fine anno).
+        // legge il docente del corso e, a verifica CHIUSA, lo studente a cui appartengono (per ripercorrere la propria verifica:
+        // le vede dalla finestra «Guarda» di «Le mie consegne»). Mai cancellate da qui (le toglie la pulizia di fine anno).
         match /storia/{sid} {
           function lavoroSt() {
             return get(/databases/$(database)/documents/verifiche/$(vid)/lavori/$(lid)).data;
@@ -589,7 +590,7 @@ service cloud.firestore {
                   || (d.tipo == 'prima' && sid[0:1] == 'a' && indiceOk(maxIstantaneeSalto()))
                   || (d.tipo == 'dopo' && sid[0:1] == 'd' && indiceOk(maxIstantaneeSalto())));
           }
-          allow read: if docenteLav();
+          allow read: if docenteLav() || (mioLavoro() && verificaLav().stato == 'chiusa');
           allow create, update: if mioLavoro()
             && (verificaLav().stato == 'aperta'
                 || (verificaLav().stato == 'chiusa' && verificaLav().get('archiviata', false) == false

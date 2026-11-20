@@ -114,7 +114,24 @@ test('storia: solo a verifica aperta, entrato, non consegnato e entro la scadenz
   await assertSucceeds(setDoc(ist(anna(), 'p0'), dati()));
 });
 
-test('storia: la legge il docente del corso, non lo studente né un docente di altro corso; nessuno cancella', async () => {
+test('storia: a verifica CHIUSA lo studente legge la propria (documenti ed elenco), non quella di un altro; in bozza e aperta no', async () => {
+  await semina();
+  await assertSucceeds(setDoc(ist(anna(), 'p0'), dati()));
+  await assertSucceeds(setDoc(ist(bruno(), 'p0', BRUNO), dati()));
+  await assertFails(getDocs(collection(anna(), `verifiche/v1/lavori/${ANNA}/storia`)));            // verifica aperta: no
+  await semina('chiusa');
+  await assertSucceeds(getDoc(ist(anna(), 'p0')));
+  await assertSucceeds(getDocs(collection(anna(), `verifiche/v1/lavori/${ANNA}/storia`)));
+  await assertFails(getDoc(ist(anna(), 'p0', BRUNO)));                                              // quella di un altro studente
+  await assertFails(getDocs(collection(anna(), `verifiche/v1/lavori/${BRUNO}/storia`)));
+  await assertSucceeds(getDocs(collection(bruno(), `verifiche/v1/lavori/${BRUNO}/storia`)));
+  await assertFails(deleteDoc(ist(anna(), 'p0')));                                                 // e nessuno cancella
+  await assertFails(setDoc(ist(anna(), 'p1'), dati()));                                           // né scrive: a verifica chiusa (non riaperta)
+  await semina('bozza');
+  await assertFails(getDoc(ist(anna(), 'p0')));
+});
+
+test('storia: la legge il docente del corso, non lo studente (a verifica aperta) né un docente di altro corso; nessuno cancella', async () => {
   await semina();
   await assertSucceeds(setDoc(ist(anna(), 'p0'), dati()));
   await assertSucceeds(getDoc(ist(docente(), 'p0')));

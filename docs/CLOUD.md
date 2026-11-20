@@ -646,6 +646,14 @@ Nel menu «Corsi», ogni corso attivo del docente ha il pulsante **«Verifiche»
       Lo studente legge solo la traccia assegnata nel suo lavoro (regola già in vigore, anche a verifica chiusa: nessuna regola cambiata). (4) Tabella live:
       colonna «Traccia» (titolo) solo se la verifica ha più di una traccia. Il pannello dello studente in verifica (`verifica-studente-ui.js`) NON usa ancora la
       funzione condivisa (circa 25 righe duplicate): da unificare. Prove: `test/verifica-tabella.mjs`, e2e docente e studente.
+    - **La storia vista dallo studente (20 nov 2026)**: a verifica CHIUSA lo studente legge le istantanee del proprio lavoro (regola in `storia`:
+      `allow read: if docenteLav() || (mioLavoro() && verificaLav().stato == 'chiusa')`; la scrittura non cambia; PROVA: `test/cloud/storia-rules.test.mjs`;
+      **le regole vanno ripubblicate** con `npm run deploy:rules:dev` prima dell'app). Da «Le mie consegne» → «Guarda» c'è «Storia…» (stessa finestra del docente,
+      parametro `studente: true` di `apriAnteprima`): cursore tra le istantanee (una ogni ~5 min, ultime ~2 ore) e le sue consegne fino a quella che guarda;
+      niente «⚠» né elenco dei salti (non deve sapere cosa cerca l'app: `prima`/`dopo` diventano istantanee come le altre); si tolgono le istantanee IDENTICHE
+      al punto precedente (spesso la periodica e la «prima del salto» coincidono), non quelle solo simili. Il pulsante «Apri nell'editor» della finestra apre
+      il punto che si sta guardando come copia (stesso percorso di «Apri nell'editor» di una consegna, `apriProgrammaInEditor`, con la scheda «Traccia»);
+      la consegna non cambia e non si può riconsegnare. Costo: al massimo ~30 letture, solo quando apre la Storia. Informativa e guida aggiornate.
     - **Disposizione adattiva**: le parti scelte, nell'ordine blocchi · pseudocodice · C · Python. Due parti consecutive stanno AFFIANCATE
       solo se entrambe ci stanno nella colonna SENZA andare a capo (codice: riga più lunga entro la colonna; blocchi: scala non sotto 0,8 e
       pagina intera sufficiente); altrimenti ognuna sta a tutta larghezza. Una riga di codice più larga della pagina rimpicciolisce il

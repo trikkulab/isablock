@@ -110,7 +110,7 @@ const studente = [
     blocchi: [
       { p: `A verifica finita, dal menu scegli **${M.consegne}**. Vedi le verifiche concluse e, per ognuna, le tue consegne.` },
       { ul: [
-        `**${G.guarda}**: la apri in sola lettura. Si apre sulla scheda **Traccia** (come in verifica): le altre schede, dopo, sono Pseudocodice, C e Python.`,
+        `**${G.guarda}**: la apri in sola lettura. Si apre sulla scheda **Traccia** (come in verifica): le altre schede, dopo, sono Pseudocodice, C e Python. Con **Storia…** rivedi come è cambiato il tuo lavoro durante la verifica: un cursore tra le istantanee (circa una ogni 5 minuti, le ultime 2 ore circa) e le tue consegne. Non è un registro di ogni modifica. Quello che stai guardando lo apri nell'editor con **${G.apriNellEditor}**: è una copia, la consegna non cambia.`,
         `**${G.apriNellEditor}**: ne apre una copia, per lavorarci, con la scheda **Traccia** accanto ai codici. La consegna non cambia.`,
         `**${G.salvaSuFile}**: la scarichi.`,
       ] },

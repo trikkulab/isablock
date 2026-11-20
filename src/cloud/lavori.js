@@ -213,8 +213,20 @@ export function creaLavoroStudente({ sdk, db }, emailUtente, nomeUtente) {
     } catch (err) { throw traduci(err, 'Non posso salvare la storia.'); }
   }
 
+  // La PROPRIA storia (istantanee del programma), dalla più vecchia alla più recente: le regole la fanno leggere solo a verifica
+  // CHIUSA. Si legge solo quando lo studente la apre dalla finestra «Guarda» di una consegna (al massimo ~30 letture).
+  async function storia(vid) {
+    try {
+      const snap = await sdk.getDocs(sdk.collection(db, 'verifiche', vid, 'lavori', mia, 'storia'));
+      return snap.docs.map((d) => {
+        const x = d.data();
+        return { id: d.id, tipo: x.tipo, programma: x.programma, nBlocchi: x.nBlocchi ?? 0, t: data(x.t) };
+      }).filter((x) => x.t).sort((a, b) => a.t - b.t || a.id.localeCompare(b.id));
+    } catch (err) { throw traduci(err, 'Non posso leggere la storia della tua verifica.'); }
+  }
+
   // Lo studente risulta già entrato in questa verifica? (Serve a non rimandare `entrato` neppure nella consegna.)
   const giaEntrato = (vid) => !!noti.get(vid);
 
-  return { mio, salva, istantanea, giaEntrato };
+  return { mio, salva, istantanea, giaEntrato, storia };
 }
