@@ -5,6 +5,7 @@ firestore.rules
 scripts/environments.local.json
 *-debug.log
 .emulator-data/
+.emulator-data.*
 .deploy-test/
 .firebase/
 # Schede dei pattern: solo gli strumenti si versionano, il resto (appunti, bozze, output) no.

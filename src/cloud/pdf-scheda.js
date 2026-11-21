@@ -22,6 +22,7 @@ const PT = 25.4 / 72;                                          // un punto tipog
 const PX = 25.4 / 96;                                          // un pixel dell'editor in mm (scala 1:1)
 const PAD = 2;                                                 // margine interno dei riquadri
 const GIU = 4;                                                 // spazio sotto una sezione
+const LARGHEZZA_CORSIA = 1.1;                                   // una «corsia» di parentesi dei commenti (un intervallo annidato dentro un altro ne usa una in più)
 const ARIA_NUMERI = 0.7;                                        // aria a destra dei numeri di riga, prima del filo della striscia
 
 const PT_CORPO = 9;                                            // testo della traccia
@@ -64,6 +65,11 @@ export function spezzaRiga(riga, max) {
 
 // I segni dei commenti che cadono nelle righe da `da` a `da + k - 1` (quando un riquadro si spezza su due pagine), con gli indici
 // riferiti all'inizio della fetta. Un segno che comincia nella pagina prima si ridisegna in cima alla fetta.
+function fettaIntervalli(intervalli, da, k) {
+  return (intervalli ?? []).filter((v) => v.r1 >= da && v.r0 < da + k)
+    .map((v) => ({ corsia: v.corsia, r0: Math.max(v.r0, da) - da, r1: Math.min(v.r1, da + k - 1) - da, sopra: v.r0 < da, sotto: v.r1 > da + k - 1 }));
+}
+
 function fettaMarcatori(marc, da, k) {
   return (marc ?? []).filter((m) => m.r1 >= da && m.r0 < da + k)
     .map((m) => ({ testo: m.testo, r0: Math.max(m.r0, da) - da, r1: Math.min(m.r1, da + k - 1) - da }));
@@ -368,14 +374,14 @@ class Foglio {
 
   // `numeri`: per ogni riga il suo numero (null per le continuazioni di una riga spezzata), in una striscia a sinistra del
   // riquadro: non fa parte del testo del codice. `cifre`: quante cifre serve alla striscia (quelle del numero più alto).
-  riquadroCodice(righe, x, w, lh, h, pt = PT_CODICE, numeri = null, cifre = 0, marc = [], mc = 0) {
+  riquadroCodice(righe, x, w, lh, h, pt = PT_CODICE, numeri = null, cifre = 0, marc = [], mc = 0, intervalli = [], nl = 0) {
     const doc = this.doc;
     doc.setFillColor(246); doc.setDrawColor(150); doc.setLineWidth(0.25);
     doc.rect(x, this.y, w, h, 'FD');
     doc.setFont('courier', 'normal'); doc.setFontSize(pt); doc.setTextColor(0);
     const cella = doc.getTextWidth('M');                       // il Courier ha celle di larghezza fissa
-    const extra = numeri ? this.extraNumeri(cifre, pt, mc) : 0;
-    const spostaNumeri = numeri ? this.largMarcatori(mc, pt) : 0;
+    const extra = numeri ? this.extraNumeri(cifre, pt, mc, nl) : 0;
+    const spostaNumeri = numeri ? this.largMarcatori(mc, pt) + nl * LARGHEZZA_CORSIA : 0;
     if (numeri) {
       const larghezzaStriscia = PAD + extra - 1.3;
       doc.setFillColor(231);
@@ -388,21 +394,22 @@ class Foglio {
         const t = String(n);
         doc.text(t, x + 1 + spostaNumeri + (cifre - t.length) * cella, this.y + PAD + i * lh + lh * 0.74);
       });
-      // Segni dei commenti del docente: «[n]» alla prima riga del blocco e, se il blocco ne occupa più d'una, un filo sotto
+      // Segni dei commenti del docente: «[n]» alla prima riga del blocco (a sinistra) e, per i blocchi di più righe, una parentesi in una
+      // «corsia» tra i segni e i numeri (le parentesi annidate stanno in corsie diverse, senza sovrapporsi).
       doc.setFont('courier', 'bold'); doc.setFontSize(pt); doc.setTextColor(40);
       doc.setDrawColor(90); doc.setLineWidth(0.25);
-      for (const m of marc) {
-        const yr = this.y + PAD + m.r0 * lh;
-        doc.text(m.testo, x + 0.8, yr + lh * 0.74);
-        if (m.r1 > m.r0) {
-          const xc = x + 0.8 + (m.testo.length * cella) / 2;
-          doc.line(xc, yr + lh * 0.92, xc, this.y + PAD + m.r1 * lh + lh * 0.9);
-        }
+      for (const m of marc) doc.text(m.testo, x + 0.8, this.y + PAD + m.r0 * lh + lh * 0.74);
+      for (const v of intervalli) {
+        const xc = x + this.largMarcatori(mc, pt) + 0.3 + v.corsia * LARGHEZZA_CORSIA + LARGHEZZA_CORSIA / 2;
+        const y0 = this.y + PAD + v.r0 * lh + lh * 0.14; const y1 = this.y + PAD + v.r1 * lh + lh * 0.88;
+        doc.line(xc, y0, xc, y1);
+        if (!v.sopra) doc.line(xc, y0, xc + 0.7, y0);                       // le «zampette» ci sono solo agli estremi veri (non dove il pezzo continua nella pagina dopo/prima)
+        if (!v.sotto) doc.line(xc, y1, xc + 0.7, y1);
       }
       doc.setTextColor(0);
     }
     righe.forEach((r, i) => { if (r !== '') this.rigaCodice(r, x + PAD + extra, this.y + PAD + i * lh + lh * 0.74, cella, pt); });
-    this.reg('codice', { x, h, righe: righe.length, testo: righe.join('\n'), ...(numeri ? { numeri } : {}), ...(marc.length ? { marcatori: marc.map((m) => ({ testo: m.testo, r0: m.r0, r1: m.r1 })) } : {}) });
+    this.reg('codice', { x, h, righe: righe.length, testo: righe.join('\n'), ...(numeri ? { numeri } : {}), ...(marc.length ? { marcatori: marc.map((m) => ({ testo: m.testo, r0: m.r0, r1: m.r1 })), parentesi: intervalli.map((v) => ({ r0: v.r0, r1: v.r1, corsia: v.corsia })) } : {}) });
   }
 
   // ── Sezioni ──────────────────────────────────────────────────────────────
@@ -419,13 +426,13 @@ class Foglio {
 
   // Spazio in più a sinistra del testo (oltre al margine PAD) per la striscia dei numeri di riga di `cifre` cifre.
   // `mc`: quanti caratteri ha il segno più lungo dei commenti del docente (es. «[2,3]»), che sta a sinistra dei numeri; 0 = nessun commento.
-  extraNumeri(cifre, pt, mc = 0) { return 1 + this.largMarcatori(mc, pt) + cifre * this.larg('M', 'courier', 'normal', pt) + ARIA_NUMERI + 1.3 - PAD; }
+  extraNumeri(cifre, pt, mc = 0, nl = 0) { return 1 + this.largMarcatori(mc, pt) + nl * LARGHEZZA_CORSIA + cifre * this.larg('M', 'courier', 'normal', pt) + ARIA_NUMERI + 1.3 - PAD; }
 
   largMarcatori(mc, pt) { return mc > 0 ? mc * this.larg('M', 'courier', 'normal', pt) + 0.8 : 0; }
 
   // Quanti caratteri di codice stanno in una riga larga `w` con il carattere di `pt` punti (e la striscia di `cifre` cifre, 0 = senza).
-  caratteri(w, pt, cifre = 0, mc = 0) {
-    const extra = cifre > 0 ? this.extraNumeri(cifre, pt, mc) : 0;
+  caratteri(w, pt, cifre = 0, mc = 0, nl = 0) {
+    const extra = cifre > 0 ? this.extraNumeri(cifre, pt, mc, nl) : 0;
     return Math.floor((w - 2 * PAD - extra) / this.larg('M', 'courier', 'normal', pt) + 1e-9);
   }
 
@@ -449,15 +456,30 @@ class Foglio {
     }
     const marc = [...segni.entries()].sort((x, y) => x[0] - y[0]).map(([da, v]) => ({ da, a: v.a, testo: `[${v.numeri.sort((x, y) => x - y).join(',')}]` }));
     const mc = Math.max(0, ...marc.map((m) => m.testo.length));
-    return { tipo: 'codice', titolo, righe, cifre, marc, mc, stretta: lunga <= this.caratteri(COLONNA, PT_CODICE, cifre, mc), lunga };
+    // Le parentesi dei blocchi che occupano più righe: ogni intervallo (diverso) ha una CORSIA; un intervallo annidato in un altro
+    // (un ciclo con dentro altri blocchi commentati) va in una corsia a destra, così le parentesi non si sovrappongono né attraversano i segni.
+    const intervalli = [];
+    for (const c of commenti) {
+      const a2 = Math.min(c.a, righe.length);
+      if (cifre > 0 && c.da >= 1 && a2 > c.da && !intervalli.some((i) => i.da === c.da && i.a === a2)) intervalli.push({ da: c.da, a: a2 });
+    }
+    intervalli.sort((x, y) => x.da - y.da || y.a - x.a);
+    const fineCorsia = [];
+    for (const i of intervalli) {
+      let k = fineCorsia.findIndex((fine) => fine < i.da);
+      if (k < 0) { k = fineCorsia.length; fineCorsia.push(0); }
+      fineCorsia[k] = i.a; i.corsia = k;
+    }
+    const nl = fineCorsia.length;
+    return { tipo: 'codice', titolo, righe, cifre, marc, mc, intervalli, nl, stretta: lunga <= this.caratteri(COLONNA, PT_CODICE, cifre, mc, nl), lunga };
   }
 
   // Le righe della parte per una larghezza `w`: se la riga più lunga non ci sta si rimpicciolisce il carattere (fino a
   // PT_CODICE_MIN), e solo se nemmeno così ci sta si va a capo. `numeri`: il numero di ogni riga ottenuta (null se continua).
   formatoCodice(parte, w) {
     let pt = PT_CODICE;
-    while (parte.lunga > this.caratteri(w, pt, parte.cifre, parte.mc) && pt - 0.2 >= PT_CODICE_MIN - 1e-9) pt = Math.round((pt - 0.2) * 10) / 10;
-    const max = this.caratteri(w, pt, parte.cifre, parte.mc);
+    while (parte.lunga > this.caratteri(w, pt, parte.cifre, parte.mc, parte.nl) && pt - 0.2 >= PT_CODICE_MIN - 1e-9) pt = Math.round((pt - 0.2) * 10) / 10;
+    const max = this.caratteri(w, pt, parte.cifre, parte.mc, parte.nl);
     const righe = []; const numeri = [];
     const primaUltima = new Map();                             // riga originale -> [prima, ultima] riga di quelle ottenute (se va a capo sono più d'una)
     parte.righe.forEach((r, i) => {
@@ -467,7 +489,8 @@ class Foglio {
     });
     // I segni dei commenti, in righe ottenute: dalla prima riga del blocco all'ultima (comprese le continuazioni)
     const marc = parte.marc.map((m) => ({ testo: m.testo, r0: primaUltima.get(m.da)[0], r1: primaUltima.get(Math.max(m.da, m.a))[1] }));
-    return { titolo: parte.titolo, pt, righe, cifre: parte.cifre, numeri: parte.cifre > 0 ? numeri : null, marc, mc: parte.mc };
+    const intervalli = parte.intervalli.map((i) => ({ r0: primaUltima.get(i.da)[0], r1: primaUltima.get(i.a)[1], corsia: i.corsia }));
+    return { titolo: parte.titolo, pt, righe, cifre: parte.cifre, numeri: parte.cifre > 0 ? numeri : null, marc, mc: parte.mc, intervalli, nl: parte.nl };
   }
 
   // Due codici affiancati, di uguale altezza; si tengono su una pagina se ci stanno, altrimenti si spezzano (righe in pari).
@@ -486,6 +509,7 @@ class Foglio {
       const pa = a.righe.slice(da, da + k); const pb = b ? b.righe.slice(da, da + k) : [];
       const na = a.numeri?.slice(da, da + k) ?? null; const nb = b?.numeri?.slice(da, da + k) ?? null;
       const ma = fettaMarcatori(a.marc, da, k); const mb = b ? fettaMarcatori(b.marc, da, k) : [];
+      const ia = fettaIntervalli(a.intervalli, da, k); const ib = b ? fettaIntervalli(b.intervalli, da, k) : [];
       const n = Math.max(pa.length, pb.length);
       const sfx = primo ? '' : ' (continua)';
       this.etichetta(a.titolo + sfx, x, w);
@@ -493,8 +517,8 @@ class Foglio {
       const y0 = this.y;
       this.y = y0 + this.hEtichetta;
       const h = 2 * PAD + n * lh;
-      this.riquadroCodice(pa, x, w, lh, h, pt, na, a.cifre, ma, a.mc);
-      if (b) this.riquadroCodice(pb, xb, w, lh, h, pt, nb, b.cifre, mb, b.mc);
+      this.riquadroCodice(pa, x, w, lh, h, pt, na, a.cifre, ma, a.mc, ia, a.nl);
+      if (b) this.riquadroCodice(pb, xb, w, lh, h, pt, nb, b.cifre, mb, b.mc, ib, b.nl);
       this.y = y0 + this.hEtichetta + h;
       da += k; primo = false;
       if (da < tot) this.nuovaPagina();
@@ -643,7 +667,7 @@ class Foglio {
     this.y = y0;
     if (img) this.riquadroBlocchi(img, MARGINI.sx, y0, COLONNA, h, scalaCol);
     else this.riquadroCodice(blocchiTesto.righe, MARGINI.sx, COLONNA, lh, h);
-    this.riquadroCodice(codice.righe, MARGINI.sx + COLONNA + SPAZIO_COLONNE, COLONNA, lh, h, codice.pt, codice.numeri, codice.cifre, codice.marc, codice.mc);
+    this.riquadroCodice(codice.righe, MARGINI.sx + COLONNA + SPAZIO_COLONNE, COLONNA, lh, h, codice.pt, codice.numeri, codice.cifre, codice.marc, codice.mc, codice.intervalli, codice.nl);
     this.y = y0 + h + GIU;
   }
 

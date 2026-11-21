@@ -338,6 +338,25 @@ await prova('commenti: due commenti sullo stesso blocco condividono il segno «[
   assert.equal(cod.numeri[cod.marcatori[0].r0], 2);
 });
 
+await prova('commenti: blocchi annidati (un ciclo con dentro altri commentati): ogni intervallo ha la sua corsia, senza sovrapposizioni; i fratelli non annidati condividono la corsia', () => {
+  const psc = ['INIZIO', 'a', 'PER i', '  x', '  SE x', '    y', '    z', '  FINE SE', 'FINE PER', 'b', 'SE k', '  w', 'FINE SE', 'FINE'].join('\n');
+  const nido = (n, da, a) => ({ n, testo: `c${n}`, generale: false, bloccoTesto: 'blocco', righe: { pseudocode: [da, a] } });
+  const r = crea([scheda({ parti: { blocchi: false, pseudocodice: true, c: false, python: false }, testi: { pseudocode: psc, c: '', python: '' },
+    commenti: [nido(1, 3, 9), nido(2, 5, 8), nido(3, 6, 6), nido(4, 11, 13)] })]).registro;
+  const cod = codiciReg(r)[0];
+  const par = cod.parentesi;
+  assert.equal(par.length, 3, 'tre blocchi di più righe (la riga singola 6 non ha parentesi)');
+  const corsia = (r0, r1) => par.find((v) => v.r0 === r0 && v.r1 === r1)?.corsia;
+  assert.equal(corsia(2, 8), 0, 'il ciclo esterno nella corsia più a sinistra');
+  assert.equal(corsia(4, 7), 1, 'il SE dentro il ciclo, in una corsia a destra');
+  assert.equal(corsia(10, 12), 0, 'il blocco dopo il ciclo (non annidato) riusa la corsia 0');
+  for (const a of par) for (const b of par) if (a !== b && a.corsia === b.corsia) assert.ok(a.r1 < b.r0 || b.r1 < a.r0, 'nella stessa corsia gli intervalli non si toccano');
+  const segni = cod.marcatori.map((m) => m.testo);
+  assert.deepEqual(segni, ['[1]', '[2]', '[3]', '[4]'], 'un segno per riga d\'inizio, tutti presenti');
+  const senza = codiciReg(crea([scheda({ parti: { blocchi: false, pseudocodice: true, c: false, python: false }, testi: { pseudocode: psc, c: '', python: '' }, commenti: [nido(1, 6, 6)] })].map((x) => x)).registro)[0];
+  assert.deepEqual(senza.parentesi, [], 'nessun intervallo di più righe: nessuna corsia');
+});
+
 await prova('commenti: un codice lungo su due pagine: il segno compare nella pagina dove sta la riga, riferito all\'inizio di quel pezzo', () => {
   const { registro } = crea([scheda({ parti: { blocchi: false, pseudocodice: true, c: false, python: false }, testi: { pseudocode: righe(150), c: '', python: '' },
     commenti: [comm(1, { righe: { pseudocode: [3, 3] } }), comm(2, { righe: { pseudocode: [140, 142] } })] })]);
