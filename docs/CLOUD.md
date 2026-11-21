@@ -399,6 +399,7 @@ l'ultima versione è quella valida. Campi: `studenteEmail`, `studenteNome`, `cor
   (quindi l'ultimo salvataggio ne fa parte), la traccia quella assegnata. Stato `aperta` e scadenza con la
   grazia li impone l'update del lavoro. **Lo studente non riconsegna mai** (id esistente = nessuna
   scrittura possibile; la riconsegna dopo una riapertura individuale è una decisione ancora rimandata).
+  **Da fare (rimandato):** oltre la v9 non si consegna più (la numerazione non riparte) e alla riapertura il docente non ha nessun avviso: andrebbe avvisato se uno studente ha già 9 consegne.
 - **raccolta** (docente, a verifica **chiusa**): dal lavoro com'è; chi non è mai entrato non ha niente
   da raccogliere. Una v>1 richiede la precedente: rilanciata dopo una riapertura, il client crea la
   versione successiva solo se il lavoro è cambiato.
