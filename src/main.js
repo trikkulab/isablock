@@ -3,7 +3,7 @@ import { toolbox } from './blocks/toolbox.js';
 import { createPseudocodeGenerator } from './codegen/pseudocode.js';
 import { createCGenerator } from './codegen/c.js';
 import { createPythonGenerator } from './codegen/python.js';
-import { extractSourceMap } from './codegen/common.js';
+import { extractSourceMap, righeDeiBlocchi } from './codegen/common.js';
 import { tokenizePseudocode, tokenizeC, tokenizePython } from './codegen/highlight.js';
 import { pseudocodeConfig } from './pseudocode-config.js';
 import { appConfig } from './app-config.js';
@@ -725,11 +725,14 @@ if (appConfig.cloud.enabled) {
           Blockly,
           principale: () => workspace,
           carica: (ws, json) => loadWorkspaceState(Blockly, ws, JSON.parse(json)),
-          testi: (ws) => ({
-            pseudocode: extractSourceMap(pseudocodeGen.workspaceToCode(ws)).text,
-            c: extractSourceMap(cGen.workspaceToCode(ws)).text,
-            python: extractSourceMap(pythonGen.workspaceToCode(ws)).text,
-          }),
+          testi: (ws) => {
+            const pseudocode = extractSourceMap(pseudocodeGen.workspaceToCode(ws));
+            const c = extractSourceMap(cGen.workspaceToCode(ws));
+            const python = extractSourceMap(pythonGen.workspaceToCode(ws));
+            // `righe`: a quali righe di ogni codice corrisponde ogni blocco (per i commenti del docente nel PDF)
+            return { pseudocode: pseudocode.text, c: c.text, python: python.text,
+              righe: { pseudocode: righeDeiBlocchi(pseudocode), c: righeDeiBlocchi(c), python: righeDeiBlocchi(python) } };
+          },
         }),
       },
     });

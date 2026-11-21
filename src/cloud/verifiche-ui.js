@@ -807,28 +807,38 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
         d.corpo.append(
           json
             ? el('p', {}, 'Un file JSON con i programmi senza nomi né email (solo un codice per consegna, le tracce una volta sola) e un file CSV con le corrispondenze codice-studente: il CSV contiene i nomi, non condividerlo.')
-            : el('p', {}, 'La traccia c\'è sempre. Le parti che lasci accese si affiancano se stanno nella pagina senza andare a capo, altrimenti vanno una sotto l\'altra.'),
+            : el('p', {}, 'La traccia c\'è sempre. Le parti che lasci accese si affiancano se stanno nella pagina senza andare a capo, altrimenti vanno una sotto l\'altra. I commenti già pubblicati compaiono in fondo (e «[n]» accanto alle righe dei codici, se i numeri di riga sono accesi); le bozze mai.'),
           ...caselle.map((c) => el('label', { class: 'gestione-campo' }, c.chk, ' ', c.nome)),
           json ? '' : el('label', { class: 'gestione-campo' }, chkNumeri, ' Numeri di riga accanto ai codici (in una colonna a parte, non nel testo)'),
           riepilogo,
           el('div', { class: 'modal-actions' }, scarica, el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => d.chiudi() }, 'Annulla')));
         aggiorna();
       });
+      // I feedback aggiornati, letti subito prima di fare il PDF (archivio: non si usa la copia in memoria, che potrebbe essere indietro).
+      // Se non si leggono il PDF non si fa: uno senza i commenti pubblicati, in un archivio, sarebbe incompleto senza che si veda.
+      const feedbackPerPdf = async () => {
+        if (!feedbackApi) return [];
+        try { return await feedbackApi.perVerifica(vid); } catch { toast('Non riesco a leggere i feedback: il PDF non li avrebbe. Riprova tra poco.', 'error'); return null; }
+      };
       const scaricaPdf = async (email) => {
         const schede = schedeDi([email]);
         const s = schede[0];
         const parti = await scegliParti(E.partiPdfTitolo);
         if (!parti) return 0;
+        const feedback = await feedbackPerPdf();
+        if (feedback === null) return 0;
         return scaricaPdfSchede({
-          schede, verifica, corso, programma, toast, parti,
+          schede, verifica, corso, programma, toast, parti, feedback,
           nomeFile: nomeFilePdf({ nome: s?.nome, email, classe: corso.classe, titolo: verifica.titolo, versione: s?.consegna.versione ?? 1 }),
         });
       };
       const scaricaTutti = async () => {
         const parti = await scegliParti(E.partiPdfTitolo);
         if (!parti) return 0;
+        const feedback = await feedbackPerPdf();
+        if (feedback === null) return 0;
         return scaricaPdfSchede({
-          schede: schedeDi(null), verifica, corso, programma, toast, parti,
+          schede: schedeDi(null), verifica, corso, programma, toast, parti, feedback,
           nomeFile: nomeFilePdfTutte({ classe: corso.classe, titolo: verifica.titolo }),
         });
       };

@@ -1,6 +1,6 @@
 // Prova di src/cloud/scheda-stampa.js (parti pure della scheda di consegna stampabile).
 import assert from 'node:assert/strict';
-import { codiceRiscontro, dividiNome, nomeVisualizzato, nomeFilePdf, nomeFilePdfTutte, ordinaSchede, dataLunga } from '../src/cloud/scheda-stampa.js';
+import { codiceRiscontro, dividiNome, nomeVisualizzato, nomeFilePdf, nomeFilePdfTutte, ordinaSchede, dataLunga, preparaCommenti } from '../src/cloud/scheda-stampa.js';
 
 let test = 0;
 const prova = (nome, fn) => { fn(); test++; console.log(`OK      ${nome}`); };
@@ -47,4 +47,28 @@ prova('data lunga: solo giorno, mese e anno, in italiano', () => {
   assert.equal(dataLunga(new Date(2026, 10, 6, 14, 35)), '6 novembre 2026');
   assert.equal(dataLunga(new Date(2026, 0, 1, 0, 0)), '1 gennaio 2026');
 });
+prova('commenti per il PDF: solo i pubblicati di quello studente e di quella versione; generali in testa, poi nell\'ordine del programma; numerati', () => {
+  const t = (min) => new Date(2026, 10, 21, 10, min);
+  const f = (id, extra = {}) => ({ id, studenteEmail: 'anna@x.it', versione: 2, pubblicato: true, bloccoId: null, bloccoTesto: '', testo: `t${id}`, creato: t(id), ...extra });
+  const righe = { pseudocode: { b1: [2, 2], b2: [4, 8] }, c: { b1: [5, 5], b2: [7, 11] }, python: { b1: [1, 1] } };
+  const lista = [
+    f(1, { bloccoId: 'b2', bloccoTesto: 'SE' }), f(2), f(3, { bloccoId: 'b1', bloccoTesto: 'LEGGI a' }),
+    f(4, { pubblicato: false }),                                  // bozza: mai
+    f(5, { versione: 1 }),                                         // un'altra versione
+    f(6, { studenteEmail: 'bruno@x.it' }),                         // un altro studente
+    f(7, { bloccoId: 'sparito', bloccoTesto: 'blocco tolto' }),    // senza righe: in fondo, con la sola descrizione
+    f(8),
+  ];
+  const c = preparaCommenti({ feedback: lista, email: 'Anna@X.it', versione: 2, righe });
+  assert.deepEqual(c.map((x) => [x.n, x.testo]), [[1, 't2'], [2, 't8'], [3, 't3'], [4, 't1'], [5, 't7']]);
+  assert.deepEqual(c.map((x) => x.generale), [true, true, false, false, false]);
+  assert.deepEqual(c[2].righe, { pseudocode: [2, 2], c: [5, 5], python: [1, 1] });
+  assert.deepEqual(c[3].righe, { pseudocode: [4, 8], c: [7, 11] }, 'solo i codici in cui il blocco ha righe');
+  assert.equal(c[4].righe, null);
+  assert.equal(c[4].bloccoTesto, 'blocco tolto');
+  assert.deepEqual(preparaCommenti({ feedback: [], email: 'a@x.it', versione: 1 }), []);
+  assert.deepEqual(preparaCommenti({ feedback: null, email: 'a@x.it', versione: 1 }), []);
+  assert.equal(preparaCommenti({ feedback: [f(1, { bloccoId: 'b1' })], email: 'anna@x.it', versione: 2, righe: null })[0].righe, null, 'programma illeggibile: nessuna riga');
+});
+
 console.log(`\n${test} prove superate`);

@@ -62,6 +62,13 @@ export function spezzaRiga(riga, max) {
   return out;
 }
 
+// I segni dei commenti che cadono nelle righe da `da` a `da + k - 1` (quando un riquadro si spezza su due pagine), con gli indici
+// riferiti all'inizio della fetta. Un segno che comincia nella pagina prima si ridisegna in cima alla fetta.
+function fettaMarcatori(marc, da, k) {
+  return (marc ?? []).filter((m) => m.r1 >= da && m.r0 < da + k)
+    .map((m) => ({ testo: m.testo, r0: Math.max(m.r0, da) - da, r1: Math.min(m.r1, da + k - 1) - da }));
+}
+
 class Foglio {
   constructor(doc, { compress, registro }) {
     this.doc = doc;
@@ -361,13 +368,14 @@ class Foglio {
 
   // `numeri`: per ogni riga il suo numero (null per le continuazioni di una riga spezzata), in una striscia a sinistra del
   // riquadro: non fa parte del testo del codice. `cifre`: quante cifre serve alla striscia (quelle del numero più alto).
-  riquadroCodice(righe, x, w, lh, h, pt = PT_CODICE, numeri = null, cifre = 0) {
+  riquadroCodice(righe, x, w, lh, h, pt = PT_CODICE, numeri = null, cifre = 0, marc = [], mc = 0) {
     const doc = this.doc;
     doc.setFillColor(246); doc.setDrawColor(150); doc.setLineWidth(0.25);
     doc.rect(x, this.y, w, h, 'FD');
     doc.setFont('courier', 'normal'); doc.setFontSize(pt); doc.setTextColor(0);
     const cella = doc.getTextWidth('M');                       // il Courier ha celle di larghezza fissa
-    const extra = numeri ? this.extraNumeri(cifre, pt) : 0;
+    const extra = numeri ? this.extraNumeri(cifre, pt, mc) : 0;
+    const spostaNumeri = numeri ? this.largMarcatori(mc, pt) : 0;
     if (numeri) {
       const larghezzaStriscia = PAD + extra - 1.3;
       doc.setFillColor(231);
@@ -378,12 +386,23 @@ class Foglio {
       numeri.forEach((n, i) => {
         if (n === null) return;
         const t = String(n);
-        doc.text(t, x + 1 + (cifre - t.length) * cella, this.y + PAD + i * lh + lh * 0.74);
+        doc.text(t, x + 1 + spostaNumeri + (cifre - t.length) * cella, this.y + PAD + i * lh + lh * 0.74);
       });
+      // Segni dei commenti del docente: «[n]» alla prima riga del blocco e, se il blocco ne occupa più d'una, un filo sotto
+      doc.setFont('courier', 'bold'); doc.setFontSize(pt); doc.setTextColor(40);
+      doc.setDrawColor(90); doc.setLineWidth(0.25);
+      for (const m of marc) {
+        const yr = this.y + PAD + m.r0 * lh;
+        doc.text(m.testo, x + 0.8, yr + lh * 0.74);
+        if (m.r1 > m.r0) {
+          const xc = x + 0.8 + (m.testo.length * cella) / 2;
+          doc.line(xc, yr + lh * 0.92, xc, this.y + PAD + m.r1 * lh + lh * 0.9);
+        }
+      }
       doc.setTextColor(0);
     }
     righe.forEach((r, i) => { if (r !== '') this.rigaCodice(r, x + PAD + extra, this.y + PAD + i * lh + lh * 0.74, cella, pt); });
-    this.reg('codice', { x, h, righe: righe.length, testo: righe.join('\n'), ...(numeri ? { numeri } : {}) });
+    this.reg('codice', { x, h, righe: righe.length, testo: righe.join('\n'), ...(numeri ? { numeri } : {}), ...(marc.length ? { marcatori: marc.map((m) => ({ testo: m.testo, r0: m.r0, r1: m.r1 })) } : {}) });
   }
 
   // ── Sezioni ──────────────────────────────────────────────────────────────
@@ -399,32 +418,56 @@ class Foglio {
   get hEtichetta() { return 6.2; }
 
   // Spazio in più a sinistra del testo (oltre al margine PAD) per la striscia dei numeri di riga di `cifre` cifre.
-  extraNumeri(cifre, pt) { return 1 + cifre * this.larg('M', 'courier', 'normal', pt) + ARIA_NUMERI + 1.3 - PAD; }
+  // `mc`: quanti caratteri ha il segno più lungo dei commenti del docente (es. «[2,3]»), che sta a sinistra dei numeri; 0 = nessun commento.
+  extraNumeri(cifre, pt, mc = 0) { return 1 + this.largMarcatori(mc, pt) + cifre * this.larg('M', 'courier', 'normal', pt) + ARIA_NUMERI + 1.3 - PAD; }
+
+  largMarcatori(mc, pt) { return mc > 0 ? mc * this.larg('M', 'courier', 'normal', pt) + 0.8 : 0; }
 
   // Quanti caratteri di codice stanno in una riga larga `w` con il carattere di `pt` punti (e la striscia di `cifre` cifre, 0 = senza).
-  caratteri(w, pt, cifre = 0) {
-    const extra = cifre > 0 ? this.extraNumeri(cifre, pt) : 0;
+  caratteri(w, pt, cifre = 0, mc = 0) {
+    const extra = cifre > 0 ? this.extraNumeri(cifre, pt, mc) : 0;
     return Math.floor((w - 2 * PAD - extra) / this.larg('M', 'courier', 'normal', pt) + 1e-9);
   }
 
   // Una parte di codice (pseudocodice, C, Python): testo pulito e lunghezza della riga più lunga. È «stretta» se sta
   // nella colonna senza andare a capo, e allora può stare accanto a un'altra parte.
-  parteCodice(titolo, testo) {
+  // `commenti`: i commenti del docente che hanno righe in QUESTA parte ([{ n, da, a }], righe da 1 del testo originale): il loro
+  // segno «[n]» sta nella striscia accanto alle righe del blocco (due commenti che cominciano alla stessa riga: «[2,3]»).
+  // Senza numeri di riga non c'è la striscia, quindi nemmeno i segni.
+  parteCodice(titolo, testo, commenti = []) {
     const righe = pulisci(testo, { simboli: true }).replace(/\s+$/, '').split('\n');
     const lunga = Math.max(0, ...righe.map((r) => r.length));
     const cifre = this.numeri ? String(righe.length).length : 0;
-    return { tipo: 'codice', titolo, righe, cifre, stretta: lunga <= this.caratteri(COLONNA, PT_CODICE, cifre), lunga };
+    const segni = new Map();                                    // riga d'inizio -> { numeri: [n], a }
+    if (cifre > 0) {
+      for (const c of commenti) {
+        if (!(c.da >= 1 && c.da <= righe.length)) continue;
+        const v = segni.get(c.da) ?? { numeri: [], a: c.da };
+        v.numeri.push(c.n); v.a = Math.max(v.a, Math.min(c.a, righe.length));
+        segni.set(c.da, v);
+      }
+    }
+    const marc = [...segni.entries()].sort((x, y) => x[0] - y[0]).map(([da, v]) => ({ da, a: v.a, testo: `[${v.numeri.sort((x, y) => x - y).join(',')}]` }));
+    const mc = Math.max(0, ...marc.map((m) => m.testo.length));
+    return { tipo: 'codice', titolo, righe, cifre, marc, mc, stretta: lunga <= this.caratteri(COLONNA, PT_CODICE, cifre, mc), lunga };
   }
 
   // Le righe della parte per una larghezza `w`: se la riga più lunga non ci sta si rimpicciolisce il carattere (fino a
   // PT_CODICE_MIN), e solo se nemmeno così ci sta si va a capo. `numeri`: il numero di ogni riga ottenuta (null se continua).
   formatoCodice(parte, w) {
     let pt = PT_CODICE;
-    while (parte.lunga > this.caratteri(w, pt, parte.cifre) && pt - 0.2 >= PT_CODICE_MIN - 1e-9) pt = Math.round((pt - 0.2) * 10) / 10;
-    const max = this.caratteri(w, pt, parte.cifre);
+    while (parte.lunga > this.caratteri(w, pt, parte.cifre, parte.mc) && pt - 0.2 >= PT_CODICE_MIN - 1e-9) pt = Math.round((pt - 0.2) * 10) / 10;
+    const max = this.caratteri(w, pt, parte.cifre, parte.mc);
     const righe = []; const numeri = [];
-    parte.righe.forEach((r, i) => spezzaRiga(r, max).forEach((pezzo, k) => { righe.push(pezzo); numeri.push(k === 0 ? i + 1 : null); }));
-    return { titolo: parte.titolo, pt, righe, cifre: parte.cifre, numeri: parte.cifre > 0 ? numeri : null };
+    const primaUltima = new Map();                             // riga originale -> [prima, ultima] riga di quelle ottenute (se va a capo sono più d'una)
+    parte.righe.forEach((r, i) => {
+      const inizio = righe.length;
+      spezzaRiga(r, max).forEach((pezzo, k) => { righe.push(pezzo); numeri.push(k === 0 ? i + 1 : null); });
+      primaUltima.set(i + 1, [inizio, righe.length - 1]);
+    });
+    // I segni dei commenti, in righe ottenute: dalla prima riga del blocco all'ultima (comprese le continuazioni)
+    const marc = parte.marc.map((m) => ({ testo: m.testo, r0: primaUltima.get(m.da)[0], r1: primaUltima.get(Math.max(m.da, m.a))[1] }));
+    return { titolo: parte.titolo, pt, righe, cifre: parte.cifre, numeri: parte.cifre > 0 ? numeri : null, marc, mc: parte.mc };
   }
 
   // Due codici affiancati, di uguale altezza; si tengono su una pagina se ci stanno, altrimenti si spezzano (righe in pari).
@@ -442,6 +485,7 @@ class Foglio {
       const k = Math.max(1, Math.floor((this.libero() - this.hEtichetta - 2 * PAD) / lh));
       const pa = a.righe.slice(da, da + k); const pb = b ? b.righe.slice(da, da + k) : [];
       const na = a.numeri?.slice(da, da + k) ?? null; const nb = b?.numeri?.slice(da, da + k) ?? null;
+      const ma = fettaMarcatori(a.marc, da, k); const mb = b ? fettaMarcatori(b.marc, da, k) : [];
       const n = Math.max(pa.length, pb.length);
       const sfx = primo ? '' : ' (continua)';
       this.etichetta(a.titolo + sfx, x, w);
@@ -449,8 +493,8 @@ class Foglio {
       const y0 = this.y;
       this.y = y0 + this.hEtichetta;
       const h = 2 * PAD + n * lh;
-      this.riquadroCodice(pa, x, w, lh, h, pt, na, a.cifre);
-      if (b) this.riquadroCodice(pb, xb, w, lh, h, pt, nb, b.cifre);
+      this.riquadroCodice(pa, x, w, lh, h, pt, na, a.cifre, ma, a.mc);
+      if (b) this.riquadroCodice(pb, xb, w, lh, h, pt, nb, b.cifre, mb, b.mc);
       this.y = y0 + this.hEtichetta + h;
       da += k; primo = false;
       if (da < tot) this.nuovaPagina();
@@ -537,7 +581,9 @@ class Foglio {
     const elementi = [];
     if (parti.blocchi) elementi.push({ tipo: 'blocchi', stretta: !img || (scalaCol >= SCALA_MIN_COLONNA && hE + hBlocchi2 <= CAPIENZA) });
     for (const [chiave, titolo, testo] of [['pseudocodice', 'Pseudocodice', t?.pseudocode], ['c', 'C', t?.c], ['python', 'Python', t?.python]]) {
-      if (parti[chiave]) elementi.push(this.parteCodice(titolo, t ? testo : '-'));
+      const chiaveTesto = chiave === 'pseudocodice' ? 'pseudocode' : chiave;
+      const suoi = (s.commenti ?? []).filter((c) => c.righe && c.righe[chiaveTesto]).map((c) => ({ n: c.n, da: c.righe[chiaveTesto][0], a: c.righe[chiaveTesto][1] }));
+      if (parti[chiave]) elementi.push(this.parteCodice(titolo, t ? testo : '-', suoi));
     }
 
     for (let i = 0; i < elementi.length;) {
@@ -556,6 +602,33 @@ class Foglio {
       else this.coppiaCodici(this.formatoCodice(a, LARGHEZZA), null, { x: MARGINI.sx, w: LARGHEZZA });
       i++;
     }
+    if (s.commenti && s.commenti.length) this.elencoCommenti(s.commenti, parti);
+  }
+
+  // «Commenti del docente»: in fondo alla scheda, nell'ordine dei segni [n] (i commenti sull'intera consegna per primi). Per ognuno:
+  // `[2] riga 7 · SCRIVI a: testo` (le righe dei codici che stanno nel PDF, con i numeri di riga accesi). Un commento non si spezza a
+  // metà riga: va a capo tra una riga e l'altra, e può passare alla pagina dopo.
+  elencoCommenti(commenti, parti) {
+    const lh = PT_CORPO * PT * INTERLINEA;
+    this.assicura(this.hEtichetta + 2 * lh);
+    this.etichetta('Commenti del docente', MARGINI.sx, LARGHEZZA);
+    this.y += this.hEtichetta;
+    const nomi = [['pseudocode', 'pseudocodice', 'pseudocodice'], ['c', 'C', 'c'], ['python', 'Python', 'python']]
+      .filter(([, , chiave]) => parti[chiave] && this.numeri);
+    for (const c of commenti) {
+      const dove = nomi.filter(([k]) => c.righe && c.righe[k]).map(([k, nome]) => {
+        const [da, a] = c.righe[k];
+        return `${nomi.length > 1 ? `${nome} ` : ''}${da === a ? 'riga' : 'righe'} ${da === a ? da : `${da}-${a}`}`;
+      });
+      const runs = [{ testo: `[${c.n}] `, grassetto: true }];
+      if (dove.length) runs.push({ testo: `${dove.join(', ')} · `, grassetto: false });
+      if (!c.generale && c.bloccoTesto) runs.push({ testo: `${c.bloccoTesto}: `, corsivo: true });
+      String(c.testo ?? '').split('\n').forEach((parte, i) => { if (i > 0) runs.push({ aCapo: true }); runs.push({ testo: parte }); });
+      this.flussoRighe(this.righeDa(runs, LARGHEZZA, PT_CORPO), { x: MARGINI.sx }, lh, { tipo: 'commento' });
+      this.reg('commento-fine', { n: c.n });
+      this.y += lh * 0.35;
+    }
+    this.y += GIU - 1;
   }
 
   // Blocchi a sinistra e un codice a destra, della stessa altezza.
@@ -570,7 +643,7 @@ class Foglio {
     this.y = y0;
     if (img) this.riquadroBlocchi(img, MARGINI.sx, y0, COLONNA, h, scalaCol);
     else this.riquadroCodice(blocchiTesto.righe, MARGINI.sx, COLONNA, lh, h);
-    this.riquadroCodice(codice.righe, MARGINI.sx + COLONNA + SPAZIO_COLONNE, COLONNA, lh, h, codice.pt, codice.numeri, codice.cifre);
+    this.riquadroCodice(codice.righe, MARGINI.sx + COLONNA + SPAZIO_COLONNE, COLONNA, lh, h, codice.pt, codice.numeri, codice.cifre, codice.marc, codice.mc);
     this.y = y0 + h + GIU;
   }
 
@@ -631,7 +704,10 @@ function disegnaPiedi(doc, s, da, a) {
 
 // `schede`: [{ titolo, corso, classe, data, studente, riscontro, traccia: { titolo, testoMd, blocchi } | null,
 //              blocchi: { dataUrl, larghezzaPx, altezzaPx, alias? } | null, testi: { pseudocode, c, python } | null,
-//              parti?: { blocchi, pseudocodice, c, python, numeriRiga } (booleani; se manca, tutto acceso) }]
+//              parti?: { blocchi, pseudocodice, c, python, numeriRiga } (booleani; se manca, tutto acceso),
+//              commenti?: [{ n, testo, generale, bloccoTesto, righe: { pseudocode: [da, a], c: [da, a], python: [da, a] } | null }]
+//                I commenti PUBBLICATI del docente, già numerati (n = 1, 2, … i generali per primi): «[n]» nella striscia dei numeri di riga
+//                accanto ai codici e l'elenco «Commenti del docente» in fondo. Vedi docs/PDF-SCHEDA.md. }]
 // `traccia.blocchi` è la struttura di pdf-markdown.js (convertiMarkdown(...).blocchi); chi chiama la prepara (il Markdown si
 // tokenizza in modo asincrono). Restituisce il documento jsPDF. `registro`: facoltativo, per le prove ({ voci: [], schede: [] }).
 export function creaPdfSchede({ jsPDF, schede, compress = true, registro = null }) {

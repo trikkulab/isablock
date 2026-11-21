@@ -293,6 +293,87 @@ await prova('numeri di riga: continuano attraverso le pagine e una riga spezzata
   assert.equal(r.numeri.at(-1), 3, 'la riga dopo è la 3');
 });
 
+// ── Commenti del docente (feedback pubblicati) ─────────────────────────────────────────────────────────────────────
+const comm = (n, extra = {}) => ({ n, testo: `Commento ${n}: controlla questo passaggio`, generale: false, bloccoTesto: 'SCRIVI a', righe: { pseudocode: [n + 2, n + 2], c: [n + 3, n + 3], python: [n + 1, n + 1] }, ...extra });
+const codiciReg = (registro) => registro.voci.filter((v) => v.tipo === 'codice');
+const elencoComm = (registro) => registro.voci.filter((v) => v.tipo === 'commento').map((v) => v.testo);
+
+await prova('commenti: «[n]» nella striscia dei numeri di riga di ogni codice, accanto alla riga del blocco, e l\'elenco «Commenti del docente» in fondo', () => {
+  const generale = { n: 1, testo: 'Ben fatto, ordinato.', generale: true, bloccoTesto: '', righe: null };
+  const { registro, testoPdf } = crea([scheda({ commenti: [generale, comm(2), comm(3, { righe: { pseudocode: [5, 7], c: null, python: null } })] })]);
+  const marc = codiciReg(registro).flatMap((v) => v.marcatori ?? []);
+  assert.ok(marc.length >= 4, JSON.stringify(marc));
+  const perTesto = (t) => marc.filter((m) => m.testo === t);
+  assert.equal(perTesto('[2]').length, 3, 'il commento 2 ha un segno in ognuno dei tre codici');
+  assert.equal(perTesto('[3]').length, 1, 'il commento 3 ha righe solo nello pseudocodice');
+  const m3 = perTesto('[3]')[0]; assert.equal(m3.r1 - m3.r0, 2, 'un blocco di tre righe (5-7) occupa tre righe del riquadro');
+  assert.deepEqual(sezioni(registro).slice(-1), ['Commenti del docente']);
+  const elenco = elencoComm(registro);
+  assert.equal(elenco.length, 3);
+  assert.match(elenco[0], /^\[1\] Ben fatto, ordinato\.$/, 'il commento generale: solo il testo, in testa');
+  assert.match(elenco[1], /^\[2\] pseudocodice riga 4, C riga 5, Python riga 3 · SCRIVI a: Commento 2/, elenco[1]);
+  assert.match(elenco[2], /^\[3\] pseudocodice righe 5-7 · SCRIVI a: Commento 3/, elenco[2]);
+  assert.ok(testoPdf.includes('Commenti del docente'));
+});
+
+await prova('commenti: una sola parte di codice nel PDF = «riga 7» senza il nome del linguaggio; senza numeri di riga niente segni e niente righe', () => {
+  const uno = crea([scheda({ parti: { blocchi: false, pseudocodice: true, c: false, python: false }, commenti: [comm(1)] })]).registro;
+  assert.match(elencoComm(uno)[0], /^\[1\] riga 3 · SCRIVI a: /, elencoComm(uno)[0]);
+  const senza = crea([scheda({ parti: { numeriRiga: false }, commenti: [comm(1)] })]).registro;
+  assert.equal(codiciReg(senza).flatMap((v) => v.marcatori ?? []).length, 0, 'senza striscia nessun segno');
+  assert.match(elencoComm(senza)[0], /^\[1\] SCRIVI a: Commento 1/, elencoComm(senza)[0]);
+  const soloBlocchi = crea([scheda({ parti: { pseudocodice: false, c: false, python: false }, commenti: [comm(1)] })]).registro;
+  assert.match(elencoComm(soloBlocchi)[0], /^\[1\] SCRIVI a: /, 'solo i blocchi: nessuna riga da citare');
+});
+
+await prova('commenti: due commenti sullo stesso blocco condividono il segno «[2,3]»; una riga andata a capo conta tutte le sue righe', () => {
+  const lunga = `    // ${'parola '.repeat(40)}`;
+  const r = crea([scheda({ parti: { blocchi: false, pseudocodice: true, c: false, python: false },
+    testi: { pseudocode: `a\n${lunga}\nb\nc`, c: '', python: '' },
+    commenti: [comm(2, { righe: { pseudocode: [2, 2] } }), comm(3, { righe: { pseudocode: [2, 2] } })] })]).registro;
+  const cod = codiciReg(r)[0];
+  assert.equal(cod.marcatori.length, 1);
+  assert.equal(cod.marcatori[0].testo, '[2,3]');
+  assert.ok(cod.marcatori[0].r1 - cod.marcatori[0].r0 >= 1, 'il blocco di una riga lunga occupa più righe del riquadro');
+  assert.equal(cod.numeri[cod.marcatori[0].r0], 2);
+});
+
+await prova('commenti: un codice lungo su due pagine: il segno compare nella pagina dove sta la riga, riferito all\'inizio di quel pezzo', () => {
+  const { registro } = crea([scheda({ parti: { blocchi: false, pseudocodice: true, c: false, python: false }, testi: { pseudocode: righe(150), c: '', python: '' },
+    commenti: [comm(1, { righe: { pseudocode: [3, 3] } }), comm(2, { righe: { pseudocode: [140, 142] } })] })]);
+  const cod = codiciReg(registro);
+  assert.ok(cod.length >= 2, 'il codice si spezza su più pagine');
+  assert.equal(cod[0].marcatori.some((m) => m.testo === '[1]'), true);
+  const ultimo = cod.find((v) => (v.marcatori ?? []).some((m) => m.testo === '[2]'));
+  assert.ok(ultimo && ultimo.pagina > cod[0].pagina, 'il segno [2] sta in una pagina successiva');
+  const m = ultimo.marcatori.find((x) => x.testo === '[2]');
+  assert.equal(ultimo.numeri[m.r0], 140, 'accanto alla riga 140');
+  for (const v of cod) assert.ok(v.y + v.h <= BASSO_UTILE + 1e-6);
+});
+
+await prova('commenti: tanti commenti lunghi vanno a capo e di pagina senza spezzare righe né uscire dal margine; la scheda dopo parte su pagina nuova', () => {
+  const tanti = Array.from({ length: 40 }, (_, i) => comm(i + 1, { testo: `Commento ${i + 1}. ${'Parola '.repeat(60)}\nSeconda riga del commento ${i + 1}` }));
+  const { registro, testoPdf } = crea([scheda({ commenti: tanti }), scheda({ studente: 'Bruno Verdi' })]);
+  const righeC = registro.voci.filter((v) => v.tipo === 'commento');
+  assert.ok(righeC.length > 60);
+  for (const v of righeC) assert.ok(v.y + v.h <= BASSO_UTILE + 1e-6, `riga di commento fuori dal margine: pagina ${v.pagina}`);
+  assert.equal(registro.voci.filter((v) => v.tipo === 'commento-fine').length, 40);
+  const [a, b] = registro.schede;
+  assert.ok(a.pagine >= 3 && b.da === a.a + 1);
+  for (let p = 1; p <= a.pagine; p++) assert.ok(testoPdf.includes(`Anna Rossi · riscontro AB12-CD34 · pagina ${p}/${a.pagine}`));
+  assert.ok(registro.voci.some((v) => v.tipo === 'sezione' && v.testo === 'Commenti del docente'), 'il titolo dell\'elenco c\'è');
+  const sez = registro.voci.find((v) => v.tipo === 'sezione' && v.testo === 'Commenti del docente');
+  const primo = registro.voci.find((v) => v.tipo === 'commento');
+  assert.equal(sez.pagina, primo.pagina, 'il titolo dell\'elenco non resta solo in fondo alla pagina');
+});
+
+await prova('senza commenti la scheda è identica a prima (nessun segno, nessun elenco)', () => {
+  const { registro } = crea([scheda(), scheda({ commenti: [] })]);
+  assert.equal(registro.voci.filter((v) => v.tipo === 'commento').length, 0);
+  assert.ok(!sezioni(registro).includes('Commenti del docente'));
+  assert.equal(codiciReg(registro).flatMap((v) => v.marcatori ?? []).length, 0);
+});
+
 await prova('PDF vero: intestazione %PDF, tante pagine A4 quante dice il registro, titolo del documento', () => {
   const { doc, registro, testoPdf, pagine } = crea([scheda(), scheda({ studente: 'Bruno Verdi' })]);
   assert.ok(testoPdf.startsWith('%PDF-'));

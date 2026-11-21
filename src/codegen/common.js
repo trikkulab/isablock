@@ -100,6 +100,27 @@ export function extractSourceMap(rawText) {
   return { text: clean, ranges };
 }
 
+// Da `extractSourceMap` alle RIGHE: per ogni blocco la prima e l'ultima riga (da 1) del suo testo, come oggetto semplice
+// { idBlocco: [da, a] } (serve ai feedback nel PDF: il commento di un blocco sta accanto alle sue righe). Un blocco che
+// non produce testo (range vuoto) non compare. Un range che finisce con un a capo non conta la riga vuota che segue.
+export function righeDeiBlocchi({ text, ranges }) {
+  const inizi = [0];
+  for (let i = 0; i < text.length; i++) if (text[i] === '\n') inizi.push(i + 1);
+  const rigaDi = (offset) => {
+    let lo = 0; let hi = inizi.length - 1;
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (inizi[m] <= offset) lo = m; else hi = m - 1; }
+    return lo + 1;
+  };
+  const out = {};
+  for (const [id, { start, end }] of ranges) {
+    if (end <= start) continue;
+    let ultimo = end - 1;
+    while (ultimo > start && text[ultimo] === '\n') ultimo--;
+    out[id] = [rigaDi(start), rigaDi(ultimo)];
+  }
+  return out;
+}
+
 // Tipi di blocco che producono un valore booleano. Usata per scegliere il
 // formato di stampa di SCRIVI in C e Python (vero/falso invece di 1/True):
 // e' tutta l'inferenza del tipo di un'espressione di cui c'e' bisogno,

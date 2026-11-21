@@ -64,3 +64,27 @@ export function ordinaSchede(schede) {
 // «6 novembre 2026»: solo la data (non l'ora) della consegna.
 const formatoDataLunga = new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
 export const dataLunga = (d) => formatoDataLunga.format(d);
+
+// I commenti del docente per il PDF di UNA consegna. `feedback`: tutti i feedback della verifica (feedbackDaDocumento); si tengono solo
+// i PUBBLICATI di quello studente e di quella versione (le bozze non finiscono mai in un archivio). `righe`: `testi.righe` di
+// renderBlocchi ({ pseudocode, c, python }: per ogni codice { idBlocco: [da, a] }), o null se il programma non si legge.
+// Restituisce i commenti già numerati: prima quelli sull'intera consegna (nell'ordine in cui sono stati scritti), poi quelli sui blocchi
+// nell'ordine in cui compaiono nel programma (la prima riga dello pseudocodice, in mancanza di C o Python; chi non ha righe in fondo).
+export function preparaCommenti({ feedback, email, versione, righe = null }) {
+  const miei = (feedback ?? []).filter((f) => f.pubblicato && String(f.studenteEmail).toLowerCase() === String(email).toLowerCase() && f.versione === versione);
+  const perScrittura = (a, b) => (a.creato?.getTime() ?? 0) - (b.creato?.getTime() ?? 0);
+  const righeDi = (f) => {
+    if (!f.bloccoId || !righe) return null;
+    const r = {};
+    for (const k of ['pseudocode', 'c', 'python']) if (righe[k] && righe[k][f.bloccoId]) r[k] = righe[k][f.bloccoId];
+    return Object.keys(r).length ? r : null;
+  };
+  const posizione = (r) => (r ? (r.pseudocode ?? r.c ?? r.python)[0] : Infinity);
+  const generali = miei.filter((f) => !f.bloccoId).sort(perScrittura);
+  const sui = miei.filter((f) => f.bloccoId).map((f) => ({ f, r: righeDi(f) }))
+    .sort((a, b) => posizione(a.r) - posizione(b.r) || perScrittura(a.f, b.f));
+  return [
+    ...generali.map((f) => ({ testo: f.testo, generale: true, bloccoTesto: '', righe: null })),
+    ...sui.map(({ f, r }) => ({ testo: f.testo, generale: false, bloccoTesto: f.bloccoTesto ?? '', righe: r })),
+  ].map((c, i) => ({ ...c, n: i + 1 }));
+}

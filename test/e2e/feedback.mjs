@@ -2,6 +2,7 @@
 // sull'intera consegna, blocco del modulo se si cambia la struttura della copia (non se si sposta solo un blocco),
 // sblocco con Ctrl-Z, pubblicazione. Il corso, la verifica chiusa e la consegna si scrivono direttamente nel database.
 // Si lancia dentro gli emulatori Auth e Firestore (vedi docs/PDF-SCHEDA.md per le porte alternative).
+import { execFileSync } from 'node:child_process';
 import { avviaServer } from './server.mjs';
 import { avviaBrowser, accedi, abilitaDocente, leggi, scrivi, verifica, riepilogo, schermata, S, B, T, N, A, MOD } from './aiuti.mjs';
 
@@ -117,6 +118,21 @@ try {
   verifica(await page.isVisible('.anteprima-feedback button:has-text("Commenta nell\'editor")'), 'Guarda: c\'è «Commenta nell\'editor»');
   await schermata(page, 'f-guarda-feedback');
   await page.keyboard.press('Escape');
+  // PDF di archivio: i commenti PUBBLICATI (mai le bozze), con «[n]» accanto alle righe del blocco e l'elenco in fondo
+  await page.click('.tabella-live tbody tr:has-text("Anna Rossi") button:text-is("PDF")');
+  await page.waitForSelector('h2:has-text("Cosa vuoi nel PDF?")');
+  const [pdfScaricato] = await Promise.all([page.waitForEvent('download', { timeout: 90000 }), page.click('.modal-box button:has-text("Scarica il PDF")')]);
+  const percorsoPdf = await pdfScaricato.path();
+  let testoPdf = null;
+  try { testoPdf = execFileSync('gs', ['-q', '-dNOPAUSE', '-dBATCH', '-sDEVICE=txtwrite', '-sOutputFile=-', percorsoPdf], { encoding: 'utf8', maxBuffer: 20_000_000 }); } catch { /* senza Ghostscript non si controlla il testo */ }
+  if (testoPdf === null) console.log('        (Ghostscript non disponibile: il testo del PDF non si controlla)');
+  else {
+    verifica(/Commenti del docente/.test(testoPdf), 'PDF: c\'è l\'elenco «Commenti del docente»');
+    verifica(/\[1\] Bel lavoro, davvero ordinato\./.test(testoPdf), 'PDF: il commento generale pubblicato (come corretto) è il [1]');
+    verifica(/\[2\] .*rig[ah] .* · .*Controlla questo passaggio\./.test(testoPdf.replace(/\s+/g, ' ')), 'PDF: il commento sul blocco è il [2], con le righe del blocco');
+    verifica(!/Un'ultima cosa/.test(testoPdf), 'PDF: la bozza non c\'è');
+    verifica((testoPdf.match(/\[2\]/g) || []).length >= 3, 'PDF: «[2]» compare anche accanto alle righe dei codici');
+  }
   // una consegna nuova (v2) senza commenti: la tabella lo dice
   await scrivi(`verifiche/vfeed/consegne/${ANNA}_2`, { studenteEmail: S(ANNA), studenteNome: S('Anna Rossi'), corsoId: S('FB1DEN'), titolo: S('Verifica di prova'), versione: { integerValue: '2' }, origine: S('raccolta'),
     tracciaId: S('t0'), programma: S(prog), creato: T(Date.now() - 10 * MIN) });

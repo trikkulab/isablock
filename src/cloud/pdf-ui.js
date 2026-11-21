@@ -3,7 +3,7 @@
 // carica solo alla prima generazione e funziona anche offline.
 import { tokenizzaMarkdown } from './markdown.js';
 import { convertiMarkdown, testoSemplice } from './pdf-markdown.js';
-import { codiceRiscontro, nomeVisualizzato, dataLunga } from './scheda-stampa.js';
+import { codiceRiscontro, nomeVisualizzato, dataLunga, preparaCommenti } from './scheda-stampa.js';
 import { el } from './dom.js';
 
 let inCorso = false;
@@ -26,8 +26,9 @@ export function scarica(blob, nomeFile) {
 
 // `schede`: [{ nome, email, consegna, traccia }] già in ordine (vedi ordinaSchede). `verifica`: { titolo }. `corso`: { nome, classe }.
 // `parti`: { blocchi, pseudocodice, c, python } (booleani; mancante = tutte). La traccia c'è sempre.
-// `programma.renderBlocchi()` viene da main.js. Restituisce quante schede ha messo nel PDF (0 se non ne ha fatto nessuna).
-export async function scaricaPdfSchede({ schede, verifica, corso, programma, nomeFile, toast, parti = null }) {
+// `feedback`: i feedback della verifica (letti poco prima): nel PDF di ogni consegna vanno i PUBBLICATI della sua versione, con «[n]» accanto
+// alle righe dei codici (vedi scheda-stampa.js, preparaCommenti). `programma.renderBlocchi()` viene da main.js. Restituisce quante schede ha messo nel PDF (0 se non ne ha fatto nessuna).
+export async function scaricaPdfSchede({ schede, verifica, corso, programma, nomeFile, toast, parti = null, feedback = [] }) {
   if (inCorso) { toast('Un PDF è già in preparazione.', 'error'); return 0; }
   if (!programma || !programma.renderBlocchi) { toast('Il PDF non è disponibile in questa versione.', 'error'); return 0; }
   if (schede.length === 0) { toast('Non ci sono consegne da scaricare.', 'error'); return 0; }
@@ -47,6 +48,7 @@ export async function scaricaPdfSchede({ schede, verifica, corso, programma, nom
         studente: nomeVisualizzato(s.nome, s.email), riscontro: codiceRiscontro(s.consegna.programma),
         traccia: await traccia(s.traccia),
         blocchi: r ? r.immagine : null, testi: r ? r.testi : null, parti: parti ?? undefined,
+        commenti: preparaCommenti({ feedback, email: s.email, versione: s.consegna.versione, righe: r ? r.testi.righe : null }),
       });
     }
     const doc = creaPdfSchede({ jsPDF, schede: pronte });
