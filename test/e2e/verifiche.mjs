@@ -589,7 +589,7 @@ try {
   await schermata(page, 'v-situazione-chiusa');
   verifica((await page.$$('.tabella-live tbody tr button:text-is("PDF")')).length === 2 && await page.isVisible('button:has-text("Scarica PDF di tutti")'), 'a verifica chiusa: «Scarica PDF» sulle righe con una consegna (non su chi non ha consegnato)');
   await page.click('.tabella-live tbody tr:has-text("Anna Rossi") button:text-is("PDF")');
-  verifica(await page.isVisible('h2:has-text("Cosa vuoi nel PDF?")') && (await page.$$('.modal-box input[type=checkbox]:checked')).length === 5, '«Scarica PDF» apre la finestra con le quattro parti e i numeri di riga, tutto acceso');
+  verifica(await page.isVisible('h2:has-text("Cosa vuoi nel PDF?")') && (await page.$$('.modal-box input[type=checkbox]:checked')).length === 6, '«Scarica PDF» apre la finestra con le quattro parti, i numeri di riga e i commenti del docente, tutto acceso');
   const [scaricato] = await Promise.all([
     page.waitForEvent('download', { timeout: 90000 }),
     page.click('.modal-box button:has-text("Scarica il PDF")'),

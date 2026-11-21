@@ -133,6 +133,15 @@ try {
     verifica(!/Un'ultima cosa/.test(testoPdf), 'PDF: la bozza non c\'è');
     verifica((testoPdf.match(/\[2\]/g) || []).length >= 3, 'PDF: «[2]» compare anche accanto alle righe dei codici');
   }
+  // lo stesso PDF con l'interruttore «Commenti del docente» spento: nessun commento, nessun segno
+  await page.click('.tabella-live tbody tr:has-text("Anna Rossi") button:text-is("PDF")');
+  await page.waitForSelector('h2:has-text("Cosa vuoi nel PDF?")');
+  await page.uncheck('.modal-box label:has-text("Commenti del docente") input');
+  const [pdfSenza] = await Promise.all([page.waitForEvent('download', { timeout: 90000 }), page.click('.modal-box button:has-text("Scarica il PDF")')]);
+  let testoSenza = null;
+  try { testoSenza = execFileSync('gs', ['-q', '-dNOPAUSE', '-dBATCH', '-sDEVICE=txtwrite', '-sOutputFile=-', await pdfSenza.path()], { encoding: 'utf8', maxBuffer: 20_000_000 }); } catch { /* senza Ghostscript non si controlla il testo */ }
+  if (testoSenza !== null) verifica(!/Commenti del docente/.test(testoSenza) && !/Bel lavoro/.test(testoSenza) && !/\[1\]/.test(testoSenza), 'PDF con l\'interruttore spento: nessun commento e nessun segno «[n]»');
+
   // una consegna nuova (v2) senza commenti: la tabella lo dice
   await scrivi(`verifiche/vfeed/consegne/${ANNA}_2`, { studenteEmail: S(ANNA), studenteNome: S('Anna Rossi'), corsoId: S('FB1DEN'), titolo: S('Verifica di prova'), versione: { integerValue: '2' }, origine: S('raccolta'),
     tracciaId: S('t0'), programma: S(prog), creato: T(Date.now() - 10 * MIN) });

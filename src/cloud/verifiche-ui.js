@@ -791,6 +791,7 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
         const voci = [['blocchi', 'Programma a blocchi'], ['pseudocodice', 'Pseudocodice'], ['c', 'C'], ['python', 'Python']].filter(([k]) => !(json && k === 'blocchi'));
         const caselle = voci.map(([k, nome]) => ({ k, nome, chk: el('input', { type: 'checkbox', checked: '' }) }));
         const chkNumeri = el('input', { type: 'checkbox', checked: '' });
+        const chkCommenti = el('input', { type: 'checkbox', checked: '' });
         const scarica = el('button', { type: 'button', class: 'modal-btn' }, json ? 'Esporta' : 'Scarica il PDF');
         const riepilogo = el('p', { class: 'sketch-nota', role: 'status' });
         const aggiorna = () => {
@@ -801,15 +802,16 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
         for (const c of caselle) c.chk.addEventListener('change', aggiorna);
         scarica.addEventListener('click', () => {
           deciso = true;
-          risolvi({ ...Object.fromEntries(caselle.map((c) => [c.k, c.chk.checked])), ...(json ? {} : { numeriRiga: chkNumeri.checked }) });
+          risolvi({ ...Object.fromEntries(caselle.map((c) => [c.k, c.chk.checked])), ...(json ? {} : { numeriRiga: chkNumeri.checked, commenti: chkCommenti.checked }) });
           d.chiudi();
         });
         d.corpo.append(
           json
             ? el('p', {}, 'Un file JSON con i programmi senza nomi né email (solo un codice per consegna, le tracce una volta sola) e un file CSV con le corrispondenze codice-studente: il CSV contiene i nomi, non condividerlo.')
-            : el('p', {}, 'La traccia c\'è sempre. Le parti che lasci accese si affiancano se stanno nella pagina senza andare a capo, altrimenti vanno una sotto l\'altra. I commenti già pubblicati compaiono in fondo (e «[n]» accanto alle righe dei codici, se i numeri di riga sono accesi); le bozze mai.'),
+            : el('p', {}, 'La traccia c\'è sempre. Le parti che lasci accese si affiancano se stanno nella pagina senza andare a capo, altrimenti vanno una sotto l\'altra.'),
           ...caselle.map((c) => el('label', { class: 'gestione-campo' }, c.chk, ' ', c.nome)),
           json ? '' : el('label', { class: 'gestione-campo' }, chkNumeri, ' Numeri di riga accanto ai codici (in una colonna a parte, non nel testo)'),
+          json ? '' : el('label', { class: 'gestione-campo' }, chkCommenti, ' Commenti del docente (solo quelli già pubblicati, in fondo e con «[n]» accanto alle righe)'),
           riepilogo,
           el('div', { class: 'modal-actions' }, scarica, el('button', { type: 'button', class: 'modal-btn secondary', onclick: () => d.chiudi() }, 'Annulla')));
         aggiorna();
@@ -825,7 +827,7 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
         const s = schede[0];
         const parti = await scegliParti(E.partiPdfTitolo);
         if (!parti) return 0;
-        const feedback = await feedbackPerPdf();
+        const feedback = parti.commenti === false ? [] : await feedbackPerPdf();
         if (feedback === null) return 0;
         return scaricaPdfSchede({
           schede, verifica, corso, programma, toast, parti, feedback,
@@ -835,7 +837,7 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
       const scaricaTutti = async () => {
         const parti = await scegliParti(E.partiPdfTitolo);
         if (!parti) return 0;
-        const feedback = await feedbackPerPdf();
+        const feedback = parti.commenti === false ? [] : await feedbackPerPdf();
         if (feedback === null) return 0;
         return scaricaPdfSchede({
           schede: schedeDi(null), verifica, corso, programma, toast, parti, feedback,
