@@ -56,8 +56,10 @@ export function montaCloud({ contenitore, toast, programma, guida = null }) {
   programma.onSostituzione?.(() => { nascondiBandaCopia(); nascondiTracciaEditor(); });
   // In verifica il menu del cloud si spegne (niente sketch, corsi, esci): il resto lo spegne main.js.
   const verificaStudenteUi = montaVerificaStudente({ toast, programma, quandoCambiaModo: (on) => modoVerifica(on) });
-  const corsiUi = montaCorsi({ toast, programma, commentiUi, dopoCaricamento: () => sketchUi.scollega() });
-  const consegneUi = montaConsegne({ toast, programma, dopoCaricamento: () => sketchUi.scollega() });
+  // Un programma caricato da una consegna o dalla verifica non è più lo sketch di prima: né «Salva» né il suo pannello dei commenti.
+  const scollegaProgramma = () => { sketchUi.scollega(); commentiUi.nascondi(); };
+  const corsiUi = montaCorsi({ toast, programma, commentiUi, dopoCaricamento: scollegaProgramma });
+  const consegneUi = montaConsegne({ toast, programma, dopoCaricamento: scollegaProgramma });
 
   // --- Elementi nella toolbar ---------------------------------------------
   const btnAccedi = el('button', { type: 'button', class: 'cloud-accedi',
