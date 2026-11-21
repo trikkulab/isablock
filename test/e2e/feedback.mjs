@@ -3,7 +3,7 @@
 // sblocco con Ctrl-Z, pubblicazione. Il corso, la verifica chiusa e la consegna si scrivono direttamente nel database.
 // Si lancia dentro gli emulatori Auth e Firestore (vedi docs/PDF-SCHEDA.md per le porte alternative).
 import { avviaServer } from './server.mjs';
-import { avviaBrowser, accedi, abilitaDocente, leggi, scrivi, verifica, riepilogo, S, B, T, N, A, MOD } from './aiuti.mjs';
+import { avviaBrowser, accedi, abilitaDocente, leggi, scrivi, verifica, riepilogo, schermata, S, B, T, N, A, MOD } from './aiuti.mjs';
 
 const { server } = await avviaServer();
 const browser = await avviaBrowser();
@@ -115,6 +115,7 @@ try {
   await page.click('.verifica-scheda:has-text("Feedback")');
   verifica((await page.$$('.anteprima-feedback .commento')).length === 3 && await page.isVisible('.anteprima-feedback .feedback-badge-bozza'), 'Guarda: i 3 commenti in sola lettura, la bozza segnata');
   verifica(await page.isVisible('.anteprima-feedback button:has-text("Commenta nell\'editor")'), 'Guarda: c\'è «Commenta nell\'editor»');
+  await schermata(page, 'f-guarda-feedback');
   await page.keyboard.press('Escape');
   // una consegna nuova (v2) senza commenti: la tabella lo dice
   await scrivi(`verifiche/vf/consegne/${ANNA}_2`, { studenteEmail: S(ANNA), studenteNome: S('Anna Rossi'), corsoId: S('FB1DEN'), titolo: S('Verifica di prova'), versione: { integerValue: '2' }, origine: S('raccolta'),
