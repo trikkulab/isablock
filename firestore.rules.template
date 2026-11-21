@@ -697,6 +697,84 @@ service cloud.firestore {
       }
     }
 
+    // Feedback del docente sulle consegne di una verifica (come i commenti agli sketch, ma sulla consegna).
+    // Un documento per commento, id `<verificaId>_<email>_<versione>_<k>` con k da 0 a 29 (il tetto di 30
+    // per consegna è imposto dall'id). Si commenta solo l'ULTIMA versione della consegna (quella che vale),
+    // a verifica chiusa; i commenti di una versione restano legati a quella.
+    //   verificaId, studenteEmail, versione, corsoId, bloccoId (id Blockly o null = intera consegna),
+    //   bloccoTesto (descrizione del blocco), testo, autoreEmail, autoreNome, creato, modificato,
+    //   pubblicato (false alla creazione), pubblicatoIl (null finché non è pubblicato).
+    // Scrive solo un docente del corso. Si crea sempre come bozza; «Pubblica feedback» mette
+    // pubblicato: true (mai il contrario). Il testo lo modifica solo l'autore, anche dopo la
+    // pubblicazione (si vede da modificato > pubblicatoIl); cancella un docente del corso.
+    // Legge il docente del corso; lo studente solo i propri, già pubblicati e a verifica chiusa
+    // (la query deve avere verificaId, studenteEmail == email e pubblicato == true).
+    match /feedback/{id} {
+      function emailFb() {
+        return request.auth.token.email.lower();
+      }
+      function verificaFb(vid) {
+        return get(/databases/$(database)/documents/verifiche/$(vid)).data;
+      }
+      function docenteDelCorsoFb(corsoId) {
+        return isDocente()
+          && emailFb() in get(/databases/$(database)/documents/corsi/$(corsoId)).data.docenti;
+      }
+      function idConsegna(d) {
+        return d.verificaId + '_' + d.studenteEmail + '_' + string(d.versione);
+      }
+      function consegnaFb(vid, email, versione) {
+        return /databases/$(database)/documents/verifiche/$(vid)/consegne/$(email + '_' + string(versione));
+      }
+      function feedbackValido() {
+        let d = request.resource.data;
+        let base = ['verificaId', 'studenteEmail', 'versione', 'corsoId', 'bloccoId', 'bloccoTesto', 'testo',
+                    'autoreEmail', 'autoreNome', 'creato', 'modificato', 'pubblicato', 'pubblicatoIl'];
+        return d.keys().hasOnly(base) && d.keys().hasAll(base)
+          && d.verificaId is string && d.studenteEmail is string
+          && d.versione is int && d.versione >= 1 && d.versione <= maxVersioniConsegna()
+          && id[0:idConsegna(d).size()] == idConsegna(d)
+          && id[idConsegna(d).size():].matches('^_([0-9]|[12][0-9])$')
+          && d.corsoId == verificaFb(d.verificaId).corsoId
+          && (d.bloccoId == null || (d.bloccoId is string && d.bloccoId.size() > 0 && d.bloccoId.size() <= 100))
+          && d.bloccoTesto is string && d.bloccoTesto.size() <= 200
+          && d.testo is string && d.testo.size() > 0 && d.testo.size() <= 500
+          && d.autoreEmail == emailFb()
+          && d.autoreNome is string && d.autoreNome.size() > 0 && d.autoreNome.size() <= 80
+          && d.creato == request.time
+          && d.modificato == request.time
+          && d.pubblicato == false
+          && d.pubblicatoIl == null;
+      }
+      function consegnaUltima() {
+        let d = request.resource.data;
+        return exists(consegnaFb(d.verificaId, d.studenteEmail, d.versione))
+          && !exists(consegnaFb(d.verificaId, d.studenteEmail, d.versione + 1));
+      }
+
+      // Il corso si prende dalla verifica (non dal documento): così il docente può leggere con una sola query per verificaId.
+      allow read: if docenteDelCorsoFb(verificaFb(resource.data.verificaId).corsoId)
+        || (isAmmesso()
+            && resource.data.studenteEmail == emailFb()
+            && resource.data.pubblicato == true
+            && verificaFb(resource.data.verificaId).stato == 'chiusa');
+      allow create: if docenteDelCorsoFb(request.resource.data.corsoId)
+        && feedbackValido()
+        && verificaFb(request.resource.data.verificaId).stato == 'chiusa'
+        && consegnaUltima();
+      allow update: if docenteDelCorsoFb(resource.data.corsoId)
+        && ((resource.data.autoreEmail == emailFb()
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['testo', 'modificato'])
+             && request.resource.data.testo is string
+             && request.resource.data.testo.size() > 0 && request.resource.data.testo.size() <= 500
+             && request.resource.data.modificato == request.time)
+            || (resource.data.pubblicato == false
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pubblicato', 'pubblicatoIl'])
+                && request.resource.data.pubblicato == true
+                && request.resource.data.pubblicatoIl == request.time));
+      allow delete: if docenteDelCorsoFb(resource.data.corsoId);
+    }
+
     // Corsi. Un documento per corso, con id = CODICE di accesso (6 caratteri
     // Crockford, come in isaquiz).
     //   materia, classe (testo libero, es. "3AINF"), annoScolastico ("2026/27"),
