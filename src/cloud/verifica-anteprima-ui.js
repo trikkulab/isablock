@@ -7,6 +7,7 @@ import { contaBlocchi } from './verifica-tabella.js';
 import { codiceRiscontro } from './scheda-stampa.js';
 import { verificaDocenteEtichette as E } from './etichette.js';
 import { creaPannelloTraccia } from './pannello-traccia.js';
+import { creaElencoFeedback } from './feedback-elenco.js';
 
 const CODICI = [['pseudocode', 'Pseudocodice'], ['c', 'C'], ['python', 'Python']];
 // L'ultima scheda scelta da chi guarda (docente), che resta aperta anche riaprendo la finestra o passando a un altro studente.
@@ -24,14 +25,18 @@ const ora = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit
 // quella scelta l'ultima volta. `contestoTraccia`: riga sopra il testo della traccia («Consegna v2 · …»).
 // `studente`: la finestra è dello studente che rivede la sua verifica: niente segni «⚠» né elenco dei salti (non deve sapere cosa cerca l'app),
 // e le diciture parlano della «consegna» che sta guardando. `etichettaCopia`: testo del pulsante «apri in editor» (default quello del docente).
+// `feedback`: { leggi(), ultimaVersione?, commenta?() }: se c'è, compare la scheda «Feedback» (dopo «Traccia») con i commenti del docente
+// in sola lettura, raggruppati per versione (`leggi()` ne restituisce la lista, vedi feedback.js; lo studente riceve solo i pubblicati).
+// `commenta`: true (solo docente, a verifica chiusa) = nella scheda c'è «Commenta nell'editor», che apre la copia dell'ULTIMA consegna, dove si scrive.
 // `apriCopia({ programma, chi })`: se c'è, in fondo compare «Apri una copia per provarla» (carica nell'editor ciò che si sta guardando).
-export function apriAnteprima({ apri, programma, segui, caricaStoria = null, osserva = null, email, nome, titolo = null, nota = null, apriCopia = null, leggiTraccia = null, schedaIniziale = null, contestoTraccia = null, studente = false, etichettaCopia = null }) {
+export function apriAnteprima({ apri, programma, segui, caricaStoria = null, osserva = null, email, nome, titolo = null, nota = null, apriCopia = null, leggiTraccia = null, schedaIniziale = null, contestoTraccia = null, studente = false, etichettaCopia = null, feedback = null }) {
   if (!programma || !programma.anteprima) return null;
   const blocchi = el('div', { class: 'anteprima-blocchi' });
   const pre = Object.fromEntries(CODICI.map(([k]) => [k, el('pre', { class: 'code-body anteprima-codice' })]));
   const bottoni = new Map();
-  const schede = leggiTraccia ? [...CODICI, ['traccia', 'Traccia']] : CODICI;
+  const schede = [...CODICI, ...(leggiTraccia ? [['traccia', 'Traccia']] : []), ...(feedback ? [['feedback', 'Feedback']] : [])];
   const pannelli = { ...pre };
+  if (feedback) pannelli.feedback = el('div', { class: 'traccia-pannello anteprima-traccia anteprima-feedback', hidden: '' }, el('p', { class: 'sketch-nota' }, 'Carico…'));
   if (leggiTraccia) pannelli.traccia = el('div', { class: 'traccia-pannello anteprima-traccia', hidden: '' });
   const ricorda = schedaIniziale === null;
   const scegli = (k) => {
@@ -63,6 +68,22 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, oss
       : 'Sola lettura. Il programma si aggiorna da solo quando lo studente salva (di solito entro 25 secondi).')));
   scegli(schedaIniziale ?? (schede.some(([k]) => k === ultimaScheda) ? ultimaScheda : 'pseudocode'));
   anteprima = programma.anteprima({ blocchi, codici: pre });
+  // La scheda «Feedback»: si legge una volta all'apertura; il numero compare sul pulsante della scheda.
+  if (feedback) {
+    feedback.leggi().then((lista) => {
+      pannelli.feedback.textContent = '';
+      pannelli.feedback.append(creaElencoFeedback({ lista, studente, ultimaVersione: feedback.ultimaVersione ?? null,
+        suCommenta: feedback.commenta && apriCopia ? () => {
+          // Si commenta sempre l'ultima consegna, anche se nella Storia si sta guardando un altro punto.
+          const c = ultimoLavoro && ultimoLavoro.consegna;
+          apriCopia({ programma: c && c.programma ? c.programma : ultimo, chi: `${nome || email}`, tracciaId: (c && c.tracciaId) ?? tracciaMostrata ?? null, quale: '' });
+        } : null }));
+      bottoni.get('feedback').textContent = lista.length ? `Feedback (${lista.length})` : 'Feedback';
+    }).catch((err) => {
+      pannelli.feedback.textContent = '';
+      pannelli.feedback.append(el('p', { class: 'sketch-nota' }, err && err.codice === 'negato' ? 'I feedback si vedono a verifica conclusa.' : 'Non riesco a leggere i feedback: riprova tra poco.'));
+    });
+  }
   requestAnimationFrame(() => anteprima?.ridimensiona());
 
   // ── Storia: il cursore va dal punto più vecchio a «in diretta» (l'ultimo posto) ─────────────────────────────────

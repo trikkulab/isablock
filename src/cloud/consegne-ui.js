@@ -23,6 +23,7 @@ const slug = (t) => String(t ?? '').toLowerCase().normalize('NFD').replace(/[̀-
 export function montaConsegne({ toast, programma, dopoCaricamento = () => {} }) {
   let api = null;           // oggetto dello studente (verificaStudentePer) con mieConsegne()
   let corsi = null;         // i suoi corsi (corsiPer)
+  let feedbackApi = null;   // feedback.js: i commenti del docente (solo i pubblicati, a verifica chiusa)
   let finestra = null;
 
   const messaggio = (err) => (err && err.message) || 'Qualcosa è andato storto. Riprova.';
@@ -57,6 +58,8 @@ export function montaConsegne({ toast, programma, dopoCaricamento = () => {} }) 
       apriCopia: ({ programma: json, tracciaId, quale }) => apriProgrammaInEditor(v, json, tracciaId ?? c.tracciaId, quale ? `${quale} · ${v.titolo}` : contestoTraccia(v, c), quale ? 'Il punto scelto è aperto nell\'editor' : `Consegna v${c.versione} aperta nell'editor`),
       // La traccia che aveva, nella scheda «Traccia» aperta all'inizio: come in verifica. Lo studente legge solo la sua (regole del database).
       leggiTraccia: (id) => api.verifiche.leggiTraccia(v.id, id), schedaIniziale: 'traccia', contestoTraccia: contestoTraccia(v, c),
+      // Scheda «Feedback»: tutti i commenti pubblicati su questa verifica, di ogni sua consegna (vecchi e nuovi).
+      feedback: feedbackApi ? { leggi: () => feedbackApi.mieiPubblicati(v.id), ultimaVersione: tutte[tutte.length - 1]?.versione ?? null } : null,
       apri: (titolo, onChiudi, opzioni) => apriFinestra(titolo, onChiudi, opzioni),
       programma, email: api.email, nome: v.titolo,
       titolo: `La tua consegna v${c.versione}: ${v.titolo}`,
@@ -126,8 +129,8 @@ export function montaConsegne({ toast, programma, dopoCaricamento = () => {} }) 
   }
 
   return {
-    entra(apiStudente, corsiStudente) { api = apiStudente; corsi = corsiStudente; },
-    esci() { api = null; corsi = null; finestra?.chiudi(); finestra = null; },
+    entra(apiStudente, corsiStudente, feedback = null) { api = apiStudente; corsi = corsiStudente; feedbackApi = feedback; },
+    esci() { api = null; corsi = null; feedbackApi = null; finestra?.chiudi(); finestra = null; },
     apri,
   };
 }

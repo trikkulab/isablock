@@ -17,7 +17,7 @@ const formatoData = new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 's
 
 export function montaFeedbackEditor({ toast, programma }) {
   let feedback = null;          // oggetto di feedback.js
-  let contesto = null;          // { consegna: { verificaId, studenteEmail, versione, corsoId }, nome, email: del docente }
+  let contesto = null;          // { consegna: { verificaId, studenteEmail, versione, corsoId }, nome, emailDocente, dopoCambio }
   let mostrati = [];
   let pannello = null; let corpoEl = null; let titoloEl = null;
   let apertoCorpo = true;
@@ -58,11 +58,12 @@ export function montaFeedbackEditor({ toast, programma }) {
   }
 
   // `consegna` = { verificaId, studenteEmail, versione, corsoId }: l'ULTIMA versione dello studente. `nome`: «Anna Rossi».
-  async function mostra({ api, consegna, nome, emailDocente }) {
+  // `dopoCambio()`: chiamata dopo ogni scrittura (commento, modifica, eliminazione, pubblicazione): la tabella aggiorna i conteggi.
+  async function mostra({ api, consegna, nome, emailDocente, dopoCambio = null }) {
     nascondi();
     feedback = api;
     const mia = ++generazione;
-    contesto = { consegna, nome, emailDocente: String(emailDocente || '').toLowerCase() };
+    contesto = { consegna, nome, emailDocente: String(emailDocente || '').toLowerCase(), dopoCambio };
     creaPannello();
     titoloEl.textContent = `${K.pannello}: carico…`;
     try {
@@ -193,6 +194,7 @@ export function montaFeedbackEditor({ toast, programma }) {
     if (mia !== generazione) return;
     mostrati = lista;
     disegna();
+    contesto.dopoCambio?.();
   }
 
   async function pubblica(btn) {

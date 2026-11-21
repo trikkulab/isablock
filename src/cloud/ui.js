@@ -162,7 +162,7 @@ export function montaCloud({ contenitore, toast, programma, guida = null }) {
       if (utente.ruolo === 'docente') { verificaStudenteUi.esci(); consegneUi.esci(); } else {
         const apiStudente = cloud.verificaStudentePer(utente.email, utente.nome);
         verificaStudenteUi.entra(apiStudente, corsi, { senzaRete });
-        consegneUi.entra(apiStudente, corsi);
+        consegneUi.entra(apiStudente, corsi, cloud.feedbackPer({ email: utente.email, nome: utente.nome }));
       }
     } else {
       memo(false);

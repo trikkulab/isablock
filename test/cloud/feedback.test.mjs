@@ -132,6 +132,19 @@ test('studente: a verifica riaperta non legge più niente; il docente di un altr
   await assert.rejects(studente().mieiPubblicati('v1'), (e) => e.codice === 'negato');
 });
 
+test('perStudente: il docente legge i feedback di uno studente di ogni versione, bozze comprese', async () => {
+  await scenario({ versioni: [1, 2] });
+  await env.withSecurityRulesDisabled((ctx) => sdk.setDoc(sdk.doc(ctx.firestore(), `feedback/v1_${ANNA}_1_0`), {
+    verificaId: 'v1', studenteEmail: ANNA, versione: 1, corsoId: 'AB12CD', bloccoId: null, bloccoTesto: '', testo: 'vecchio',
+    autoreEmail: 'docente@isarome.it', autoreNome: 'Docente Prova', creato: fisso, modificato: fisso, pubblicato: true, pubblicatoIl: fisso,
+  }));
+  const d = docente();
+  await d.commenta({ consegna: consegna(2), testo: 'nuovo, bozza' });
+  const lista = await d.perStudente({ verificaId: 'v1', studenteEmail: ANNA });
+  assert.deepEqual(lista.map((f) => [f.versione, f.pubblicato]).sort(), [[1, true], [2, false]]);
+  assert.deepEqual(await d.perStudente({ verificaId: 'v1', studenteEmail: 'bruno@isarome.it' }), []);
+});
+
 test('riepilogoFeedback: bozze, pubblicati e «versione nuova senza commenti»', () => {
   const f = (versione, pubblicato) => ({ versione, pubblicato });
   assert.deepEqual(riepilogoFeedback([], 1), { bozze: 0, pubblicati: 0, versioneSenzaCommenti: false });

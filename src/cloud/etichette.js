@@ -46,6 +46,10 @@ export const feedbackEtichette = Object.freeze({
   bozza: 'bozza',
   pubblicato: 'pubblicato',
   pubblicatoModificato: 'pubblicato · modificato',
+  modificato: 'modificato',
+  nessunoStudente: 'Il docente non ha scritto commenti su questa verifica.',
+  commentaNellEditor: 'Commenta nell\'editor',
+  commentaNota: 'Per scrivere i commenti si apre una copia della consegna nell\'editor, con i blocchi a portata di clic.',
   copiaModificata: 'Hai modificato la copia: i commenti si agganciano ai blocchi della consegna, non a questi. Annulla le modifiche (Ctrl-Z) per tornare a commentare.',
 });
 

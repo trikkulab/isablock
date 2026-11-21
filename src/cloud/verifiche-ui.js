@@ -23,6 +23,7 @@ import { apriCopiaDiProva } from './copia-di-prova.js';
 import { mostraBandaCopia } from './banda-copia.js';
 import { creaPannelloTraccia } from './pannello-traccia.js';
 import { montaFeedbackEditor } from './feedback-ui.js';
+import { riepilogoFeedback } from './feedback.js';
 import { mostraTracciaEditor } from './scheda-traccia-editor.js';
 import { ordinaSchede, nomeFilePdf, nomeFilePdfTutte, nomeVisualizzato } from './scheda-stampa.js';
 import { etichettaCorso } from './corsi.js';
@@ -698,6 +699,14 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
     // Una verifica aperta si apre sulla situazione; la bozza non ha ancora studenti da seguire.
     if (!bozza()) {
       let tabella;
+      // I feedback di questa verifica (una sola lettura per tutta la tabella), a verifica chiusa: servono alla colonna «Feedback».
+      // Si rileggono dopo ogni modifica fatta dal pannello nell'editor.
+      let feedbackLista = []; let feedbackPronto = false; let feedbackTentato = false;
+      const caricaFeedback = async () => {
+        if (!feedbackApi || !chiusaAttiva()) return;
+        feedbackTentato = true;
+        try { feedbackLista = await feedbackApi.perVerifica(vid); feedbackPronto = true; tabella?.ridisegna(); } catch { /* la colonna resta vuota: il resto funziona uguale */ }
+      };
       // La storia dell'anteprima: istantanee del lavoro e consegne dello studente, tutte con l'ora del server
       const storiaConConsegne = async (email) => {
         const [istantanee, consegne] = await Promise.all([vd.lavori.storia(vid, email), vd.consegne.elenca(vid)]);
@@ -744,7 +753,7 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
           // I feedback: a verifica chiusa e solo se quel che c'è nell'editor è la consegna valida (non un punto della Storia).
           const c = lista[i].consegna;
           if (feedbackApi && feedbackUi && chiusaAttiva() && c && c.programma === lista[i].programma) {
-            feedbackUi.mostra({ api: feedbackApi, nome: chi, emailDocente,
+            feedbackUi.mostra({ api: feedbackApi, nome: chi, emailDocente, dopoCambio: caricaFeedback,
               consegna: { verificaId: vid, studenteEmail: c.studenteEmail, versione: c.versione, corsoId: c.corsoId } });
           }
           if (traccia) mostraTracciaEditor(await creaPannelloTraccia({ traccia, contesto: `${chi} · ${verifica.titolo}` }), { ripristina: true });
@@ -754,6 +763,10 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
         ? (email, nome) => apriAnteprima({
           apri, programma, segui: (e, cb) => tabella.segui(e, cb), caricaStoria: () => storiaConConsegne(email), osserva: () => osservaDalVivo(email), email, nome,
           leggiTraccia: async (id) => tracciaPerId(id) ?? vd.verifiche.leggiTraccia(vid, id),
+          // La scheda «Feedback» (sola lettura, bozze comprese) a verifica chiusa; per scrivere si apre la copia nell'editor.
+          feedback: feedbackApi && chiusaAttiva()
+            ? { leggi: () => feedbackApi.perStudente({ verificaId: vid, studenteEmail: email }), ultimaVersione: tabella.stato(email).ultimaConsegna?.versione ?? null, commenta: true }
+            : null,
           apriCopia: ({ programma: json, tracciaId }) => {
             let lista = provabili();
             let i = lista.findIndex((x) => x.email === email);
@@ -828,8 +841,10 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
       const sala = programma && programma.anteprima && programma.renderBlocchi
         ? () => apriSala({ apri, tabella, programma, caricaStoria: storiaConConsegne, osserva: osservaDalVivo, titolo: `Sala · ${verifica.titolo}` })
         : null;
-      tabella = creaTabellaLive({ vd, vid, toast, guarda, sala, caricaFile, terminaStudente: dialogoTerminaRiaperture, selezione: { ha: (e) => selezionati.has(e), cambia: (e, on) => { if (on) selezionati.add(e); else selezionati.delete(e); dopoRiapertura(); } }, scaricaPdf: conPdf ? scaricaPdf : null, scaricaTutti: conPdf ? scaricaTutti : null, esportaJson: conPdf ? esportaJson : null, tracce: { quante: () => tracce.length, titolo: (id) => tracciaPerId(id)?.titolo ?? null } });
+      tabella = creaTabellaLive({ vd, vid, toast, guarda, sala, caricaFile, terminaStudente: dialogoTerminaRiaperture, selezione: { ha: (e) => selezionati.has(e), cambia: (e, on) => { if (on) selezionati.add(e); else selezionati.delete(e); dopoRiapertura(); } }, scaricaPdf: conPdf ? scaricaPdf : null, scaricaTutti: conPdf ? scaricaTutti : null, esportaJson: conPdf ? esportaJson : null, tracce: { quante: () => tracce.length, titolo: (id) => tracciaPerId(id)?.titolo ?? null },
+        feedback: feedbackApi ? { pronto: () => feedbackPronto, riepilogo: (email, versione) => riepilogoFeedback(feedbackLista.filter((f) => f.studenteEmail === email), versione) } : null });
       chiudiTabella = tabella.distruggi;
+      tabella.ascolta(() => { if (!feedbackTentato && tabella.statoVerifica() === 'chiusa') caricaFeedback(); });   // anche se la verifica si chiude mentre la scheda è aperta
       azioni.prepend(tabella.azioniTutti);                 // «Scarica PDF di tutti» ed «Esporta JSON di tutti» stanno accanto a «Raccogli i lavori»
       lavoriLive = tabella.tutti;
       tabella.ascolta(aggiornaScadenza);                  // gli studenti riaperti compaiono/spariscono dalla testata appena arrivano i dati

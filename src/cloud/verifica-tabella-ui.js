@@ -16,7 +16,7 @@ function testoOffline(ms) {
 }
 
 // `vd`: oggetto di verifica-docente.js. Restituisce { elemento, distruggi }.
-export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = null, scaricaPdf = null, scaricaTutti = null, esportaJson = null, sala = null, terminaStudente = null, selezione = null, tracce = null }) {
+export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = null, scaricaPdf = null, scaricaTutti = null, esportaJson = null, sala = null, terminaStudente = null, selezione = null, feedback = null, tracce = null }) {
   let ultimo = null;                // ultimo { verifica, lavori, ultime, ora } ricevuto
   let modo = 'email';
   const seguaci = new Set();        // chi vuole il lavoro di uno studente a ogni aggiornamento: { email, cb }
@@ -31,6 +31,8 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
   // La colonna «Traccia» c'è solo se la verifica ha più di una traccia (con una sola non dice niente).
   const thTraccia = el('th', { title: 'La traccia che ha lo studente (a verifica chiusa, quella della consegna)', hidden: '' }, 'Traccia');
   const conTraccia = () => !!(tracce && tracce.quante() > 1);
+  // La colonna «Feedback» c'è solo a verifica chiusa, quando i feedback sono stati letti.
+  const thFeedback = el('th', { title: 'Commenti del docente sull\'ultima consegna: pubblicati, bozze e consegne nuove ancora senza commenti', hidden: '' }, 'Feedback');
   const intestazione = (testo, titolo, aiuto) => el('th', titolo ? { title: titolo } : {}, testo, aiuto ? puntoDomanda(aiuto) : '');
   const tabella = el('table', { class: 'tabella-live' },
     el('thead', {}, el('tr', {},
@@ -38,7 +40,7 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
       intestazione('Studente'), intestazione('Stato'), thTraccia,
       intestazione('Blocchi', `Blocchi adesso e variazione negli ultimi ${C.finestraIncrementoMin} minuti`),
       intestazione('Esecuzioni', 'Numero di esecuzioni e esito dell\'ultima'),
-      intestazione('Connessione'), intestazione('Tempo'), intestazione('Programma', null, 'caricaFile'))),
+      intestazione('Connessione'), intestazione('Tempo'), thFeedback, intestazione('Programma', null, 'caricaFile'))),
     corpo);
   tabella.hidden = true;
   // «Scarica PDF di tutti»: solo a verifica chiusa (si mostra quando arriva lo stato), un solo PDF con una scheda per ogni consegna.
@@ -51,6 +53,17 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
     el('div', { class: 'tabella-testata' }, el('span', { class: 'tabella-riepilogo' }, sommario, stima), el('span', { class: 'tabella-azioni' }, btnSala, ordine)), vuota, tabella);
 
   function cella(riga, ...figli) { return el('td', {}, ...figli); }
+
+  // Feedback di uno studente: «💬 2» pubblicati, «1 bozza» ancora da pubblicare, «v2 senza commenti» se la consegna nuova non è stata ancora commentata.
+  function cellaFeedback(x) {
+    if (x.versioneConsegna === null) return el('td', { class: 'tabella-feedback' }, '–');
+    const r = feedback.riepilogo(x.email, x.versioneConsegna);
+    const figli = [];
+    if (r.pubblicati) figli.push(el('span', { title: 'Commenti pubblicati: lo studente li vede' }, `💬 ${r.pubblicati}`));
+    if (r.bozze) figli.push(el('span', { class: 'cloud-badge feedback-badge-bozza', title: 'Da pubblicare con «Pubblica feedback»' }, `${r.bozze} ${r.bozze === 1 ? 'bozza' : 'bozze'}`));
+    if (r.versioneSenzaCommenti) figli.push(el('span', { class: 'cloud-badge feedback-badge-bozza', title: 'Ci sono commenti sulla versione precedente: questa consegna è nuova e va commentata da capo' }, `v${x.versioneConsegna} senza commenti`));
+    return el('td', { class: 'tabella-feedback' }, ...(figli.length ? figli.flatMap((f, i) => (i ? [' ', f] : [f])) : ['–']));
+  }
 
   // Promemoria del consumo di questa verifica sulle quote giornaliere (solo una stima: vedi `stimaConsumi` in verifica-config.js).
   const numero = new Intl.NumberFormat('it-IT', { useGrouping: 'always' });
@@ -84,6 +97,8 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
     corpo.textContent = '';
     const mostraTraccia = conTraccia();
     thTraccia.hidden = !mostraTraccia;
+    const mostraFeedback = !!(feedback && feedback.pronto() && ultimo.verifica.stato === 'chiusa');
+    thFeedback.hidden = !mostraFeedback;
     for (const x of righe) {
       const blocchi = x.nBlocchi === null || x.nBlocchi === undefined ? '–'
         : `${x.nBlocchi}${x.incremento ? ` (${x.incremento > 0 ? '+' : ''}${x.incremento})` : ''}`;
@@ -103,6 +118,7 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
         cella(x, esec),
         cella(x, x.connessione ? el('span', { class: 'tabella-conn', 'data-conn': x.connessione.stato }, x.connessione.stato === 'offline' ? testoOffline(x.connessione.da) : 'online') : '–'),
         cella(x, x.timer ? el('span', { class: 'tabella-timer', 'data-colore': x.timer.colore }, x.timer.restante > 0 ? testoDurata(x.timer.restante) : 'scaduto') : '–'),
+        mostraFeedback ? cellaFeedback(x) : '',
         cella(x, el('div', { class: 'tabella-pulsanti' },
           guarda ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Guarda il programma (sola lettura)', onclick: () => guarda(x.email, x.nome) }, E.guarda) : '',
           scaricaPdf && ultimo.verifica.stato === 'chiusa' && x.versioneConsegna !== null ? el('button', { type: 'button', class: 'modal-btn secondary tabella-guarda', title: 'Scarica la scheda di consegna di questo studente in PDF (A4)', onclick: () => scaricaPdf(x.email) }, E.scaricaPdf) : '',
@@ -132,5 +148,5 @@ export function creaTabellaLive({ vd, vid, toast, guarda = null, caricaFile = nu
   const statoVerifica = () => (ultimo ? ultimo.verifica.stato : null);
   // `cb()` ogni volta che arriva qualcosa dal server (nessuna lettura in più). Restituisce la funzione per smettere.
   function ascolta(cb) { ascoltatori.add(cb); return () => ascoltatori.delete(cb); }
-  return { elemento, azioniTutti, distruggi, segui, stato, tutti, righe, statoVerifica, ascolta };
+  return { elemento, azioniTutti, distruggi, segui, stato, tutti, righe, statoVerifica, ascolta, ridisegna: disegna };
 }

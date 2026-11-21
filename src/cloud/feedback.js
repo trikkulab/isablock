@@ -104,6 +104,15 @@ export function creaFeedback({ sdk, db }, profilo = {}) {
     } catch (err) { throw traduci(err); }
   }
 
+  // Docente: i feedback di uno studente in una verifica, di ogni versione (bozze comprese).
+  async function perStudente({ verificaId, studenteEmail }) {
+    try {
+      const snap = await sdk.getDocs(sdk.query(raccolta(),
+        sdk.where('verificaId', '==', verificaId), sdk.where('studenteEmail', '==', String(studenteEmail).toLowerCase())));
+      return snap.docs.map(feedbackDaDocumento).sort(piuVecchioPrima);
+    } catch (err) { throw traduci(err); }
+  }
+
   // Scrive un commento (bozza) nel primo posto libero (0..29). `consegna` = { verificaId, studenteEmail, versione,
   // corsoId } dell'ULTIMA versione che il docente sta guardando. Se un altro docente occupa lo stesso numero nel
   // frattempo le regole rifiutano la scrittura (non sovrascrive): si rilegge e si riprova.
@@ -177,7 +186,7 @@ export function creaFeedback({ sdk, db }, profilo = {}) {
     } catch (err) { throw traduci(err); }
   }
 
-  return { perVerifica, mieiPubblicati, perConsegna, commenta, modifica, elimina, pubblica };
+  return { perVerifica, mieiPubblicati, perConsegna, perStudente, commenta, modifica, elimina, pubblica };
 }
 
 // Per la tabella del docente: com'è messo il feedback di uno studente. `lista` = i feedback dello studente (tutte le

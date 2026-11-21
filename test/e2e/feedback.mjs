@@ -98,7 +98,46 @@ try {
   await page.click('.feedback-pannello .commenti-modulo-riga button:has-text("Aggiungi commento")');
   verifica(await finche(page, async () => (await feedbackNelDb()).filter((f) => f.pubblicato === false).length === 1), 'un commento nuovo dopo la pubblicazione resta bozza');
 
+  // modifica di un commento già pubblicato: compare «modificato»
+  await page.evaluate(() => { window.__prompt = window.prompt; window.prompt = () => 'Bel lavoro, davvero ordinato.'; });
+  await page.click('.feedback-pannello .commento:has-text("Bel lavoro, ordinato.") button:has-text("Modifica")');
+  verifica(await finche(page, async () => /pubblicato · modificato/.test(await page.textContent('.feedback-pannello'))), 'un commento pubblicato e poi corretto mostra «pubblicato · modificato»');
+
+  // la tabella del docente: colonna Feedback con i conteggi
+  await page.click('.banda-copia .banda-copia-torna');
+  await page.waitForSelector('.tabella-live tbody tr:has-text("Anna Rossi")');
+  verifica(await finche(page, async () => await page.isVisible('.tabella-live th:has-text("Feedback")')), 'tabella a verifica chiusa: colonna «Feedback»');
+  verifica(await finche(page, async () => { const t = await page.textContent('.tabella-live tbody tr:has-text("Anna Rossi") .tabella-feedback'); return /💬 2/.test(t) && /1 bozza/.test(t); }), '…con «💬 2» pubblicati e «1 bozza»');
+  // «Guarda»: la scheda Feedback in sola lettura, con le bozze segnate e il pulsante per commentare nell'editor
+  await page.click('.tabella-live tbody tr:has-text("Anna Rossi") button:has-text("Guarda")');
+  await page.waitForSelector('.anteprima-blocchi svg.blocklySvg');
+  verifica(await finche(page, async () => await page.isVisible('.verifica-scheda:has-text("Feedback (3)")')), 'Guarda: la scheda si chiama «Feedback (3)»');
+  await page.click('.verifica-scheda:has-text("Feedback")');
+  verifica((await page.$$('.anteprima-feedback .commento')).length === 3 && await page.isVisible('.anteprima-feedback .feedback-badge-bozza'), 'Guarda: i 3 commenti in sola lettura, la bozza segnata');
+  verifica(await page.isVisible('.anteprima-feedback button:has-text("Commenta nell\'editor")'), 'Guarda: c\'è «Commenta nell\'editor»');
+  await page.keyboard.press('Escape');
+  // una consegna nuova (v2) senza commenti: la tabella lo dice
+  await scrivi(`verifiche/vf/consegne/${ANNA}_2`, { studenteEmail: S(ANNA), studenteNome: S('Anna Rossi'), corsoId: S('FB1DEN'), titolo: S('Verifica di prova'), versione: { integerValue: '2' }, origine: S('raccolta'),
+    tracciaId: S('t0'), programma: S(prog), creato: T(Date.now() - 10 * MIN) });
+  verifica(await finche(page, async () => /v2 senza commenti/.test(await page.textContent('.tabella-live tbody tr:has-text("Anna Rossi") .tabella-feedback'))), 'consegna nuova (v2) con commenti solo sulla v1: la tabella dice «v2 senza commenti»');
+
+  // lo studente: «Le mie consegne» → Guarda → «Feedback»: solo i pubblicati, di tutte le versioni
+  const studente = await accedi(browser, ANNA, { nome: 'Anna Rossi' });
+  await studente.page.click('.cloud-menu-btn');
+  await studente.page.click('.cloud-voce:has-text("Le mie consegne")');
+  await studente.page.waitForSelector('.consegna-riga');
+  await studente.page.click('.consegna-riga:has-text("v1") button:has-text("Guarda")');
+  await studente.page.waitForSelector('.anteprima-blocchi svg.blocklySvg');
+  verifica(await finche(studente.page, async () => await studente.page.isVisible('.verifica-scheda:has-text("Feedback (2)")')), 'studente: la scheda si chiama «Feedback (2)» (la bozza non c\'è)');
+  await studente.page.click('.verifica-scheda:has-text("Feedback")');
+  const testoStudente = await studente.page.textContent('.anteprima-feedback');
+  verifica((await studente.page.$$('.anteprima-feedback .commento')).length === 2 && !/bozza|Un'ultima cosa/.test(testoStudente), 'studente: vede i 2 pubblicati e non la bozza, senza segni di stato');
+  verifica(/modificato/.test(testoStudente) && /davvero ordinato/.test(testoStudente), 'studente: il commento corretto dopo la pubblicazione mostra «modificato» e il testo nuovo');
+  verifica(!(await studente.page.isVisible('.anteprima-feedback button:has-text("Commenta")')), 'studente: nessun pulsante per commentare');
+  verifica(studente.errori.length === 0, `nessun errore nella pagina dello studente${studente.errori.length ? `: ${studente.errori.join(' | ')}` : ''}`);
+
   // il pannello sparisce quando la copia viene sostituita
+  for (let i = 0; i < 4; i++) await page.keyboard.press('Escape');                      // le finestre della verifica (la tabella) coprono l'editor
   await page.click('#btnNew');
   verifica(await finche(page, async () => !(await page.isVisible('.feedback-pannello'))), 'sostituendo il programma (Nuovo) il pannello sparisce');
 
