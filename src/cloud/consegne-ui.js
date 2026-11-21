@@ -58,8 +58,8 @@ export function montaConsegne({ toast, programma, dopoCaricamento = () => {} }) 
       apriCopia: ({ programma: json, tracciaId, quale }) => apriProgrammaInEditor(v, json, tracciaId ?? c.tracciaId, quale ? `${quale} · ${v.titolo}` : contestoTraccia(v, c), quale ? 'Il punto scelto è aperto nell\'editor' : `Consegna v${c.versione} aperta nell'editor`),
       // La traccia che aveva, nella scheda «Traccia» aperta all'inizio: come in verifica. Lo studente legge solo la sua (regole del database).
       leggiTraccia: (id) => api.verifiche.leggiTraccia(v.id, id), schedaIniziale: 'traccia', contestoTraccia: contestoTraccia(v, c),
-      // Scheda «Feedback»: tutti i commenti pubblicati su questa verifica, di ogni sua consegna (vecchi e nuovi).
-      feedback: feedbackApi ? { leggi: () => feedbackApi.mieiPubblicati(v.id), ultimaVersione: tutte[tutte.length - 1]?.versione ?? null } : null,
+      // Scheda «Feedback»: i commenti pubblicati su QUESTA consegna (legati alla versione); se ce ne sono su altre, una riga lo dice.
+      feedback: feedbackApi ? { leggi: () => feedbackApi.mieiPubblicati(v.id), ultimaVersione: tutte[tutte.length - 1]?.versione ?? null, versione: c.versione } : null,
       apri: (titolo, onChiudi, opzioni) => apriFinestra(titolo, onChiudi, opzioni),
       programma, email: api.email, nome: v.titolo,
       titolo: `La tua consegna v${c.versione}: ${v.titolo}`,

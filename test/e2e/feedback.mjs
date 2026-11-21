@@ -122,21 +122,23 @@ try {
     tracciaId: S('t0'), programma: S(prog), creato: T(Date.now() - 10 * MIN) });
   verifica(await finche(page, async () => /v2 senza commenti/.test(await page.textContent('.tabella-live tbody tr:has-text("Anna Rossi") .tabella-feedback'))), 'consegna nuova (v2) con commenti solo sulla v1: la tabella dice «v2 senza commenti»');
 
-  // Storia: scorrendo i punti, i commenti seguono la consegna che si guarda (v1: i suoi 3; un'istantanea: nessuno)
+  // Storia: i commenti seguono la consegna che si guarda (v2: nessuno, con la riga che dice dove sono gli altri; v1: i suoi 3; un'istantanea: nessuno)
   await scrivi(`verifiche/vf/lavori/${ANNA}/storia/p0`, { programma: S(prog), nBlocchi: { integerValue: '5' }, t: T(Date.now() - 40 * MIN), tipo: S('periodica') });
   await page.click('.tabella-live tbody tr:has-text("Anna Rossi") button:has-text("Guarda")');
   await page.waitForSelector('.anteprima-blocchi svg.blocklySvg');
   await page.click('.verifica-scheda:has-text("Feedback")');
+  verifica(await finche(page, async () => (await page.$$('.anteprima-feedback .commento')).length === 0 && /Consegna v2/.test(await page.textContent('.anteprima-feedback')) && /v1 \(3\)/.test(await page.textContent('.feedback-altre'))), 'Guarda sull\'ultima consegna (v2): nessun commento (sono sulla v1) e la riga «anche su altre consegne: v1 (3)»');
+  verifica((await page.textContent('.verifica-scheda:has-text("Feedback")')).trim() === 'Feedback', '…e la scheda non ha il numero');
   await page.click('button:has-text("Storia")');
   await page.waitForSelector('.anteprima-storia:not([hidden])');
-  verifica(await finche(page, async () => (await page.$$('.anteprima-feedback .commento')).length === 3), 'Storia sull\'ultima consegna (v2): il Feedback mostra tutti i commenti, per versione');
   await page.click('.anteprima-storia button[aria-label="Istantanea precedente"]');
-  verifica(await finche(page, async () => /\(v1/.test(await page.textContent('.anteprima-etichetta')) && (await page.$$('.anteprima-feedback .commento')).length === 3 && /Stai guardando la consegna v1/.test(await page.textContent('.anteprima-feedback'))), 'Storia sulla consegna v1: i 3 commenti della v1');
+  verifica(await finche(page, async () => /\(v1/.test(await page.textContent('.anteprima-etichetta')) && (await page.$$('.anteprima-feedback .commento')).length === 3 && /Consegna v1/.test(await page.textContent('.anteprima-feedback'))), 'Storia sulla consegna v1: i 3 commenti della v1');
+  verifica(await page.isVisible('.verifica-scheda:has-text("Feedback (3)")'), '…e la scheda dice «Feedback (3)»');
   await page.click('.anteprima-storia button[aria-label="Istantanea precedente"]');
   verifica(await finche(page, async () => (await page.$$('.anteprima-feedback .commento')).length === 0 && /istantanea del lavoro/.test(await page.textContent('.anteprima-feedback'))), 'Storia su un\'istantanea del lavoro: nessun commento, e lo dice');
   await page.click('.anteprima-storia button[aria-label="Istantanea successiva"]');
   await page.click('.anteprima-storia button[aria-label="Istantanea successiva"]');
-  verifica(await finche(page, async () => (await page.$$('.anteprima-feedback .commento')).length === 3), 'tornando all\'ultima consegna il Feedback mostra di nuovo tutto');
+  verifica(await finche(page, async () => (await page.$$('.anteprima-feedback .commento')).length === 0 && /Consegna v2/.test(await page.textContent('.anteprima-feedback'))), 'tornando all\'ultima consegna: di nuovo quelli della v2 (nessuno)');
   await page.keyboard.press('Escape');
 
   // lo studente: «Le mie consegne» → Guarda → «Feedback»: solo i pubblicati, di tutte le versioni
@@ -152,6 +154,12 @@ try {
   verifica((await studente.page.$$('.anteprima-feedback .commento')).length === 2 && !/bozza|Un'ultima cosa/.test(testoStudente), 'studente: vede i 2 pubblicati e non la bozza, senza segni di stato');
   verifica(/modificato/.test(testoStudente) && /davvero ordinato/.test(testoStudente), 'studente: il commento corretto dopo la pubblicazione mostra «modificato» e il testo nuovo');
   verifica(!(await studente.page.isVisible('.anteprima-feedback button:has-text("Commenta")')), 'studente: nessun pulsante per commentare');
+  // la v2 di Anna (nessun commento su di lei): lo studente vede solo quelli della v2, con la riga che dice dove sono gli altri
+  await studente.page.keyboard.press('Escape');
+  await studente.page.click('.consegna-riga:has-text("v2") button:has-text("Guarda")');
+  await studente.page.waitForSelector('.anteprima-blocchi svg.blocklySvg');
+  await studente.page.click('.verifica-scheda:has-text("Feedback")');
+  verifica(await finche(studente.page, async () => (await studente.page.$$('.anteprima-feedback .commento')).length === 0 && /Consegna v2/.test(await studente.page.textContent('.anteprima-feedback')) && /v1 \(2\)/.test(await studente.page.textContent('.feedback-altre'))), 'studente sulla v2: nessun commento (sono sulla v1), con «anche su altre consegne: v1 (2)»');
   verifica(studente.errori.length === 0, `nessun errore nella pagina dello studente${studente.errori.length ? `: ${studente.errori.join(' | ')}` : ''}`);
 
   // il pannello sparisce quando la copia viene sostituita

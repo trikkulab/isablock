@@ -25,8 +25,8 @@ const ora = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit
 // quella scelta l'ultima volta. `contestoTraccia`: riga sopra il testo della traccia («Consegna v2 · …»).
 // `studente`: la finestra è dello studente che rivede la sua verifica: niente segni «⚠» né elenco dei salti (non deve sapere cosa cerca l'app),
 // e le diciture parlano della «consegna» che sta guardando. `etichettaCopia`: testo del pulsante «apri in editor» (default quello del docente).
-// `feedback`: { leggi(), ultimaVersione?, commenta?() }: se c'è, compare la scheda «Feedback» (dopo «Traccia») con i commenti del docente
-// in sola lettura, raggruppati per versione (`leggi()` ne restituisce la lista, vedi feedback.js; lo studente riceve solo i pubblicati).
+// `feedback`: { leggi(), ultimaVersione?, versione?, commenta? }: se c'è, compare la scheda «Feedback» (dopo «Traccia») con i commenti del docente
+// in sola lettura, solo quelli della versione che si guarda (`versione`: quella con cui si apre la finestra; ogni punto della Storia ha la sua) (`leggi()` ne restituisce la lista, vedi feedback.js; lo studente riceve solo i pubblicati).
 // `commenta`: true (solo docente, a verifica chiusa) = nella scheda c'è «Commenta nell'editor», che apre la copia dell'ULTIMA consegna, dove si scrive.
 // `apriCopia({ programma, chi })`: se c'è, in fondo compare «Apri una copia per provarla» (carica nell'editor ciò che si sta guardando).
 export function apriAnteprima({ apri, programma, segui, caricaStoria = null, osserva = null, email, nome, titolo = null, nota = null, apriCopia = null, leggiTraccia = null, schedaIniziale = null, contestoTraccia = null, studente = false, etichettaCopia = null, feedback = null }) {
@@ -69,26 +69,30 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, oss
   scegli(schedaIniziale ?? (schede.some(([k]) => k === ultimaScheda) ? ultimaScheda : 'pseudocode'));
   anteprima = programma.anteprima({ blocchi, codici: pre });
   // La scheda «Feedback»: si legge una volta all'apertura; il numero compare sul pulsante della scheda.
-  // Il docente che scorre la Storia vede i commenti del punto in cui si trova (la consegna di quella versione; per un'istantanea del
-  // lavoro, nessuno): lo studente li vede sempre tutti, di ogni versione.
+  // I commenti sono legati alla versione della consegna: la scheda mostra quelli della versione che si sta guardando (anche per lo
+  // studente), e per un'istantanea del lavoro nessuno. Il numero sul pulsante della scheda segue.
   let listaFeedback = null;
+  const versioneInVista = () => {
+    if (posizione !== null && punti) { const p = punti[posizione]; return p && p.tipo === 'consegna' ? p.versione : null; }
+    return feedback.versione ?? (ultimoLavoro && ultimoLavoro.consegna ? ultimoLavoro.consegna.versione : null) ?? feedback.ultimaVersione ?? null;
+  };
   function disegnaFeedback() {
     if (!feedback || listaFeedback === null) return;
-    const p = !studente && posizione !== null && punti ? punti[posizione] : null;
+    const v = versioneInVista();
     pannelli.feedback.textContent = '';
-    pannelli.feedback.append(creaElencoFeedback({ lista: listaFeedback, studente, ultimaVersione: feedback.ultimaVersione ?? null,
-      punto: p ? { versione: p.tipo === 'consegna' ? p.versione : null } : null,
+    pannelli.feedback.append(creaElencoFeedback({ lista: listaFeedback, versione: v, studente, ultimaVersione: feedback.ultimaVersione ?? null,
       suCommenta: feedback.commenta && apriCopia ? () => {
         // Si commenta sempre l'ultima consegna, anche se nella Storia si sta guardando un altro punto.
         const c = ultimoLavoro && ultimoLavoro.consegna;
         apriCopia({ programma: c && c.programma ? c.programma : ultimo, chi: `${nome || email}`, tracciaId: (c && c.tracciaId) ?? tracciaMostrata ?? null, quale: '' });
       } : null }));
+    const n = v === null ? 0 : listaFeedback.filter((f) => f.versione === v).length;
+    bottoni.get('feedback').textContent = n ? `Feedback (${n})` : 'Feedback';
   }
   if (feedback) {
     feedback.leggi().then((lista) => {
       listaFeedback = lista;
       disegnaFeedback();
-      bottoni.get('feedback').textContent = lista.length ? `Feedback (${lista.length})` : 'Feedback';
     }).catch((err) => {
       pannelli.feedback.textContent = '';
       pannelli.feedback.append(el('p', { class: 'sketch-nota' }, err && err.codice === 'negato' ? 'I feedback si vedono a verifica conclusa.' : 'Non riesco a leggere i feedback: riprova tra poco.'));
