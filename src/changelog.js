@@ -7,6 +7,16 @@
 // finestra (per le correzioni che lo studente non nota).
 export const changelog = Object.freeze([
   {
+    version: '1.9.0',
+    date: '2026-11-21',
+    title: 'Blocchi con la tastiera',
+    items: [
+      'Premi una lettera per creare un blocco: S scrivi, L leggi, A assegna, V variabile, T testo, M mentre, E esegui…mentre, F (o P) per, R ripeti, I se (Maiusc+I se…altrimenti), C commento, B vero/falso.',
+      'I numeri si scrivono con 0–9 (1 poi 2 fa 12), le operazioni con + - * / %, i confronti con = < >, e con & | ! i blocchi E, O, NON.',
+      'Il blocco compare sotto il mouse: poi lo trascini dove vuoi. La lettera è segnata sui blocchi della tavolozza e nella Guida.',
+    ],
+  },
+  {
     version: '1.8.6',
     date: '2026-11-10',
     title: 'Variabili vero/falso più facili',
