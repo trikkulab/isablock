@@ -18,7 +18,7 @@ export const titoloDati = 'Quali dati vengono salvati?';
 export const riassuntoDati = [
   'Salviamo il tuo nome e la tua email della scuola (dal tuo account Google) e i corsi a cui ti iscrivi.',
   'I tuoi sketch li salviamo solo se lo scegli tu. Se li condividi con un corso, il docente li vede e può commentarli.',
-  'Se il docente ti assegna una verifica, mentre la svolgi il docente vede il tuo lavoro e può rivederne l’evoluzione. Una volta consegnata, la consegna non si modifica più.',
+  'Se il docente ti assegna una verifica, mentre la svolgi il docente vede il tuo lavoro e può rivederne l’evoluzione. Una volta consegnata, la consegna non si modifica più, e il docente può scrivere dei commenti per te.',
   'Sul tuo computer restano una copia del lavoro e il tuo nome e ruolo, per non perdere niente se cade la rete.',
   'Gli altri studenti non vedono niente di tuo. Il servizio che conserva i dati è Firebase, di Google.',
 ];
@@ -53,7 +53,8 @@ export const gruppiDati = [
       'Nella verifica il docente può darti una traccia e un tempo diversi da quelli degli altri, senza che sia scritto il motivo; sul server resta anche quale versione della traccia hai già visto.',
       'Quando consegni (o scade il tempo, o il docente termina la verifica) viene salvata una copia della consegna che nessuno può più modificare. Se la verifica viene riaperta puoi consegnare di nuovo: le consegne precedenti restano e vale l’ultima. Le consegne non si eliminano da IsaBlock. Dopo la chiusura le rivedi da «Le mie consegne».',
       'Durante una verifica una copia del tuo lavoro e del testo della traccia resta anche nel browser di questo computer, per non perderli se si chiude la pagina o cade la rete. Si cancella quando consegni; se la verifica finisce con modifiche non arrivate al server resta fino a circa una settimana. Se manca la rete puoi salvare un «file di emergenza», che contiene il tuo nome, la tua email e il tuo programma: lo consegni tu al docente, che lo carica come tua consegna.',
-      'Il docente può scaricare le tue consegne in PDF (con il tuo nome, la traccia e il tuo programma) per tenerle in archivio.',
+      'Dopo la consegna il docente può scrivere dei commenti sulla tua consegna (anche su un singolo blocco): restano bozze che vede solo lui finché non li pubblica, e da quel momento li vedi tu e i docenti del corso, a verifica conclusa. Sono legati alla versione della consegna, portano il nome del docente che li ha scritti e possono essere corretti o eliminati dal docente. Tu li leggi soltanto.',
+      'Il docente può scaricare le tue consegne in PDF (con il tuo nome, la traccia, il tuo programma e, se vuole, i commenti pubblicati) per tenerle in archivio.',
     ],
   },
 ];

@@ -2,7 +2,7 @@
 
 Stato: **accesso, ruolo (studente/docente), sketch personali, corsi (creati e gestiti dal
 docente nell'app) con iscrizione col codice o a mano, condivisione degli sketch col docente
-del corso, commenti del docente sugli sketch condivisi**. La **modalità verifica** è in costruzione (branch `cloud`, spenta con `enabled: false`): fatti il lato docente, il lavoro live dello studente, la consegna e riconsegna, la copia locale, la tabella live del docente con «Guarda» e la storia, i file di emergenza e il rientro senza rete, «Le mie consegne» e la scheda di consegna in PDF; restano la simulazione con 30 studenti (taratura) e le guide. Le decisioni di fondo sono nella nota di progetto
+del corso, commenti del docente sugli sketch condivisi e, a verifica conclusa, feedback del docente sulle consegne (vedi «Feedback sulle consegne»)**. La **modalità verifica** è in costruzione (branch `cloud`, spenta con `enabled: false`): fatti il lato docente, il lavoro live dello studente, la consegna e riconsegna, la copia locale, la tabella live del docente con «Guarda» e la storia, i file di emergenza e il rientro senza rete, «Le mie consegne» e la scheda di consegna in PDF; restano la simulazione con 30 studenti (taratura) e le guide. Le decisioni di fondo sono nella nota di progetto
 "cloud e verifica live"; qui c'è ciò che serve per usare e mantenere il codice.
 
 ## Principi
@@ -855,7 +855,8 @@ per le prove, con dati finti, e si può cancellare a fine prova.
 npm run test:cloud     # regole sull'emulatore (ambiente "test"), + test del generatore
 npm run test:e2e       # prove nel browser (Chromium) contro l'app vera: vedi «Prove nel browser»
 npm run emulators      # emulatori Auth + Firestore con regole dev (UI su :4100);
-                       # i dati restano in .emulator-data (cancellarla per ripartire da zero)
+                       # i dati restano in .emulator-data (cancellarla per ripartire da zero); si salvano a Ctrl+C e ogni 5 minuti
+                       # (EMULATORI_AUTOSAVE_SECONDI, 0 = spento): un crash del computer costa al massimo gli ultimi minuti
                        # e i docenti di prova (environments.local.json, dev.docentiProva) si ricreano ogni volta
 python3 -m http.server # e aprire http://localhost:8000 con cloud.enabled = true
 npm run vendor:firebase  # rigenera vendor/firebase/cloud.js (solo per aggiornare Firebase)
@@ -899,8 +900,8 @@ Il ruolo docente in locale lo danno i `docentiProva` di `scripts/environments.lo
 ### Guide per lo studente e per il docente (passo 14, 7 nov 2026)
 
 - **Testi** (`src/cloud/testi-guida.js`, un posto solo): `sezioni` con due sezioni, «Per lo studente» (6 capitoli: Primi passi, I miei
-  sketch, I commenti del docente, La verifica, Se cade la rete, Dopo la verifica) e «Per il docente» (7: Corsi e iscritti, Sketch condivisi
-  e commenti, Verifica: preparare / avviare / durante / terminare, Dopo: casi particolari), e `aiuti` (le note dei «?»). Ogni capitolo è
+  sketch, I commenti del docente, La verifica, Se cade la rete, Dopo la verifica) e «Per il docente» (8: Corsi e iscritti, Sketch condivisi
+  e commenti, Verifica: preparare / avviare / durante / terminare / feedback sulle consegne, Dopo: casi particolari), e `aiuti` (le note dei «?»). Ogni capitolo è
   una lista di blocchi `{p}`, `{h}`, `{ul}`, `{ol}`, `{nota}`; `**così**` è il grassetto, usato per i nomi dei pulsanti.
 - **Etichette** (`src/cloud/etichette.js`): le etichette che la guida nomina (menu del cloud, sketch, corsi, commenti, verifica del docente,
   consegne dello studente) sono costanti, **lette anche dall'interfaccia** (`ui.js`, `corsi-ui.js`, `gestione-ui.js`, `sketch-ui.js`,
@@ -936,3 +937,58 @@ Lo studente, che ascolta già il proprio lavoro, salva ogni `osservatoDebounceMs
 da solo al ritmo normale. Regole: solo il docente del corso, `osservato == request.time`, verifica aperta, studente
 entrato. Gli altri studenti non cambiano. Costo (simulazione, docs/SIMULAZIONE-30.md): +9% scritture con un solo studente
 osservato alla volta. Le istantanee non cambiano (seguono il tempo). Solo il primo piano: la griglia di tessere non c'è.
+
+
+### Feedback sulle consegne (21 nov 2026)
+
+Il docente scrive dei commenti sulla CONSEGNA di uno studente (come i commenti agli sketch, ma legati alla versione della consegna) e li
+pubblica; lo studente li legge a verifica conclusa. Decisioni di Ivan (non rimetterle in discussione senza motivo):
+
+- **Bozza e pubblicazione**: ogni commento nasce bozza (lo vede solo il docente); «Pubblica feedback» li rende visibili allo studente. I commenti
+  scritti dopo una pubblicazione restano bozze fino alla pubblicazione successiva. Il docente può modificare (solo l'autore) ed eliminare (qualunque
+  docente del corso) anche dopo; lo studente vede «modificato» se il testo è cambiato dopo la pubblicazione (`modificato > pubblicatoIl`).
+- **Legati alla versione**: si commenta solo l'ULTIMA versione (quella che vale). Se arriva una versione nuova (riapertura) si ricomincia: la colonna «Feedback»
+  della tabella segna «vN senza commenti». Chi guarda (docente E studente) vede solo i commenti della versione che sta guardando; una riga dice se ce ne sono su
+  altre. (Una prima decisione, «lo studente vede sempre tutti», è stata cambiata da Ivan il 21 nov.) Scorrendo la Storia di «Guarda» i commenti seguono il punto:
+  consegna vN → i suoi; istantanea del lavoro → nessuno.
+- **Aggancio**: a un blocco (`bloccoId` Blockly + `bloccoTesto`) o all'intera consegna. Nessun anonimato.
+
+**Dati e regole.** Collezione `feedback`, un documento per commento, id `<verificaId>_<email>_<versione>_<k>` (k da 0 a 29: il tetto di 30 per consegna è imposto
+dall'id, come per sketch e commenti). Campi: `verificaId`, `studenteEmail`, `versione`, `corsoId`, `bloccoId` (o null), `bloccoTesto` (≤200), `testo` (≤500),
+`autoreEmail`, `autoreNome`, `creato`, `modificato`, `pubblicato`, `pubblicatoIl`. Regole (`firestore.rules.template`, `match /feedback/{id}`):
+- *create*: docente del corso, verifica `chiusa`, la consegna esiste ed è l'ULTIMA versione, `pubblicato == false`, `creato == modificato == request.time`.
+- *update*: docente del corso; o l'autore cambia solo `testo`/`modificato`; o chiunque del corso mette `pubblicato: true` + `pubblicatoIl` (una volta sola, mai il contrario).
+- *delete*: docente del corso. *read*: docente del corso (il corso si prende dalla VERIFICA, così basta una query per `verificaId`); lo studente solo i propri,
+  pubblicati, a verifica chiusa (la query deve avere `verificaId`, `studenteEmail == email`, `pubblicato == true`; copre tutte le versioni).
+- Prove: `test/cloud/feedback-rules.test.mjs` (regole) e `feedback.test.mjs` (modulo dati).
+
+**Codice.** `feedback.js` (dati: `perVerifica`, `perStudente`, `perConsegna`, `mieiPubblicati`, `commenta`, `modifica`, `elimina`, `pubblica`; `riepilogoFeedback` per la
+tabella); `feedback-ui.js` (il pannello nell'editor, sotto il codice: del docente nella copia di prova, dello studente in sola lettura quando apre la sua consegna
+nell'editor); `feedback-elenco.js` (l'elenco in sola lettura della scheda «Feedback» di «Guarda»); colonna «Feedback» in `verifica-tabella-ui.js`;
+etichette in `feedbackEtichette` (`etichette.js`). `index.js` espone `feedbackPer(profilo)`.
+- **Scrivere**: nella copia di prova («Apri una copia per provarla», solo a verifica chiusa e solo con la consegna valida, non un punto della Storia). Se nella copia cambia
+  la STRUTTURA del programma (blocchi aggiunti, tolti, ricollegati: non basta spostarli sul foglio) il modulo si blocca, perché gli id non sarebbero più quelli della
+  consegna; Ctrl-Z lo sblocca da solo. `main.js`: `copiaDiProva.strutturaCambiata()` con `strutturaImpronta()` (il JSON salvato senza x/y dei blocchi di primo
+  livello, ordinati); `modificata()` e la copia automatica non cambiano. Cambiando studente con ◀ ▶ si chiede conferma se c'è un commento non inviato.
+- **Pannelli che spariscono**: con Nuovo/file/esempio (`ui.js`, `scollega` chiude anche i pannelli dei feedback e dei commenti sketch) e quando si carica un'altra copia.
+
+**PDF.** I commenti PUBBLICATI della versione valida (mai le bozze; interruttore «Commenti del docente» nella finestra «Cosa vuoi nel PDF?»): `[n]` accanto alle
+righe del blocco nella striscia dei numeri di riga (parentesi in «corsie» separate per i blocchi annidati), elenco «Commenti del docente» in fondo. Dettagli e
+motivi: `docs/PDF-SCHEDA.md`. Le righe dei blocchi vengono da `righeDeiBlocchi` (`src/codegen/common.js`, sopra `extractSourceMap`); `renderBlocchi` le restituisce in
+`testi.righe`. I feedback si rileggono dal database subito prima del PDF; se non si leggono il PDF non si fa.
+
+**Guide e informativa.** `testi-guida.js`: capitolo «Verifica: feedback sulle consegne» (docente) e «I commenti del docente sulla consegna» in «Dopo la verifica»
+(studente); `testi.js` (`gruppiDati` e riassunto): i commenti sulle consegne sono nei dati salvati.
+
+**Prove nel browser.** `test/e2e/feedback.mjs` (in coda a `npm run test:e2e`, con un id di verifica proprio: nello stesso emulatore girano anche gli altri script): commento,
+blocco bloccato alla modifica della struttura e sblocco con annulla, pubblicazione, tabella, «Guarda» con la Storia, vista dello studente, PDF (testo con Ghostscript, se c'è).
+Con `E2E_LARGHEZZA`/`E2E_ALTEZZA` si provano altre misure di finestra.
+
+**Lezioni.**
+- Le regole CSS nuove per le schede (`.verifica-schede`: `flex-wrap`, `white-space`) valgono SOLO in «Guarda» (`.anteprima-lato …`): messe globali, facevano fallire a caso
+  (circa 4 volte su 10) la prova del docente nelle assegnazioni della verifica in bozza, senza che si capisse il meccanismo; limitate a «Guarda» passa sempre.
+- Una query di Firestore con regole che dipendono da campi del documento deve avere quei campi come filtri (per questo lo studente filtra anche per `pubblicato`).
+
+**Da fare / non fatto.** Avviso alla riapertura se uno studente ha già 9 consegne (il tetto è `maxVersioniConsegna`: oltre non si consegna, la numerazione non riparte): non
+implementato. In «Le mie consegne» non c'è un segno «hai feedback nuovi» sulla riga (servirebbe una lettura per verifica): il numero compare solo dentro «Guarda».
+Nessuna notifica allo studente. I feedback non sono nell'esportazione JSON.

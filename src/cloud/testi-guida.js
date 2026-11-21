@@ -8,7 +8,7 @@
 // Dentro i testi, **così** diventa grassetto: lo si usa per i nomi dei pulsanti, che arrivano da etichette.js (e da
 // testiStudente in testi-verifica.js), così se un'etichetta cambia cambia anche qui. Per quello che il cloud salva e
 // chi lo vede si rimanda a «Privacy e dati» (testi.js), senza ripeterlo.
-import { menuCloud as M, sketchEtichette as S, corsiEtichette as C, commentiEtichette as K, verificaDocenteEtichette as E, consegneEtichette as G } from './etichette.js';
+import { menuCloud as M, sketchEtichette as S, corsiEtichette as C, commentiEtichette as K, feedbackEtichette as F, verificaDocenteEtichette as E, consegneEtichette as G } from './etichette.js';
 import { testiStudente as T } from './testi-verifica.js';
 
 export const idSezioneStudente = 'cloud-studente';
@@ -59,6 +59,7 @@ const studente = [
         `Apri lo sketch: sotto il codice c'è il pannello **${K.pannello}**. I blocchi commentati hanno un contorno arancione.`,
       ] },
       { p: 'I commenti si leggono soltanto: non puoi rispondere né cancellarli. Se togli un blocco commentato, il commento resta e ti dice a quale blocco si riferiva.' },
+      { p: 'I commenti del docente sulle consegne delle verifiche sono un\'altra cosa: li trovi in «Dopo la verifica».' },
     ],
   },
   {
@@ -115,6 +116,13 @@ const studente = [
         `**${G.salvaSuFile}**: la scarichi.`,
       ] },
       { p: 'Se le consegne sono più d\'una (per esempio perché il docente ha riaperto la verifica), vale l\'ultima: è indicata come «quella che vale».' },
+      { h: 'I commenti del docente sulla consegna' },
+      { p: `Dopo aver corretto, il docente può scrivere dei commenti sulla tua consegna, anche su un blocco preciso, e **pubblicarli**: finché non li pubblica non li vedi, e non arriva nessuna notifica, quindi vale la pena riaprire la consegna dopo la correzione.` },
+      { ul: [
+        `In **${G.guarda}** c'è la scheda **${F.pannello}** (con il numero dei commenti). Con **${G.apriNellEditor}** i commenti stanno sotto il codice, nel pannello **${F.pannelloStudente}**: cliccando il blocco di un commento lo selezioni.`,
+        'I commenti sono legati alla versione della consegna: vedi quelli della versione che stai guardando. Se ce ne sono anche su un\'altra versione, una riga ti avvisa e li trovi aprendo quella consegna.',
+        'Il docente può correggere un commento dopo averlo pubblicato: lo vedi segnato come «modificato». Tu li leggi soltanto: non puoi rispondere né cancellarli.',
+      ] },
     ],
   },
 ];
@@ -221,6 +229,23 @@ const docente = [
     ],
   },
   {
+    id: 'feedback',
+    titolo: 'Verifica: feedback sulle consegne',
+    blocchi: [
+      { p: `A verifica terminata puoi scrivere dei commenti sulle consegne e farli leggere agli studenti. Si scrivono nell'editor, dove i blocchi si selezionano con un clic: in **${E.guarda}** premi **${E.apriCopiaProva}** (oppure, nella scheda **${F.pannello}** di «${E.guarda}», **${F.commentaNellEditor}**). Sotto il codice compare il pannello **${F.pannello}** con il nome dello studente e la versione.` },
+      { ul: [
+        `Clicca un blocco per agganciare il commento a quel blocco, oppure lascia **${F.interaConsegna}**. Scrivi (al massimo 500 caratteri) e premi **${F.aggiungi}**. Fino a 30 commenti per consegna.`,
+        'Si commenta solo l\'ultima versione della consegna, quella che vale. Se ne arriva una nuova (per esempio dopo una riapertura) la commenti da capo: nella tabella la colonna **Feedback** ti segna «v2 senza commenti».',
+        `Ogni commento nasce come **bozza**: lo studente vede i commenti solo dopo **${F.pubblica}**, e solo a verifica conclusa. I commenti scritti dopo la pubblicazione restano bozze fino alla pubblicazione successiva.`,
+        'Puoi modificare i tuoi commenti ed eliminare i tuoi o quelli di un altro docente anche dopo la pubblicazione: lo studente vede «modificato» sui commenti corretti.',
+        'Se nella copia cambi i blocchi (aggiungi, togli o ricolleghi) il modulo si blocca, perché i blocchi non sarebbero più quelli della consegna: annulla con Ctrl-Z e si sblocca. Spostare i blocchi sul foglio non conta. I commenti già scritti non si perdono.',
+        'Passando a un altro studente con ◀ ▶, se hai un commento scritto e non inviato ti viene chiesto se perderlo.',
+      ] },
+      { p: `Nella tabella la colonna **Feedback** mostra, per ogni consegna, i commenti pubblicati (💬), le bozze da pubblicare e le consegne nuove ancora senza commenti. In **${E.guarda}** la scheda **${F.pannello}** li elenca in sola lettura, bozze comprese, e segue la consegna che stai guardando nella Storia: ogni versione ha i suoi commenti.` },
+      { nota: 'Lo studente non riceve nessuna notifica: li vede quando riapre la consegna. I commenti sono legati alla versione e non sono anonimi.' },
+    ],
+  },
+  {
     id: 'dopo',
     titolo: 'Dopo: casi particolari',
     blocchi: [
@@ -233,7 +258,7 @@ const docente = [
       { p: `**Una traccia nuova per gli assenti.** Le tracce originali, a verifica chiusa, si possono solo leggere. Ma nella scheda «Tracce» puoi ancora premere «Nuova traccia»: quelle aggiunte dopo la chiusura (hanno la dicitura «dopo») si correggono come le altre e si eliminano finché nessuno le ha. Poi spunta gli assenti (e chi si è iscritto dopo) e premi «Riapri per i selezionati»: nel menu scegli la traccia, che di partenza è l'ultima aggiunta dopo la chiusura. Il menu vale solo per chi non ha mai lavorato; gli altri selezionati tengono la propria. Se scegli una traccia già svolta da altri ti avvisa. Se la correggi dopo l'assegnazione, lo studente vede «Traccia aggiornata». Le tracce sono di una sola verifica: se hai due classi, aggiungila in ciascuna.` },
       { p: `Se a verifica **aperta** cambi la «Fine prevista», la scadenza di tutti quelli che non hanno ancora consegnato si sposta alla nuova fine, più il tempo in più che avevi dato a ciascuno. Chi ha già consegnato non cambia.` },
       { h: 'PDF' },
-      { p: `A verifica terminata, **${E.scaricaPdf}** (sulla riga) o **${E.scaricaPdfTutti}** (in alto, accanto a «${E.raccogli}») danno una scheda per studente: titolo, corso, nome, data di consegna, traccia, blocchi, pseudocodice, C, Python e un codice di riscontro, lo stesso che mostra «${E.guarda}» per quella consegna. Prima del download scegli quali parti vuoi (la traccia c'è sempre): le parti che stanno affiancate senza andare a capo si mettono vicine, le altre una sotto l'altra. I codici hanno i numeri di riga in una colonna a parte (si possono spegnere). La scelta vale per quel solo download. In «${E.guarda}» c'è anche la scheda **Traccia** (dopo Python), e sopra il programma il titolo della traccia sempre in vista: con più tracce, nella tabella c'è anche la colonna Traccia. C'è poi **${E.apriCopiaProva}**: carica nell'editor una copia del programma che stai guardando, così lo esegui passo passo con i tuoi input. La consegna non cambia, la copia non va sul cloud e il salvataggio automatico del browser resta fermo finché la tieni (se la modifichi e vuoi conservarla, usa Salva). Una banda sotto la barra ti ricorda che è una copia: con ◀ ▶ passi allo studente precedente o successivo, con il nome della verifica a destra torni all'elenco degli studenti. **${E.esportaJsonTutti}** (anch'esso in alto, accanto a «${E.raccogli}») dà invece un file JSON con i programmi senza nomi né email (solo un codice per consegna, le tracce una volta sola) e un file CSV con le corrispondenze codice-studente: il CSV contiene i nomi, tienilo per te. È pensata per l'archivio cartaceo.` },
+      { p: `A verifica terminata, **${E.scaricaPdf}** (sulla riga) o **${E.scaricaPdfTutti}** (in alto, accanto a «${E.raccogli}») danno una scheda per studente: titolo, corso, nome, data di consegna, traccia, blocchi, pseudocodice, C, Python e un codice di riscontro, lo stesso che mostra «${E.guarda}» per quella consegna. Prima del download scegli quali parti vuoi (la traccia c'è sempre): le parti che stanno affiancate senza andare a capo si mettono vicine, le altre una sotto l'altra. I codici hanno i numeri di riga in una colonna a parte (si possono spegnere). I commenti pubblicati del docente stanno in fondo alla scheda, con «[n]» accanto alle righe dei codici (le bozze mai; un interruttore li toglie). La scelta vale per quel solo download. In «${E.guarda}» c'è anche la scheda **Traccia** (dopo Python), e sopra il programma il titolo della traccia sempre in vista: con più tracce, nella tabella c'è anche la colonna Traccia. C'è poi **${E.apriCopiaProva}**: carica nell'editor una copia del programma che stai guardando, così lo esegui passo passo con i tuoi input. La consegna non cambia, la copia non va sul cloud e il salvataggio automatico del browser resta fermo finché la tieni (se la modifichi e vuoi conservarla, usa Salva). Una banda sotto la barra ti ricorda che è una copia: con ◀ ▶ passi allo studente precedente o successivo, con il nome della verifica a destra torni all'elenco degli studenti. **${E.esportaJsonTutti}** (anch'esso in alto, accanto a «${E.raccogli}») dà invece un file JSON con i programmi senza nomi né email (solo un codice per consegna, le tracce una volta sola) e un file CSV con le corrispondenze codice-studente: il CSV contiene i nomi, tienilo per te. È pensata per l'archivio cartaceo.` },
     ],
   },
 ];

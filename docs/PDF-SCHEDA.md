@@ -59,6 +59,22 @@ dal PDF. La stampa dal browser va SOSTITUITA (non tenere due percorsi).
 - Il **greco non serve**: bastano i font standard del PDF (Helvetica, Courier). I caratteri fuori da Latin-1 si
   sostituiscono (virgolette e trattini tipografici → ASCII, il resto → «?»). Il pseudocodice usa solo parole.
 
+## Commenti del docente nel PDF (21 nov 2026)
+
+Decisioni di Ivan e scelte fatte: vedi anche `docs/CLOUD.md`, «Feedback sulle consegne».
+
+- **Solo i commenti PUBBLICATI** della versione valida di quella consegna (mai le bozze, né i commenti su altre versioni). Un interruttore «Commenti del docente» nella finestra
+  «Cosa vuoi nel PDF?» (acceso di default) li toglie; spento, i feedback non vengono nemmeno letti.
+- **Accanto al codice**: nella striscia dei numeri di riga (che deve essere accesa), a sinistra dei numeri, «[n]» alla PRIMA riga del blocco commentato in ognuno dei tre codici
+  (due commenti che cominciano alla stessa riga: «[2,3]»). I blocchi di più righe hanno una parentesi in una «corsia» tra i segni e i numeri; i blocchi annidati (un ciclo con dentro
+  altri commentati) usano corsie diverse, a destra, così non si sovrappongono (con la prima versione, un filo sotto il segno, si sovrapponevano). Ogni corsia costa circa 1 mm di
+  larghezza al codice. Se un codice si spezza su due pagine il segno compare nella pagina dove sta la riga; le «zampette» ci sono solo agli estremi veri.
+- **In fondo**: elenco «Commenti del docente», con i commenti sull'intera consegna per primi e poi quelli sui blocchi nell'ordine del programma; per ognuno
+  «[2] pseudocodice righe 4-8, C righe 7-11, Python righe 3-6 · SE a > b: testo» (con una sola parte di codice: «riga 7»; senza numeri di riga o con i soli blocchi: solo la
+  descrizione del blocco). Mai righe spezzate: va a capo e di pagina tra una riga e l'altra, il titolo non resta solo in fondo alla pagina.
+- **Dati**: `preparaCommenti` (`scheda-stampa.js`) sceglie e numera; `righeDeiBlocchi` (`src/codegen/common.js`) dà le righe di ogni blocco in ogni codice dalla stessa mappa blocco→testo
+  dei generatori, quindi pseudocodice, C e Python restano coerenti. Prove: `test/pdf-scheda.mjs`, `test/scheda-stampa.mjs`, `test/e2e/feedback.mjs` (download vero + testo con Ghostscript).
+
 ## Stato del lavoro (fatto, non ancora committato salvo diversa indicazione in git)
 
 - `npm install --save-dev jspdf@4.2.1` fatto; `scripts/bundle-pdf.mjs` (+ `npm run vendor:pdf`) produce
