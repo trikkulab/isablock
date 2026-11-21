@@ -162,10 +162,11 @@ export function montaCorsi({ toast, programma, commentiUi, dopoCaricamento }) {
 
   return {
     apri,
-    entra(corsiDiUtente, ruoloUtente = 'studente', vistaDocente = null, gestione = null, verificaDocente = null) {
+    nascondiFeedback: () => verificheUi.nascondiFeedback(),   // Nuovo/file/esempio: il pannello dei feedback era della copia di prima
+    entra(corsiDiUtente, ruoloUtente = 'studente', vistaDocente = null, gestione = null, verificaDocente = null, feedback = null, emailDocente = '') {
       corsi = corsiDiUtente; ruolo = ruoloUtente; condivisi = vistaDocente;
       gestioneUi.entra(gestione);
-      verificheUi.entra(verificaDocente);
+      verificheUi.entra(verificaDocente, feedback, emailDocente);
     },
     esci() {
       corsi = null; condivisi = null; ruolo = 'studente'; mostraArchiviati = false;

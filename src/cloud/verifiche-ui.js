@@ -22,6 +22,7 @@ import { esportaJsonSchede } from './esporta-ui.js';
 import { apriCopiaDiProva } from './copia-di-prova.js';
 import { mostraBandaCopia } from './banda-copia.js';
 import { creaPannelloTraccia } from './pannello-traccia.js';
+import { montaFeedbackEditor } from './feedback-ui.js';
 import { mostraTracciaEditor } from './scheda-traccia-editor.js';
 import { ordinaSchede, nomeFilePdf, nomeFilePdfTutte, nomeVisualizzato } from './scheda-stampa.js';
 import { etichettaCorso } from './corsi.js';
@@ -79,6 +80,9 @@ function scegliFine({ durataMin }) {
 
 export function montaVerifiche({ toast, programma = null, dopoCaricamento = null }) {
   let vd = null;                 // oggetto di verifica-docente.js, valido solo da docenti loggati
+  let feedbackApi = null;        // oggetto di feedback.js (i commenti sulle consegne), solo da docenti loggati
+  let emailDocente = '';
+  const feedbackUi = programma && programma.onModifica ? montaFeedbackEditor({ toast, programma }) : null;   // il pannello nell'editor, con la copia di prova
   let finestre = new Set();
   let mostraArchiviate = false;  // casella dell'elenco, come «Mostra anche i corsi archiviati»
 
@@ -716,10 +720,15 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
       const provabili = () => ordinaSchede(tabella.tutti().map((x) => {
         const json = stato() === 'chiusa' ? (x.ultimaConsegna?.programma || x.lavoro?.programma) : (x.lavoro?.programma || x.ultimaConsegna?.programma);
         const tracciaId = (stato() === 'chiusa' ? (x.ultimaConsegna?.tracciaId || x.lavoro?.tracciaId) : (x.lavoro?.tracciaId || x.ultimaConsegna?.tracciaId)) || null;
-        return { nome: x.lavoro?.studenteNome ?? null, email: x.email, programma: json, tracciaId };
+        return { nome: x.lavoro?.studenteNome ?? null, email: x.email, programma: json, tracciaId, consegna: x.ultimaConsegna ?? null };
       }).filter((x) => x.programma));
       const tracciaPerId = (id) => (id ? tracce.find((t) => t.id === id) ?? null : null);
       // Apre la copia dello studente `i` dell'elenco e mostra la banda con il link alla verifica e le frecce ◀ ▶ tra gli studenti.
+      // Cambiando studente col ◀ ▶ si perderebbe il commento che si sta scrivendo e non ancora inviato: lo si chiede prima.
+      const vai = (lista, i) => {
+        if (feedbackUi?.bozzaNonInviata() && !window.confirm('Hai un commento scritto e non ancora inviato: se cambi studente va perso. Continuare?')) return;
+        provaCopia(lista, i);
+      };
       const provaCopia = (lista, i) => apriCopiaDiProva({
         programma, json: lista[i].programma, toast, confermaSostituzione: (m) => window.confirm(m),
         chi: nomeVisualizzato(lista[i].nome, lista[i].email), dopoCaricamento, chiudiFinestre: chiudiTutteLeFinestre,
@@ -728,10 +737,16 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
           mostraBandaCopia({
           chi, titolo: verifica.titolo, traccia: traccia?.titolo ?? null, posizione: lista.length > 1 ? { n: i + 1, tot: lista.length } : null,
           tornaAllaVerifica: () => { chiudiTutteLeFinestre(); scheda(corso, vid, dopo); },
-          precedente: i > 0 ? () => provaCopia(lista, i - 1) : null,
-          successivo: i < lista.length - 1 ? () => provaCopia(lista, i + 1) : null,
+          precedente: i > 0 ? () => vai(lista, i - 1) : null,
+          successivo: i < lista.length - 1 ? () => vai(lista, i + 1) : null,
           });
           // La traccia di quella consegna nella scheda «Traccia» dell'editor (dopo Python), senza aprirla da sola: il docente preferisce lo pseudocodice.
+          // I feedback: a verifica chiusa e solo se quel che c'è nell'editor è la consegna valida (non un punto della Storia).
+          const c = lista[i].consegna;
+          if (feedbackApi && feedbackUi && chiusaAttiva() && c && c.programma === lista[i].programma) {
+            feedbackUi.mostra({ api: feedbackApi, nome: chi, emailDocente,
+              consegna: { verificaId: vid, studenteEmail: c.studenteEmail, versione: c.versione, corsoId: c.corsoId } });
+          }
           if (traccia) mostraTracciaEditor(await creaPannelloTraccia({ traccia, contesto: `${chi} · ${verifica.titolo}` }), { ripristina: true });
         },
       });
@@ -1044,7 +1059,8 @@ export function montaVerifiche({ toast, programma = null, dopoCaricamento = null
 
   return {
     elenco,
-    entra(verificaDocente) { vd = verificaDocente; },
-    esci() { vd = null; chiudiTutte(); },
+    nascondiFeedback: () => feedbackUi?.nascondi(),
+    entra(verificaDocente, feedback = null, email = '') { vd = verificaDocente; feedbackApi = feedback; emailDocente = email; },
+    esci() { vd = null; feedbackApi = null; feedbackUi?.nascondi(); chiudiTutte(); },
   };
 }

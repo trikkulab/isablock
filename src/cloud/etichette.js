@@ -35,6 +35,20 @@ export const commentiEtichette = Object.freeze({
   interoSketch: 'Sull\'intero sketch',
 });
 
+// Feedback del docente sulle consegne di una verifica
+export const feedbackEtichette = Object.freeze({
+  pannello: 'Feedback',
+  aggiungi: 'Aggiungi commento',
+  interaConsegna: 'Sull\'intera consegna',
+  pubblica: 'Pubblica feedback',
+  nessuno: 'Nessun commento per ora.',
+  tuttoPubblicato: 'Tutti i commenti sono pubblicati.',
+  bozza: 'bozza',
+  pubblicato: 'pubblicato',
+  pubblicatoModificato: 'pubblicato · modificato',
+  copiaModificata: 'Hai modificato la copia: i commenti si agganciano ai blocchi della consegna, non a questi. Annulla le modifiche (Ctrl-Z) per tornare a commentare.',
+});
+
 // Il docente, nella verifica
 export const verificaDocenteEtichette = Object.freeze({
   nuova: 'Nuova verifica',

@@ -314,6 +314,16 @@ let inVerifica = false;
 // già salvato prima. Riprende quando il programma viene sostituito (Nuovo, file, esempio, altro sketch).
 let inCopiaProva = false;
 let hashCopiaProva = null;           // com'era la copia appena aperta, per sapere se è stata modificata
+let strutturaCopiaProva = null;      // com'era la STRUTTURA della copia appena aperta (senza la posizione sul foglio): vedi strutturaCambiata
+// Impronta della sola struttura del programma: com'è salvato, ma senza dove i blocchi stanno sul foglio (x, y dei blocchi
+// di primo livello) né le versioni del file. Spostare un blocco o un gruppo staccato, o tutto lo sketch, non la cambia;
+// collegare, scollegare, aggiungere, togliere o cambiare un campo sì. I blocchi di primo livello si mettono in ordine
+// stabile, perché Blockly li salva ordinati per posizione e spostarne uno potrebbe cambiarne l'ordine.
+function strutturaImpronta() {
+  const stato = Blockly.serialization.workspaces.save(workspace);
+  const primoLivello = (stato.blocks?.blocks ?? []).map((b) => { const { x, y, ...resto } = b; return JSON.stringify(resto); }).sort();
+  return hashText(JSON.stringify({ blocchi: primoLivello, variabili: stato.variables ?? null }));
+}
 const autosavePausa = () => inVerifica || inCopiaProva;
 const sostituzioneListeners = new Set();    // il cloud ascolta quando un caricamento sostituisce il programma (copia di prova, scheda Traccia)
 const avvisaSostituzione = () => sostituzioneListeners.forEach((cb) => cb());
@@ -661,7 +671,7 @@ if (appConfig.cloud.enabled) {
         isVuoto: () => isWorkspaceBlank(workspace),
         occupato: () => execGenerator !== null,
         carica: (json) => {
-          inCopiaProva = false; hashCopiaProva = null;       // un caricamento normale chiude la copia di prova
+          inCopiaProva = false; hashCopiaProva = null; strutturaCopiaProva = null;       // un caricamento normale chiude la copia di prova
           avvisaSostituzione();
           caricaProgramma(json);
         },
@@ -675,13 +685,16 @@ if (appConfig.cloud.enabled) {
             autosaver.cancel();
             inCopiaProva = true;
             hashCopiaProva = hashText(compactJson());
+            strutturaCopiaProva = strutturaImpronta();
             autosaveStatus.textContent = 'Copia di prova: il salvataggio automatico è fermo (usa Salva per tenerla).';
           },
           attiva: () => inCopiaProva,
           modificata: () => inCopiaProva && hashText(compactJson()) !== hashCopiaProva,
+          // Cambiata la struttura (non la sola posizione sul foglio)? Con Ctrl-Z che la ripristina torna false. Serve ai feedback.
+          strutturaCambiata: () => inCopiaProva && strutturaImpronta() !== strutturaCopiaProva,
           fine: () => {
             if (!inCopiaProva) return;
-            inCopiaProva = false; hashCopiaProva = null;
+            inCopiaProva = false; hashCopiaProva = null; strutturaCopiaProva = null;
             autosaver.schedule();
           },
         },

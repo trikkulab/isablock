@@ -154,7 +154,8 @@ export function montaCloud({ contenitore, toast, programma, guida = null }) {
       const corsi = cloud.corsiPer(utente.email, utente.ruolo);
       sketchUi.entra(cloud.sketchPer(utente.uid, { email: utente.email, nome: utente.nome }), corsi);
       corsiUi.entra(corsi, utente.ruolo, cloud.condivisi, utente.ruolo === 'docente' ? cloud.gestionePer(utente.email) : null,
-        utente.ruolo === 'docente' ? cloud.verificaDocentePer(utente.email) : null);
+        utente.ruolo === 'docente' ? cloud.verificaDocentePer(utente.email) : null,
+        utente.ruolo === 'docente' ? cloud.feedbackPer({ email: utente.email, nome: utente.nome }) : null, utente.email);
       commentiUi.entra(cloud.commentiPer({ uid: utente.uid, email: utente.email, nome: utente.nome }), utente.ruolo, utente.email);
       // Lo studente trova qui le verifiche aperte da svolgere; il docente non ne svolge.
       voceConsegne.hidden = utente.ruolo === 'docente';
@@ -240,5 +241,5 @@ export function montaCloud({ contenitore, toast, programma, guida = null }) {
   if (eraEntrato()) carica().catch(() => memo(false));
 
   // Il programma è stato sostituito da altro: sketch aperto e commenti non valgono più.
-  return { scollega: () => { sketchUi.scollega(); commentiUi.nascondi(); nascondiBandaCopia(); nascondiTracciaEditor(); programma.copiaDiProva?.fine(); } };
+  return { scollega: () => { sketchUi.scollega(); commentiUi.nascondi(); corsiUi.nascondiFeedback(); nascondiBandaCopia(); nascondiTracciaEditor(); programma.copiaDiProva?.fine(); } };
 }

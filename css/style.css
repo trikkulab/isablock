@@ -1091,6 +1091,11 @@ button.commento-blocco { cursor: pointer; }
 .commenti-modulo-riga .commento-selezione { flex: 1; margin: 0; min-width: 10rem; }
 .commenti-modulo-riga .modal-btn { padding: 0.35rem 0.9rem; }
 .commento-togli { border: 0; background: transparent; color: var(--accent, #2563eb); text-decoration: underline; cursor: pointer; font: inherit; padding: 0 0.2rem; }
+.feedback-pubblica { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.feedback-pubblica .modal-btn { padding: 0.35rem 0.9rem; }
+.feedback-badge-bozza { background: #f59e0b; color: #fff; }
+.feedback-badge-pubblicato { background: #16a34a; color: #fff; }
+.feedback-avviso { margin: 0 0 0.4rem; padding: 0.35rem 0.6rem; border: 1px solid #f59e0b; border-radius: 6px; background: #fffbeb; color: #78350f; font-size: 0.85rem; }
 
 /* ── Editor del Markdown delle tracce di una verifica (src/cloud/editor-markdown.js) ── */
 .editor-md { display: flex; flex-direction: column; gap: 0.4rem; }
