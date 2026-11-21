@@ -62,22 +62,32 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, oss
     info,
     rigaTraccia,
     vuoto,
-    el('div', { class: 'anteprima-corpo' }, blocchi, el('div', { class: 'anteprima-lato' }, barra, ...schede.map(([k]) => pannelli[k]))),
+    el('div', { class: `anteprima-corpo${feedback ? ' con-feedback' : ''}` }, blocchi, el('div', { class: 'anteprima-lato' }, barra, ...schede.map(([k]) => pannelli[k]))),
     el('p', { class: 'sketch-nota' }, nota ?? (stopOsserva
       ? 'Sola lettura. Finché questa finestra è aperta lo studente salva più spesso: il programma si aggiorna da solo, di solito entro pochi secondi.'
       : 'Sola lettura. Il programma si aggiorna da solo quando lo studente salva (di solito entro 25 secondi).')));
   scegli(schedaIniziale ?? (schede.some(([k]) => k === ultimaScheda) ? ultimaScheda : 'pseudocode'));
   anteprima = programma.anteprima({ blocchi, codici: pre });
   // La scheda «Feedback»: si legge una volta all'apertura; il numero compare sul pulsante della scheda.
+  // Il docente che scorre la Storia vede i commenti del punto in cui si trova (la consegna di quella versione; per un'istantanea del
+  // lavoro, nessuno): lo studente li vede sempre tutti, di ogni versione.
+  let listaFeedback = null;
+  function disegnaFeedback() {
+    if (!feedback || listaFeedback === null) return;
+    const p = !studente && posizione !== null && punti ? punti[posizione] : null;
+    pannelli.feedback.textContent = '';
+    pannelli.feedback.append(creaElencoFeedback({ lista: listaFeedback, studente, ultimaVersione: feedback.ultimaVersione ?? null,
+      punto: p ? { versione: p.tipo === 'consegna' ? p.versione : null } : null,
+      suCommenta: feedback.commenta && apriCopia ? () => {
+        // Si commenta sempre l'ultima consegna, anche se nella Storia si sta guardando un altro punto.
+        const c = ultimoLavoro && ultimoLavoro.consegna;
+        apriCopia({ programma: c && c.programma ? c.programma : ultimo, chi: `${nome || email}`, tracciaId: (c && c.tracciaId) ?? tracciaMostrata ?? null, quale: '' });
+      } : null }));
+  }
   if (feedback) {
     feedback.leggi().then((lista) => {
-      pannelli.feedback.textContent = '';
-      pannelli.feedback.append(creaElencoFeedback({ lista, studente, ultimaVersione: feedback.ultimaVersione ?? null,
-        suCommenta: feedback.commenta && apriCopia ? () => {
-          // Si commenta sempre l'ultima consegna, anche se nella Storia si sta guardando un altro punto.
-          const c = ultimoLavoro && ultimoLavoro.consegna;
-          apriCopia({ programma: c && c.programma ? c.programma : ultimo, chi: `${nome || email}`, tracciaId: (c && c.tracciaId) ?? tracciaMostrata ?? null, quale: '' });
-        } : null }));
+      listaFeedback = lista;
+      disegnaFeedback();
       bottoni.get('feedback').textContent = lista.length ? `Feedback (${lista.length})` : 'Feedback';
     }).catch((err) => {
       pannelli.feedback.textContent = '';
@@ -127,6 +137,7 @@ export function apriAnteprima({ apri, programma, segui, caricaStoria = null, oss
   const normalizza = (i) => (i === partenza() ? null : i);
 
   function mostraPosizione() {
+    disegnaFeedback();
     const attuale = posizioneEffettiva();
     const consegnaTesto = modoConsegna();
     bDiretta.textContent = studente ? 'Questa consegna' : consegnaTesto ? 'Ultima consegna' : 'In diretta';

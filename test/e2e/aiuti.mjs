@@ -44,7 +44,7 @@ export const avviaBrowser = () => chromium.launch();
 // a volte non ha effetto, e per una prova ripetibile non serve.
 // Restituisce { page, errori } (gli errori della pagina raccolti finora).
 // `prima(page)` (facoltativo) gira dopo aver aperto l'app e PRIMA dell'accesso: serve a preparare lo stato dell'editor.
-export async function accedi(browser, email, { nome = 'Utente Prova', larghezza = 1280, altezza = 860, prima = null } = {}) {
+export async function accedi(browser, email, { nome = 'Utente Prova', larghezza = Number(process.env.E2E_LARGHEZZA) || 1280, altezza = Number(process.env.E2E_ALTEZZA) || 860, prima = null } = {}) {   // E2E_LARGHEZZA/E2E_ALTEZZA: provare altre misure di finestra
   const ctx = await browser.newContext({ viewport: { width: larghezza, height: altezza } });
   const page = await ctx.newPage();
   const errori = [];

@@ -122,6 +122,23 @@ try {
     tracciaId: S('t0'), programma: S(prog), creato: T(Date.now() - 10 * MIN) });
   verifica(await finche(page, async () => /v2 senza commenti/.test(await page.textContent('.tabella-live tbody tr:has-text("Anna Rossi") .tabella-feedback'))), 'consegna nuova (v2) con commenti solo sulla v1: la tabella dice «v2 senza commenti»');
 
+  // Storia: scorrendo i punti, i commenti seguono la consegna che si guarda (v1: i suoi 3; un'istantanea: nessuno)
+  await scrivi(`verifiche/vf/lavori/${ANNA}/storia/p0`, { programma: S(prog), nBlocchi: { integerValue: '5' }, t: T(Date.now() - 40 * MIN), tipo: S('periodica') });
+  await page.click('.tabella-live tbody tr:has-text("Anna Rossi") button:has-text("Guarda")');
+  await page.waitForSelector('.anteprima-blocchi svg.blocklySvg');
+  await page.click('.verifica-scheda:has-text("Feedback")');
+  await page.click('button:has-text("Storia")');
+  await page.waitForSelector('.anteprima-storia:not([hidden])');
+  verifica(await finche(page, async () => (await page.$$('.anteprima-feedback .commento')).length === 3), 'Storia sull\'ultima consegna (v2): il Feedback mostra tutti i commenti, per versione');
+  await page.click('.anteprima-storia button[aria-label="Istantanea precedente"]');
+  verifica(await finche(page, async () => /\(v1/.test(await page.textContent('.anteprima-etichetta')) && (await page.$$('.anteprima-feedback .commento')).length === 3 && /Stai guardando la consegna v1/.test(await page.textContent('.anteprima-feedback'))), 'Storia sulla consegna v1: i 3 commenti della v1');
+  await page.click('.anteprima-storia button[aria-label="Istantanea precedente"]');
+  verifica(await finche(page, async () => (await page.$$('.anteprima-feedback .commento')).length === 0 && /istantanea del lavoro/.test(await page.textContent('.anteprima-feedback'))), 'Storia su un\'istantanea del lavoro: nessun commento, e lo dice');
+  await page.click('.anteprima-storia button[aria-label="Istantanea successiva"]');
+  await page.click('.anteprima-storia button[aria-label="Istantanea successiva"]');
+  verifica(await finche(page, async () => (await page.$$('.anteprima-feedback .commento')).length === 3), 'tornando all\'ultima consegna il Feedback mostra di nuovo tutto');
+  await page.keyboard.press('Escape');
+
   // lo studente: «Le mie consegne» → Guarda → «Feedback»: solo i pubblicati, di tutte le versioni
   const studente = await accedi(browser, ANNA, { nome: 'Anna Rossi' });
   await studente.page.click('.cloud-menu-btn');

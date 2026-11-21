@@ -1271,13 +1271,14 @@ body.modo-verifica .autosave-info { display: none; }
 .tabella-timer[data-colore="rosso"] { color: #b91c1c; }
 .verifica-schede { display: flex; flex-wrap: wrap; gap: 0 0.3rem; margin-top: 0.8rem; border-bottom: 2px solid var(--border, #d6d4e0); }   /* con cinque schede nella colonna stretta vanno su due righe, non fuori dal bordo */
 .verifica-scheda { background: none; border: 0; border-bottom: 3px solid transparent; margin-bottom: -2px; padding: 0.4rem 0.9rem; white-space: nowrap; font: inherit; cursor: pointer; color: var(--muted, #5f5d6e); }
-.anteprima-lato .verifica-scheda { padding: 0.4rem 0.6rem; }
+.anteprima-lato .verifica-scheda { padding: 0.4rem 0.5rem; }
 .verifica-scheda.attiva { border-bottom-color: currentColor; color: inherit; font-weight: 600; }
 .tracce-corpo[hidden], .assegnazioni[hidden], .situazione[hidden] { display: none; }
 
 /* Finestra «Guarda» (verifica-anteprima-ui.js) */
 .anteprima-corpo { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 0.8rem; height: 62vh; min-height: 18rem; }
 .anteprima-blocchi { position: relative; border: 1px solid var(--border, #d6d4e0); border-radius: 6px; overflow: hidden; min-height: 14rem; }
+.anteprima-corpo.con-feedback { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }   /* con cinque schede la colonna dei codici serve un po' più larga */
 .anteprima-lato { display: flex; flex-direction: column; min-height: 0; }
 .anteprima-codice {
   flex: 1; overflow: auto; margin: 0; padding: 0.9rem 1rem; border-radius: 6px; box-sizing: border-box;
