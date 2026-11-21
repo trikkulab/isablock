@@ -13,7 +13,7 @@
 //      finestra lo dice, si torna al lavoro di prima, e se ce n'è un'altra da fare ricompare la scelta.
 // I testi stanno in testi-verifica.js (testiStudente).
 import { el, apriFinestra } from './dom.js';
-import { rendiMarkdown } from './markdown.js';
+import { creaPannelloTraccia } from './pannello-traccia.js';
 import { verificaConfig } from './verifica-config.js';
 import { testiStudente as T } from './testi-verifica.js';
 import { formatoDataOra } from './data-ora.js';
@@ -22,7 +22,6 @@ import { segnaVerificaInCorso, aggiornaVerificaInCorso, leggiVerificaInCorso, ca
 import { creaFileEmergenza, oraBreve } from '../verifica-file.js';
 
 const C = verificaConfig.client;
-const ZOOM_KEY = 'isablock.traccia.zoom';
 
 const due = (n) => String(n).padStart(2, '0');
 // 47:12 oppure 1:02:30
@@ -285,27 +284,14 @@ export function montaVerificaStudente({ toast, programma, quandoCambiaModo = () 
     const box = document.getElementById('tracciaBox');
     if (!tab || !box) return;
     const t = info && info.traccia;
-    let html = '';
-    if (t) { try { html = await rendiMarkdown(t.testoMd); } catch { html = ''; } }
+    // Titolo, testo e zoom li disegna il pannello condiviso (lo stesso del docente e delle consegne); qui solo l'avviso di traccia cambiata.
+    const pannello = await creaPannelloTraccia({ traccia: t, nonDisponibile: T.tracciaNonDisponibile, titoloVuoto: T.tracciaTab });
     if (!sessione) return;                                       // nel frattempo la verifica è finita
     box.textContent = '';
-    const corpo = el('div', { class: 'traccia-md' });
-    if (html) corpo.innerHTML = html;                            // output sicuro di markdown.js: niente script, link o immagini
-    else corpo.append(el('p', {}, T.tracciaNonDisponibile));
-    let zoom = 100;
-    try { zoom = Math.min(200, Math.max(80, Number(window.localStorage.getItem(ZOOM_KEY)) || 100)); } catch { /* storage non disponibile */ }
-    const applica = () => { corpo.style.fontSize = `${zoom / 100}rem`;     // solo il testo della traccia: avviso, titolo e pulsanti restano fissi
-      try { window.localStorage.setItem(ZOOM_KEY, String(zoom)); } catch { /* idem */ } };
     const ora = info && info.modificata ? info.modificata.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '';
     box.append(
       ...(info && info.aggiornata ? [el('div', { class: 'traccia-aggiornata', role: 'status' }, T.tracciaAggiornata(ora))] : []),
-      el('div', { class: 'traccia-pannello-testa' },
-        el('h3', { class: 'traccia-pannello-titolo' }, t ? t.titolo : T.tracciaTab),
-        el('span', { class: 'traccia-zoom' },
-          el('button', { type: 'button', 'aria-label': 'Testo più piccolo', onclick: () => { zoom = Math.max(80, zoom - 10); applica(); } }, 'A−'), ' ',
-          el('button', { type: 'button', 'aria-label': 'Testo più grande', onclick: () => { zoom = Math.min(200, zoom + 10); applica(); } }, 'A+'))),
-      corpo);
-    applica();
+      pannello);
     tab.hidden = false;
     tab.click();                                                 // aperta all'ingresso, e di nuovo se il docente la cambia
     if (info && info.aggiornata) toast(T.tracciaAggiornata(ora), 'success');
