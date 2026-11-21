@@ -13,6 +13,7 @@ import { createLocalBackup, createDebouncedSaver } from './local-backup.js';
 import { examples } from './examples.js';
 import { runProgram, ExecutionError } from './runtime/interpreter.js';
 import { updateEditorWarnings } from './blocks/editor-checks.js';
+import { attivaScorciatoieBlocchi } from './scorciatoie-blocchi.js';
 
 const Blockly = window.Blockly;
 
@@ -1154,6 +1155,15 @@ document.addEventListener('keydown', (event) => {
     default:
       break;
   }
+});
+
+// Lettere e simboli che creano un blocco (S = scrivi, M = mentre...): vedi scorciatoie-blocchi.js. Non valgono
+// durante l'esecuzione passo-passo, quando l'area di lavoro e' bloccata.
+attivaScorciatoieBlocchi({
+  Blockly,
+  workspace,
+  blocklyDiv,
+  bloccate: () => blocklyDiv.classList.contains('exec-locked'),
 });
 
 // --- Ridimensionamento manuale dei pannelli ------------------------------
