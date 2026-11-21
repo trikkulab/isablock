@@ -1269,9 +1269,11 @@ body.modo-verifica .autosave-info { display: none; }
 .tabella-timer[data-colore="verde"] { color: #15803d; }
 .tabella-timer[data-colore="giallo"] { color: #b45309; }
 .tabella-timer[data-colore="rosso"] { color: #b91c1c; }
-.verifica-schede { display: flex; flex-wrap: wrap; gap: 0 0.3rem; margin-top: 0.8rem; border-bottom: 2px solid var(--border, #d6d4e0); }   /* con cinque schede nella colonna stretta vanno su due righe, non fuori dal bordo */
-.verifica-scheda { background: none; border: 0; border-bottom: 3px solid transparent; margin-bottom: -2px; padding: 0.4rem 0.9rem; white-space: nowrap; font: inherit; cursor: pointer; color: var(--muted, #5f5d6e); }
-.anteprima-lato .verifica-scheda { padding: 0.4rem 0.5rem; }
+.verifica-schede { display: flex; gap: 0.3rem; margin-top: 0.8rem; border-bottom: 2px solid var(--border, #d6d4e0); }
+.verifica-scheda { background: none; border: 0; border-bottom: 3px solid transparent; margin-bottom: -2px; padding: 0.4rem 0.9rem; font: inherit; cursor: pointer; color: var(--muted, #5f5d6e); }
+/* Solo in «Guarda» (non nelle altre barre di schede): con cinque schede nella colonna stretta, se non ci stanno vanno su due righe invece di uscire dal bordo */
+.anteprima-lato .verifica-schede { flex-wrap: wrap; gap: 0 0.3rem; }
+.anteprima-lato .verifica-scheda { padding: 0.4rem 0.5rem; white-space: nowrap; }
 .verifica-scheda.attiva { border-bottom-color: currentColor; color: inherit; font-weight: 600; }
 .tracce-corpo[hidden], .assegnazioni[hidden], .situazione[hidden] { display: none; }
 
