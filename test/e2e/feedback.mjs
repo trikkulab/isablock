@@ -26,18 +26,18 @@ try {
   const { page, errori } = await accedi(browser, 'docente@isarome.it', { nome: 'Docente Prova' });
   const esempio = await page.evaluate(async () => { const m = await import('/src/examples.js'); return { ...m.examples[0].workspaceState, formatVersion: 6 }; });
   const prog = JSON.stringify(esempio);
-  await scrivi('verifiche/vf/tracce/t0', { titolo: S('Versione A'), testoMd: S('## Esercizio\n\nScrivi.'), creato: T(Date.now()) });
-  await scrivi(`verifiche/vf/lavori/${ANNA}`, { studenteEmail: S(ANNA), studenteNome: S('Anna Rossi'), tracciaId: S('t0'), scadenza: T(Date.now() - 30 * MIN), entrato: T(Date.now() - 60 * MIN),
+  await scrivi('verifiche/vfeed/tracce/t0', { titolo: S('Versione A'), testoMd: S('## Esercizio\n\nScrivi.'), creato: T(Date.now()) });
+  await scrivi(`verifiche/vfeed/lavori/${ANNA}`, { studenteEmail: S(ANNA), studenteNome: S('Anna Rossi'), tracciaId: S('t0'), scadenza: T(Date.now() - 30 * MIN), entrato: T(Date.now() - 60 * MIN),
     ultimoSegnale: T(Date.now() - 31 * MIN), programma: S(prog), programmaHash: S('h1'), nBlocchi: { integerValue: '8' }, consegnato: B(true), ultimaConsegna: { integerValue: '1' } });
-  await scrivi(`verifiche/vf/consegne/${ANNA}_1`, { studenteEmail: S(ANNA), studenteNome: S('Anna Rossi'), corsoId: S('FB1DEN'), titolo: S('Verifica di prova'), versione: { integerValue: '1' }, origine: S('studente'),
+  await scrivi(`verifiche/vfeed/consegne/${ANNA}_1`, { studenteEmail: S(ANNA), studenteNome: S('Anna Rossi'), corsoId: S('FB1DEN'), titolo: S('Verifica di prova'), versione: { integerValue: '1' }, origine: S('studente'),
     tracciaId: S('t0'), programma: S(prog), creato: T(Date.now() - 31 * MIN) });
-  await scrivi('verifiche/vf', { corsoId: S('FB1DEN'), titolo: S('Verifica di prova'), stato: S('chiusa'), fine: T(Date.now() - 30 * MIN), tracciaDefault: S('t0'), creataDa: S('docente@isarome.it'),
+  await scrivi('verifiche/vfeed', { corsoId: S('FB1DEN'), titolo: S('Verifica di prova'), stato: S('chiusa'), fine: T(Date.now() - 30 * MIN), tracciaDefault: S('t0'), creataDa: S('docente@isarome.it'),
     creato: T(Date.now() - 120 * MIN), apertaIl: T(Date.now() - 60 * MIN), chiusaIl: T(Date.now() - 30 * MIN) });
 
   page.on('dialog', (d) => d.accept());
   await page.click('.cloud-menu-btn');
   await page.click('.cloud-voce:has-text("Corsi")');
-  await page.click('button:has-text("Verifiche")');
+  await page.click('.corso-blocco:has-text("3CINF") button:has-text("Verifiche")');       // il corso di questa prova: nello stesso emulatore ce ne possono essere altri
   await page.click('.sketch-riga:has-text("Verifica di prova") button:has-text("Apri")');
   await page.waitForSelector('.tabella-live tbody tr:has-text("Anna Rossi")');
   await page.click('.tabella-live tbody tr:has-text("Anna Rossi") button:has-text("Guarda")');
@@ -118,12 +118,12 @@ try {
   await schermata(page, 'f-guarda-feedback');
   await page.keyboard.press('Escape');
   // una consegna nuova (v2) senza commenti: la tabella lo dice
-  await scrivi(`verifiche/vf/consegne/${ANNA}_2`, { studenteEmail: S(ANNA), studenteNome: S('Anna Rossi'), corsoId: S('FB1DEN'), titolo: S('Verifica di prova'), versione: { integerValue: '2' }, origine: S('raccolta'),
+  await scrivi(`verifiche/vfeed/consegne/${ANNA}_2`, { studenteEmail: S(ANNA), studenteNome: S('Anna Rossi'), corsoId: S('FB1DEN'), titolo: S('Verifica di prova'), versione: { integerValue: '2' }, origine: S('raccolta'),
     tracciaId: S('t0'), programma: S(prog), creato: T(Date.now() - 10 * MIN) });
   verifica(await finche(page, async () => /v2 senza commenti/.test(await page.textContent('.tabella-live tbody tr:has-text("Anna Rossi") .tabella-feedback'))), 'consegna nuova (v2) con commenti solo sulla v1: la tabella dice «v2 senza commenti»');
 
   // Storia: i commenti seguono la consegna che si guarda (v2: nessuno, con la riga che dice dove sono gli altri; v1: i suoi 3; un'istantanea: nessuno)
-  await scrivi(`verifiche/vf/lavori/${ANNA}/storia/p0`, { programma: S(prog), nBlocchi: { integerValue: '5' }, t: T(Date.now() - 40 * MIN), tipo: S('periodica') });
+  await scrivi(`verifiche/vfeed/lavori/${ANNA}/storia/p0`, { programma: S(prog), nBlocchi: { integerValue: '5' }, t: T(Date.now() - 40 * MIN), tipo: S('periodica') });
   await page.click('.tabella-live tbody tr:has-text("Anna Rossi") button:has-text("Guarda")');
   await page.waitForSelector('.anteprima-blocchi svg.blocklySvg');
   await page.click('.verifica-scheda:has-text("Feedback")');
@@ -143,10 +143,11 @@ try {
 
   // lo studente: «Le mie consegne» → Guarda → «Feedback»: solo i pubblicati, di tutte le versioni
   const studente = await accedi(browser, ANNA, { nome: 'Anna Rossi' });
+  studente.page.on('dialog', (d) => d.accept());
   await studente.page.click('.cloud-menu-btn');
   await studente.page.click('.cloud-voce:has-text("Le mie consegne")');
   await studente.page.waitForSelector('.consegna-riga');
-  await studente.page.click('.consegna-riga:has-text("v1") button:has-text("Guarda")');
+  await studente.page.click('.consegne-gruppo:has-text("Verifica di prova") .consegna-riga:has-text("v1") button:has-text("Guarda")');
   await studente.page.waitForSelector('.anteprima-blocchi svg.blocklySvg');
   verifica(await finche(studente.page, async () => await studente.page.isVisible('.verifica-scheda:has-text("Feedback (2)")')), 'studente: la scheda si chiama «Feedback (2)» (la bozza non c\'è)');
   await studente.page.click('.verifica-scheda:has-text("Feedback")');
@@ -156,10 +157,20 @@ try {
   verifica(!(await studente.page.isVisible('.anteprima-feedback button:has-text("Commenta")')), 'studente: nessun pulsante per commentare');
   // la v2 di Anna (nessun commento su di lei): lo studente vede solo quelli della v2, con la riga che dice dove sono gli altri
   await studente.page.keyboard.press('Escape');
-  await studente.page.click('.consegna-riga:has-text("v2") button:has-text("Guarda")');
+  await studente.page.click('.consegne-gruppo:has-text("Verifica di prova") .consegna-riga:has-text("v2") button:has-text("Guarda")');
   await studente.page.waitForSelector('.anteprima-blocchi svg.blocklySvg');
   await studente.page.click('.verifica-scheda:has-text("Feedback")');
   verifica(await finche(studente.page, async () => (await studente.page.$$('.anteprima-feedback .commento')).length === 0 && /Consegna v2/.test(await studente.page.textContent('.anteprima-feedback')) && /v1 \(2\)/.test(await studente.page.textContent('.feedback-altre'))), 'studente sulla v2: nessun commento (sono sulla v1), con «anche su altre consegne: v1 (2)»');
+  // la v1 aperta nell'editor: il pannello dei commenti in sola lettura, accanto al codice
+  await studente.page.keyboard.press('Escape');
+  await studente.page.click('.consegne-gruppo:has-text("Verifica di prova") .consegna-riga:has-text("v1") button:has-text("Apri nell")');
+  await studente.page.waitForSelector('.feedback-pannello');
+  verifica(await finche(studente.page, async () => /Feedback del docente · v1 \(2\)/.test(await studente.page.textContent('.feedback-pannello .commenti-titolo'))), 'studente, v1 nell\'editor: pannello «Feedback del docente · v1 (2)»');
+  verifica((await studente.page.$$('.feedback-pannello .commento')).length === 2 && !(await studente.page.isVisible('.feedback-pannello textarea')) && !(await studente.page.isVisible('.feedback-pannello button:has-text("Pubblica")')) && !(await studente.page.isVisible('.feedback-pannello button:has-text("Elimina")')), '…i 2 commenti pubblicati, senza modulo né pulsanti (sola lettura)');
+  verifica(!/Un'ultima cosa/.test(await studente.page.textContent('.feedback-pannello')) && /modificato/.test(await studente.page.textContent('.feedback-pannello')), '…la bozza non c\'è e il commento corretto dopo la pubblicazione dice «modificato»');
+  await schermata(studente.page, 'f-studente-editor');
+  await studente.page.click('#btnNew');
+  verifica(await finche(studente.page, async () => !(await studente.page.isVisible('.feedback-pannello'))), '…e il pannello sparisce quando il programma viene sostituito');
   verifica(studente.errori.length === 0, `nessun errore nella pagina dello studente${studente.errori.length ? `: ${studente.errori.join(' | ')}` : ''}`);
 
   // il pannello sparisce quando la copia viene sostituita

@@ -7,6 +7,9 @@
 // sul foglio) il modulo per scrivere si blocca, perché gli id dei blocchi non sarebbero più quelli della consegna;
 // con Ctrl-Z che riporta la copia com'era si sblocca da solo. I commenti già scritti non si perdono mai: stanno sul cloud.
 //
+// Lo studente che apre la sua consegna nell'editor (consegne-ui.js) vede lo stesso pannello in SOLA LETTURA (`solaLettura`): solo i
+// commenti pubblicati su quella versione, senza modulo, bozze né pulsanti; cliccando il blocco di un commento lo si seleziona.
+//
 // Non conosce Blockly né Firebase: riceve `programma` (vedi main.js: bloccoSelezionato, onSelezione, onModifica,
 // esisteBlocco, selezionaBlocco, marcaBlocchi, onSostituzione, copiaDiProva.strutturaCambiata) e `feedback` (feedback.js).
 import { el } from './dom.js';
@@ -59,22 +62,30 @@ export function montaFeedbackEditor({ toast, programma }) {
 
   // `consegna` = { verificaId, studenteEmail, versione, corsoId }: l'ULTIMA versione dello studente. `nome`: «Anna Rossi».
   // `dopoCambio()`: chiamata dopo ogni scrittura (commento, modifica, eliminazione, pubblicazione): la tabella aggiorna i conteggi.
-  async function mostra({ api, consegna, nome, emailDocente, dopoCambio = null }) {
+  async function mostra({ api, consegna, nome, emailDocente, dopoCambio = null, solaLettura = false }) {
     nascondi();
     feedback = api;
     const mia = ++generazione;
-    contesto = { consegna, nome, emailDocente: String(emailDocente || '').toLowerCase(), dopoCambio };
+    contesto = { consegna, nome, emailDocente: String(emailDocente || '').toLowerCase(), dopoCambio, solaLettura };
     creaPannello();
     titoloEl.textContent = `${K.pannello}: carico…`;
     try {
-      mostrati = await feedback.perConsegna(consegna);
+      // Lo studente legge i propri pubblicati di tutta la verifica e tiene quelli di questa versione; il docente legge quelli della consegna.
+      mostrati = solaLettura
+        ? (await feedback.mieiPubblicati(consegna.verificaId)).filter((f) => f.versione === consegna.versione)
+        : await feedback.perConsegna(consegna);
     } catch (err) {
       if (mia !== generazione) return;
-      toast(messaggio(err), 'error');
+      if (!solaLettura) toast(messaggio(err), 'error');          // lo studente senza commenti da leggere non vede errori: l'editor funziona uguale
       nascondi();
       return;
     }
     if (mia !== generazione) return;
+    if (solaLettura) {
+      if (mostrati.length === 0) { nascondi(); return; }          // niente da leggere: niente pannello (come per i commenti degli sketch)
+      disegna();
+      return;
+    }
     offSel = programma.onSelezione(() => { if (contesto) aggiornaModulo(); });
     // Ogni modifica del programma: si ricontrolla se la struttura è ancora quella della consegna (con un po' di respiro).
     offMod = programma.onModifica(() => {
@@ -99,14 +110,14 @@ export function montaFeedbackEditor({ toast, programma }) {
     const { consegna, nome } = contesto;
     const bozza = areaTesto ? areaTesto.value : '';
     const n = mostrati.length;
-    titoloEl.textContent = `${K.pannello} a ${nome} · v${consegna.versione} (${n})`;
+    titoloEl.textContent = contesto.solaLettura ? `${K.pannelloStudente} · v${consegna.versione} (${n})` : `${K.pannello} a ${nome} · v${consegna.versione} (${n})`;
     programma.marcaBlocchi(mostrati.map((f) => f.bloccoId).filter(Boolean));
     corpoEl.textContent = '';
     corpoEl.hidden = !apertoCorpo;
     const lista = el('div', { class: 'commenti-lista' });
     if (n === 0) lista.append(el('p', { class: 'sketch-nota' }, K.nessuno));
     for (const f of mostrati) lista.append(scheda(f));
-    corpoEl.append(modulo(bozza), barraPubblica(), lista);
+    if (contesto.solaLettura) corpoEl.append(lista); else corpoEl.append(modulo(bozza), barraPubblica(), lista);
   }
 
   function barraPubblica() {
@@ -125,13 +136,15 @@ export function montaFeedbackEditor({ toast, programma }) {
       : esiste
         ? el('button', { type: 'button', class: 'commento-blocco', title: 'Vai al blocco', onclick: () => programma.selezionaBlocco(f.bloccoId) }, f.bloccoTesto || 'blocco')
         : el('span', { class: 'commento-orfano', title: 'Questo blocco non c\'è più nella copia che stai guardando' }, `blocco non presente: ${f.bloccoTesto || ''}`);
-    const stato = f.pubblicato
-      ? el('span', { class: 'cloud-badge feedback-badge-pubblicato' }, f.modificatoDopo ? K.pubblicatoModificato : K.pubblicato)
-      : el('span', { class: 'cloud-badge feedback-badge-bozza' }, K.bozza);
+    const stato = contesto.solaLettura
+      ? (f.modificatoDopo ? el('span', { class: 'cloud-badge feedback-badge-pubblicato' }, K.modificato) : '')
+      : f.pubblicato
+        ? el('span', { class: 'cloud-badge feedback-badge-pubblicato' }, f.modificatoDopo ? K.pubblicatoModificato : K.pubblicato)
+        : el('span', { class: 'cloud-badge feedback-badge-bozza' }, K.bozza);
     const mio = f.autoreEmail === contesto.emailDocente;
     const meta = [blocco, f.autoreNome || 'Docente', f.creato ? formatoData.format(f.creato) : '', stato]
       .filter(Boolean).flatMap((x, i) => (i ? [' · ', x] : [x]));
-    const azioni = el('span', { class: 'commento-azioni' },
+    const azioni = contesto.solaLettura ? '' : el('span', { class: 'commento-azioni' },
       mio ? el('button', { type: 'button', class: 'commento-azione', onclick: () => modifica(f) }, 'Modifica') : '',
       el('button', { type: 'button', class: 'commento-azione', onclick: () => elimina(f) }, 'Elimina'));
     return el('article', { class: 'commento' },

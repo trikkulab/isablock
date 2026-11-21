@@ -3,6 +3,7 @@
 // nell'editor per lavorarci (non cambia la consegna) o salvarla su file. Non c'è per le verifiche aperte né in verifica
 // (il menu del cloud, in verifica, è spento).
 import { el, apriFinestra, chiudiTutteLeFinestre } from './dom.js';
+import { montaFeedbackEditor } from './feedback-ui.js';
 import { creaPannelloTraccia } from './pannello-traccia.js';
 import { mostraTracciaEditor } from './scheda-traccia-editor.js';
 import { formatoDataOra } from './data-ora.js';
@@ -23,6 +24,7 @@ const slug = (t) => String(t ?? '').toLowerCase().normalize('NFD').replace(/[̀-
 export function montaConsegne({ toast, programma, dopoCaricamento = () => {} }) {
   let api = null;           // oggetto dello studente (verificaStudentePer) con mieConsegne()
   let corsi = null;         // i suoi corsi (corsiPer)
+  const feedbackUi = montaFeedbackEditor({ toast, programma });   // il pannello dei commenti nell'editor, in sola lettura per lo studente
   let feedbackApi = null;   // feedback.js: i commenti del docente (solo i pubblicati, a verifica chiusa)
   let finestra = null;
 
@@ -55,7 +57,7 @@ export function montaConsegne({ toast, programma, dopoCaricamento = () => {} }) 
     apriAnteprima({
       studente: true, etichettaCopia: K.apriNellEditor,
       caricaStoria: () => storiaDelloStudente(v, c, tutte),
-      apriCopia: ({ programma: json, tracciaId, quale }) => apriProgrammaInEditor(v, json, tracciaId ?? c.tracciaId, quale ? `${quale} · ${v.titolo}` : contestoTraccia(v, c), quale ? 'Il punto scelto è aperto nell\'editor' : `Consegna v${c.versione} aperta nell'editor`),
+      apriCopia: ({ programma: json, tracciaId, quale }) => apriProgrammaInEditor(v, json, tracciaId ?? c.tracciaId, quale ? `${quale} · ${v.titolo}` : contestoTraccia(v, c), quale ? 'Il punto scelto è aperto nell\'editor' : `Consegna v${c.versione} aperta nell'editor`, quale ? null : c),
       // La traccia che aveva, nella scheda «Traccia» aperta all'inizio: come in verifica. Lo studente legge solo la sua (regole del database).
       leggiTraccia: (id) => api.verifiche.leggiTraccia(v.id, id), schedaIniziale: 'traccia', contestoTraccia: contestoTraccia(v, c),
       // Scheda «Feedback»: i commenti pubblicati su QUESTA consegna (legati alla versione); se ce ne sono su altre, una riga lo dice.
@@ -69,7 +71,8 @@ export function montaConsegne({ toast, programma, dopoCaricamento = () => {} }) 
   }
 
   // Carica nell'editor un programma della sua verifica (la consegna o un punto della storia): una copia, la consegna non cambia.
-  function apriProgrammaInEditor(v, json, tracciaId, contesto, messaggio) {
+  // `c`: la consegna, se è lei che si apre (non un punto della storia): con i suoi commenti del docente accanto, in sola lettura.
+  function apriProgrammaInEditor(v, json, tracciaId, contesto, messaggio, c = null) {
     if (programma.occupato()) { toast('Interrompi l\'esecuzione prima di aprirlo.', 'error'); return; }
     if (!programma.isVuoto() && !window.confirm('Aprirlo nell\'editor? Il programma corrente andrà perso.')) return;
     try { programma.carica(json); } catch { toast('Non riesco ad aprire questo programma.', 'error'); return; }
@@ -81,9 +84,10 @@ export function montaConsegne({ toast, programma, dopoCaricamento = () => {} }) 
         .then(async (t) => mostraTracciaEditor(await creaPannelloTraccia({ traccia: t, contesto }), { apri: true }))
         .catch(() => {});
     }
+    if (c && feedbackApi) feedbackUi.mostra({ api: feedbackApi, solaLettura: true, nome: '', consegna: { verificaId: v.id, studenteEmail: api.email, versione: c.versione, corsoId: c.corsoId } });
     toast(`${messaggio}: è una copia, la consegna resta com'è.`, 'success');
   }
-  const apriInEditor = (v, c) => apriProgrammaInEditor(v, c.programma, c.tracciaId, contestoTraccia(v, c), `Consegna v${c.versione} aperta nell'editor`);
+  const apriInEditor = (v, c) => apriProgrammaInEditor(v, c.programma, c.tracciaId, contestoTraccia(v, c), `Consegna v${c.versione} aperta nell'editor`, c);
 
   function riga(v, c, valida, tutte) {
     const n = contaBlocchi(c.programma);
@@ -130,7 +134,8 @@ export function montaConsegne({ toast, programma, dopoCaricamento = () => {} }) 
 
   return {
     entra(apiStudente, corsiStudente, feedback = null) { api = apiStudente; corsi = corsiStudente; feedbackApi = feedback; },
-    esci() { api = null; corsi = null; feedbackApi = null; finestra?.chiudi(); finestra = null; },
+    esci() { api = null; corsi = null; feedbackApi = null; feedbackUi.nascondi(); finestra?.chiudi(); finestra = null; },
     apri,
+    nascondiFeedback: () => feedbackUi.nascondi(),   // Nuovo/file/esempio: il pannello era della consegna di prima
   };
 }

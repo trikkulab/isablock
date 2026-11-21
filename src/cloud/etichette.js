@@ -38,6 +38,7 @@ export const commentiEtichette = Object.freeze({
 // Feedback del docente sulle consegne di una verifica
 export const feedbackEtichette = Object.freeze({
   pannello: 'Feedback',
+  pannelloStudente: 'Feedback del docente',
   aggiungi: 'Aggiungi commento',
   interaConsegna: 'Sull\'intera consegna',
   pubblica: 'Pubblica feedback',

@@ -241,5 +241,5 @@ export function montaCloud({ contenitore, toast, programma, guida = null }) {
   if (eraEntrato()) carica().catch(() => memo(false));
 
   // Il programma è stato sostituito da altro: sketch aperto e commenti non valgono più.
-  return { scollega: () => { sketchUi.scollega(); commentiUi.nascondi(); corsiUi.nascondiFeedback(); nascondiBandaCopia(); nascondiTracciaEditor(); programma.copiaDiProva?.fine(); } };
+  return { scollega: () => { sketchUi.scollega(); commentiUi.nascondi(); corsiUi.nascondiFeedback(); consegneUi.nascondiFeedback(); nascondiBandaCopia(); nascondiTracciaEditor(); programma.copiaDiProva?.fine(); } };
 }
